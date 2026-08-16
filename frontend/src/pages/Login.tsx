@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { IS_OFFICE } from '@/utils/domain'
 import { Loader2 } from 'lucide-react'
 
 export default function Login() {
@@ -32,10 +34,12 @@ export default function Login() {
         </div>
         <div>
           <h1 className="font-display text-4xl leading-tight mb-4">
-            Bergerak dengan<br />niat & keseimbangan.
+            {IS_OFFICE ? <>Back office studio<br />dalam satu tempat.</> : <>Bergerak dengan<br />niat & keseimbangan.</>}
           </h1>
           <p className="text-white/70 max-w-sm">
-            Kelola jadwal kelas, paket, dan booking studio pilates Anda dalam satu tempat yang tenang.
+            {IS_OFFICE
+              ? 'Kelola jadwal kelas, paket, member, dan pembayaran studio pilates Anda.'
+              : 'Masuk untuk melihat sisa kuota dan mengelola paket keanggotaanmu.'}
           </p>
         </div>
         <div className="text-white/50 text-sm">© {new Date().getFullYear()} Reformer Your Body</div>
@@ -49,7 +53,7 @@ export default function Login() {
             <span className="font-display text-lg font-semibold">Reformer Your Body</span>
           </div>
 
-          <h2 className="font-display text-2xl font-semibold mb-1">Masuk</h2>
+          <h2 className="font-display text-2xl font-semibold mb-1">{IS_OFFICE ? 'Masuk Back Office' : 'Masuk'}</h2>
           <p className="text-ink/50 text-sm mb-6">Silakan masuk ke akun Anda.</p>
 
           <form onSubmit={onSubmit} className="space-y-4">
@@ -83,6 +87,12 @@ export default function Login() {
               Masuk
             </button>
           </form>
+
+          {!IS_OFFICE && (
+            <p className="text-sm text-ink/50 mt-6 text-center">
+              Belum punya akun? <Link to="/register" className="text-sage-700 font-semibold">Daftar sebagai member</Link>
+            </p>
+          )}
         </div>
       </div>
     </div>

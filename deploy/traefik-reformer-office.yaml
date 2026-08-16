@@ -1,0 +1,28 @@
+http:
+  routers:
+    # ── BACK OFFICE: office.reformeryourbody.com (DNS sudah menunjuk ke server) ──
+    reformer-office-http:
+      rule: "Host(`office.reformeryourbody.com`)"
+      entryPoints: [http]
+      middlewares: [reformer-redirect-to-https]
+      service: reformer-svc
+      priority: 100
+    reformer-office-https:
+      rule: "Host(`office.reformeryourbody.com`)"
+      entryPoints: [https]
+      service: reformer-svc
+      priority: 100
+      tls:
+        certResolver: letsencrypt
+
+  middlewares:
+    reformer-redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+  services:
+    reformer-svc:
+      loadBalancer:
+        servers:
+          - url: "http://pilates_frontend:80"
