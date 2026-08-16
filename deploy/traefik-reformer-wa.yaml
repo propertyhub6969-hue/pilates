@@ -1,0 +1,27 @@
+http:
+  routers:
+    reformer-wa-http:
+      rule: "Host(`wa.reformeryourbody.com`)"
+      entryPoints: [http]
+      middlewares: [reformer-wa-redirect-to-https]
+      service: reformer-wa-svc
+      priority: 100
+    reformer-wa-https:
+      rule: "Host(`wa.reformeryourbody.com`)"
+      entryPoints: [https]
+      service: reformer-wa-svc
+      priority: 100
+      tls:
+        certResolver: letsencrypt
+
+  middlewares:
+    reformer-wa-redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+  services:
+    reformer-wa-svc:
+      loadBalancer:
+        servers:
+          - url: "http://pilates_whatsapp:3000"
