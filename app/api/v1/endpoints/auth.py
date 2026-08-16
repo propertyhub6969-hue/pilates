@@ -11,6 +11,7 @@ from app.core.security import (
 from app.schemas.auth import (
     MemberRegister, UserLogin, Token, TokenRefresh, UserResponse,
 )
+from app.schemas.studio import ChangePassword
 from app.models.user import User, UserRole
 from app.api.deps import get_current_user
 
@@ -80,3 +81,17 @@ async def refresh(payload: TokenRefresh, db: AsyncSession = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 async def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.post("/change-password", status_code=204)
+async def change_password(
+    payload: ChangePassword,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Ganti password sendiri (butuh password lama)."""
+    if not verify_password(payload.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Password lama salah")
+    user.hashed_password = get_password_hash(payload.new_password)
+    await db.flush()
+    return None

@@ -11,6 +11,8 @@ import Members from '@/pages/Members'
 import MemberDetail from '@/pages/MemberDetail'
 import Packages from '@/pages/Packages'
 import Payments from '@/pages/Payments'
+import Settings from '@/pages/Settings'
+import Profile from '@/pages/Profile'
 import Layout from '@/components/Layout'
 
 function Splash() {
@@ -45,10 +47,12 @@ export default function App() {
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="jadwal" element={<Schedule />} />
+        <Route path="profil" element={<Profile />} />
         {staff && <Route path="member" element={<Members />} />}
         {staff && <Route path="member/:id" element={<MemberDetail />} />}
         {staff && <Route path="paket" element={<Packages />} />}
         {staff && <Route path="pembayaran" element={<Payments />} />}
+        {staff && <Route path="pengaturan" element={<Settings />} />}
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

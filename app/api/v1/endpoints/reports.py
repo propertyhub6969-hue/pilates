@@ -7,11 +7,102 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.deps import require_staff
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.schedule import ClassSession, ClassSessionStatus
 from app.models.booking import Booking, BookingStatus
+from app.models.payment import Payment, PaymentStatus
 
 router = APIRouter()
+
+
+class TodaySession(BaseModel):
+    id: uuid.UUID
+    title: str
+    start_time: str
+    booked_count: int
+    capacity: int
+    status: ClassSessionStatus
+
+
+class DashboardSummary(BaseModel):
+    members_active: int
+    revenue_month: float
+    payments_pending: int
+    attendance_rate_30d: float
+    today_sessions: List[TodaySession]
+
+
+@router.get("/dashboard", response_model=DashboardSummary)
+async def dashboard(db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    today = date.today()
+    month_start = today.replace(day=1)
+
+    members_active = (
+        await db.execute(
+            select(func.count()).select_from(User).where(
+                User.role == UserRole.MEMBER, User.is_active.is_(True)
+            )
+        )
+    ).scalar_one()
+
+    revenue_month = (
+        await db.execute(
+            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                Payment.status == PaymentStatus.PAID, Payment.created_at >= month_start
+            )
+        )
+    ).scalar_one()
+
+    payments_pending = (
+        await db.execute(
+            select(func.count()).select_from(Payment).where(Payment.status == PaymentStatus.PENDING)
+        )
+    ).scalar_one()
+
+    # Tingkat kehadiran 30 hari terakhir
+    since = today - timedelta(days=30)
+    att = dict((s, c) for s, c in (
+        await db.execute(
+            select(Booking.status, func.count())
+            .join(ClassSession, Booking.session_id == ClassSession.id)
+            .where(ClassSession.session_date >= since, ClassSession.session_date <= today)
+            .group_by(Booking.status)
+        )
+    ).all())
+    a, n = att.get(BookingStatus.ATTENDED, 0), att.get(BookingStatus.NO_SHOW, 0)
+    rate = round(a / (a + n), 3) if (a + n) else 0.0
+
+    # Kelas hari ini + jumlah booked
+    sessions = (
+        await db.execute(
+            select(ClassSession).where(ClassSession.session_date == today).order_by(ClassSession.start_time)
+        )
+    ).scalars().all()
+    booked = {}
+    if sessions:
+        for sid, c in (
+            await db.execute(
+                select(Booking.session_id, func.count())
+                .where(Booking.session_id.in_([s.id for s in sessions]), Booking.status == BookingStatus.BOOKED)
+                .group_by(Booking.session_id)
+            )
+        ).all():
+            booked[sid] = c
+    today_sessions = [
+        TodaySession(
+            id=s.id, title=s.title, start_time=s.start_time.strftime("%H:%M"),
+            booked_count=booked.get(s.id, 0), capacity=s.capacity, status=s.status,
+        )
+        for s in sessions
+    ]
+
+    return DashboardSummary(
+        members_active=members_active,
+        revenue_month=float(revenue_month or 0),
+        payments_pending=payments_pending,
+        attendance_rate_30d=rate,
+        today_sessions=today_sessions,
+    )
 
 
 class MemberAttendance(BaseModel):
