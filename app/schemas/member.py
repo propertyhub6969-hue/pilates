@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field
-from app.models.user import UserRole
+from app.models.user import UserRole, MemberCategory
 from app.models.package import MemberPackageStatus
 from app.models.payment import PaymentMethod, PaymentStatus
 
@@ -14,6 +14,7 @@ class UserCreate(BaseModel):
     full_name: str = Field(min_length=2, max_length=200)
     phone: Optional[str] = None
     role: UserRole = UserRole.MEMBER
+    member_category: Optional[MemberCategory] = None
     date_of_birth: Optional[date] = None
     emergency_contact: Optional[str] = None
     notes: Optional[str] = None
@@ -22,6 +23,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     full_name: Optional[str] = Field(default=None, min_length=2, max_length=200)
     phone: Optional[str] = None
+    member_category: Optional[MemberCategory] = None
     date_of_birth: Optional[date] = None
     emergency_contact: Optional[str] = None
     notes: Optional[str] = None
@@ -34,6 +36,7 @@ class UserBrief(BaseModel):
     email: EmailStr
     phone: Optional[str] = None
     role: UserRole
+    member_category: Optional[MemberCategory] = None
     is_active: bool
     # Ringkasan kuota (diisi utk role member)
     active_sessions_remaining: Optional[int] = None

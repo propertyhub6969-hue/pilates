@@ -12,6 +12,12 @@ class UserRole(str, enum.Enum):
     MEMBER = "member"         # Member/peserta — booking kelas, lihat paket & kuota
 
 
+class MemberCategory(str, enum.Enum):
+    BULANAN = "bulanan"        # Member bulanan (langganan)
+    PRIVATE = "private"        # Private training (1-on-1)
+    PER_DATANG = "per_datang"  # Bayar per datang (drop-in)
+
+
 # Peran yang mengelola operasional studio (bukan member/instruktur biasa)
 STAFF_ROLES = {UserRole.OWNER, UserRole.ADMIN}
 
@@ -34,6 +40,11 @@ class User(BaseModel):
         SAEnum(UserRole), default=UserRole.MEMBER, nullable=False, index=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Kategori member (bulanan/private/per_datang) — hanya relevan utk role member
+    member_category: Mapped[MemberCategory] = mapped_column(
+        SAEnum(MemberCategory), nullable=True, index=True
+    )
 
     # Data member (opsional — hanya relevan utk role member/instruktur)
     date_of_birth: Mapped[date] = mapped_column(Date, nullable=True)

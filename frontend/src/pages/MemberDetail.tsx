@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
-import type { MemberDetail as TDetail, Package, Page, PaymentMethod } from '@/types'
-import { STATUS_LABEL, PAY_STATUS_LABEL, METHOD_LABEL, ROLE_LABEL } from '@/types'
+import type { MemberDetail as TDetail, Package, Page, PaymentMethod, MemberCategory } from '@/types'
+import { STATUS_LABEL, PAY_STATUS_LABEL, METHOD_LABEL, ROLE_LABEL, CATEGORY_LABEL } from '@/types'
 import { formatRupiah, formatDate, formatDateTime } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
@@ -57,11 +57,12 @@ export default function MemberDetail() {
   })
 
   const [editOpen, setEditOpen] = useState(false)
-  const [editForm, setEditForm] = useState({ full_name: '', phone: '', date_of_birth: '', emergency_contact: '', notes: '' })
+  const [editForm, setEditForm] = useState({ full_name: '', phone: '', member_category: '' as MemberCategory | '', date_of_birth: '', emergency_contact: '', notes: '' })
   const edit = useMutation({
     mutationFn: async () => api.patch(`/members/${id}`, {
       full_name: editForm.full_name,
       phone: editForm.phone || null,
+      member_category: editForm.member_category || null,
       date_of_birth: editForm.date_of_birth || null,
       emergency_contact: editForm.emergency_contact || null,
       notes: editForm.notes || null,
@@ -71,7 +72,7 @@ export default function MemberDetail() {
   })
   function openEdit(data: TDetail) {
     setEditForm({
-      full_name: data.full_name, phone: data.phone ?? '',
+      full_name: data.full_name, phone: data.phone ?? '', member_category: data.member_category ?? '',
       date_of_birth: data.date_of_birth ?? '', emergency_contact: data.emergency_contact ?? '', notes: data.notes ?? '',
     })
     setError(''); setEditOpen(true)
@@ -90,6 +91,7 @@ export default function MemberDetail() {
             <div className="flex items-center gap-2">
               <h1 className="font-display text-2xl font-semibold">{m.full_name}</h1>
               <span className="text-xs bg-sand rounded-full px-2 py-0.5 text-ink/60">{ROLE_LABEL[m.role]}</span>
+              {m.member_category && <span className="text-xs bg-copper-50 text-copper-700 border border-copper-100 rounded-full px-2 py-0.5">{CATEGORY_LABEL[m.member_category]}</span>}
               {!m.is_active && <span className="text-xs text-clay">non-aktif</span>}
               <button onClick={() => openEdit(m)} className="btn-ghost !px-2 !py-1 text-ink/50" title="Edit member"><Pencil size={15} /></button>
             </div>
@@ -176,6 +178,18 @@ export default function MemberDetail() {
               onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="08123456789" />
             <p className="text-[11px] text-ink/40 mt-1">Reminder H-1 kelas dikirim ke nomor ini via WhatsApp.</p>
           </div>
+          {m.role === 'member' && (
+            <div>
+              <label className="label">Kategori member</label>
+              <select className="input" value={editForm.member_category}
+                onChange={(e) => setEditForm({ ...editForm, member_category: e.target.value as MemberCategory | '' })}>
+                <option value="">— belum diatur —</option>
+                <option value="bulanan">Bulanan</option>
+                <option value="private">Private Training</option>
+                <option value="per_datang">Per Datang</option>
+              </select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Tgl lahir</label>

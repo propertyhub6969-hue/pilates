@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.api.deps import get_current_user, require_staff, require_owner
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, MemberCategory
 from app.models.package import Package, MemberPackage, MemberPackageStatus
 from app.models.payment import Payment, PaymentStatus
 from app.schemas.common import Page
@@ -30,6 +30,7 @@ def _can_manage_role(actor: User, target_role: UserRole) -> None:
 @router.get("", response_model=Page[UserBrief])
 async def list_users(
     role: UserRole | None = Query(None, description="Filter peran (mis. member/instructor)"),
+    category: MemberCategory | None = Query(None, description="Filter kategori member"),
     q: str | None = Query(None, description="Cari nama/email/telepon"),
     active_only: bool = Query(False),
     limit: int = Query(50, le=200),
@@ -40,6 +41,8 @@ async def list_users(
     stmt = select(User)
     if role:
         stmt = stmt.where(User.role == role)
+    if category:
+        stmt = stmt.where(User.member_category == category)
     if active_only:
         stmt = stmt.where(User.is_active.is_(True))
     if q:

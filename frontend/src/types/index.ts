@@ -1,4 +1,14 @@
 export type UserRole = 'owner' | 'admin' | 'instructor' | 'member'
+export type MemberCategory = 'bulanan' | 'private' | 'per_datang'
+
+export const CATEGORY_LABEL: Record<MemberCategory, string> = {
+  bulanan: 'Bulanan',
+  private: 'Private Training',
+  per_datang: 'Per Datang',
+}
+export const CATEGORY_SHORT: Record<MemberCategory, string> = {
+  bulanan: 'Bulanan', private: 'Private', per_datang: 'Per Datang',
+}
 
 export interface User {
   id: string
@@ -6,6 +16,7 @@ export interface User {
   full_name: string
   phone?: string | null
   role: UserRole
+  member_category?: MemberCategory | null
   is_active: boolean
   date_of_birth?: string | null
   join_date?: string | null
