@@ -1,6 +1,6 @@
 http:
   routers:
-    # ── BACK OFFICE: office.reformeryourbody.com (DNS sudah menunjuk ke server) ──
+    # ── BACK OFFICE: office.reformeryourbody.com ──
     reformer-office-http:
       rule: "Host(`office.reformeryourbody.com`)"
       entryPoints: [http]
@@ -9,6 +9,21 @@ http:
       priority: 100
     reformer-office-https:
       rule: "Host(`office.reformeryourbody.com`)"
+      entryPoints: [https]
+      service: reformer-svc
+      priority: 100
+      tls:
+        certResolver: letsencrypt
+
+    # ── LANDING PUBLIK: reformeryourbody.com + www ──
+    reformer-apex-http:
+      rule: "Host(`reformeryourbody.com`) || Host(`www.reformeryourbody.com`)"
+      entryPoints: [http]
+      middlewares: [reformer-redirect-to-https]
+      service: reformer-svc
+      priority: 100
+    reformer-apex-https:
+      rule: "Host(`reformeryourbody.com`) || Host(`www.reformeryourbody.com`)"
       entryPoints: [https]
       service: reformer-svc
       priority: 100
