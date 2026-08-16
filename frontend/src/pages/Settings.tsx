@@ -11,6 +11,7 @@ interface StudioSettings {
   phone?: string | null
   cancellation_window_hours: number
   booking_lead_close_hours: number
+  drop_in_price: number
 }
 
 export default function Settings() {
@@ -29,6 +30,7 @@ export default function Settings() {
       name: f.name, tagline: f.tagline || null, address: f.address || null, phone: f.phone || null,
       cancellation_window_hours: Number(f.cancellation_window_hours),
       booking_lead_close_hours: Number(f.booking_lead_close_hours),
+      drop_in_price: Number(f.drop_in_price ?? 0),
     })).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['studio-settings'] })
@@ -72,6 +74,12 @@ export default function Settings() {
                 onChange={(e) => setF({ ...f, booking_lead_close_hours: Number(e.target.value) })} />
               <p className="text-[11px] text-ink/40 mt-1">0 = boleh booking sampai kelas mulai.</p>
             </div>
+          </div>
+          <div>
+            <label className="label">Harga drop-in / per datang (Rp)</label>
+            <input className="input" type="number" min={0} value={f.drop_in_price ?? 0}
+              onChange={(e) => setF({ ...f, drop_in_price: Number(e.target.value) })} placeholder="75000" />
+            <p className="text-[11px] text-ink/40 mt-1">Tagihan sekali bayar untuk member kategori "Per Datang" yang booking tanpa paket.</p>
           </div>
         </div>
 

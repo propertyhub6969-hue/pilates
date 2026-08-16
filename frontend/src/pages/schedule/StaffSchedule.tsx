@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import { useBranch } from '@/context/BranchContext'
@@ -8,7 +8,7 @@ import { formatTime, formatDayDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   Plus, RefreshCw, Users, UserRound, MapPin, Loader2, CalendarDays,
-  Pencil, Trash2, XCircle, CalendarClock, CheckCircle2, RotateCcw,
+  Pencil, Trash2, XCircle, CalendarClock, CheckCircle2, RotateCcw, ChevronRight,
 } from 'lucide-react'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -139,42 +139,55 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
         </button>
       </div>
 
-      {isLoading ? <div className="text-ink/40 py-10 text-center">Memuat…</div>
-        : (sessions?.length ?? 0) === 0 ? (
-          <div className="card text-center text-ink/50 py-10">
-            <CalendarDays className="mx-auto mb-2 text-ink/30" size={28} />
-            Belum ada sesi. Buat template lalu <b>Generate</b>, atau tambah sesi manual.
-          </div>
-        ) : (
-          <div className="space-y-5">
-            {Array.from(groups.entries()).map(([day, list]) => (
-              <div key={day}>
-                <h3 className="font-display font-semibold mb-2 capitalize">{formatDayDate(day)}</h3>
-                <div className="space-y-2">
-                  {list.map((s) => (
-                    <button key={s.id} onClick={() => setRosterFor(s)}
-                      className={`w-full card flex items-center gap-4 text-left hover:shadow-card transition ${s.status === 'cancelled' ? 'opacity-50' : ''}`}>
-                      <div className="text-center shrink-0 w-14">
-                        <div className="font-display text-lg font-semibold text-copper-700">{formatTime(s.start_time)}</div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold truncate">{s.title} {s.status === 'cancelled' && <span className="text-clay text-xs">(dibatalkan)</span>}</div>
-                        <div className="text-xs text-ink/50 flex flex-wrap gap-x-3 mt-0.5">
-                          {s.instructor_name && <span className="inline-flex items-center gap-1"><UserRound size={12} />{s.instructor_name}</span>}
-                          {s.room && <span className="inline-flex items-center gap-1"><MapPin size={12} />{s.room}</span>}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="inline-flex items-center gap-1 text-sm font-semibold"><Users size={14} />{s.booked_count}/{s.capacity}</div>
-                        {s.waitlist_count > 0 && <div className="text-[11px] text-clay-dark">+{s.waitlist_count} waitlist</div>}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="card !p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-ink/45 text-xs uppercase tracking-wide border-b border-sand">
+                <th className="font-semibold px-4 py-3">Jam</th>
+                <th className="font-semibold px-4 py-3">Kelas</th>
+                <th className="font-semibold px-4 py-3 hidden sm:table-cell">Instruktur</th>
+                <th className="font-semibold px-4 py-3 hidden md:table-cell">Ruang</th>
+                <th className="font-semibold px-4 py-3">Terisi</th>
+                <th className="font-semibold px-4 py-3">Status</th>
+                <th className="w-8"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-ink/40">Memuat…</td></tr>
+              ) : (sessions?.length ?? 0) === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-ink/40">Belum ada sesi. Buat template lalu Generate, atau tambah sesi manual.</td></tr>
+              ) : (
+                Array.from(groups.entries()).map(([day, list]) => (
+                  <Fragment key={day}>
+                    <tr className="bg-sand/50"><td colSpan={7} className="px-4 py-2 font-display font-semibold capitalize text-ink/70">{formatDayDate(day)}</td></tr>
+                    {list.map((s) => (
+                      <tr key={s.id} onClick={() => setRosterFor(s)}
+                        className={`border-b border-sand/60 hover:bg-sand/40 cursor-pointer transition ${s.status === 'cancelled' ? 'opacity-50' : ''}`}>
+                        <td className="px-4 py-3 font-display font-semibold text-copper-700 whitespace-nowrap">{formatTime(s.start_time)}</td>
+                        <td className="px-4 py-3 font-semibold">{s.title}</td>
+                        <td className="px-4 py-3 text-ink/60 hidden sm:table-cell">{s.instructor_name ?? '—'}</td>
+                        <td className="px-4 py-3 text-ink/60 hidden md:table-cell">{s.room ?? '—'}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 font-semibold"><Users size={14} />{s.booked_count}/{s.capacity}</span>
+                          {s.waitlist_count > 0 && <span className="text-[11px] text-clay-dark ml-1">+{s.waitlist_count} wl</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          {s.status === 'cancelled' ? <span className="text-xs rounded-full px-2 py-0.5 bg-clay/10 text-clay-dark">Dibatalkan</span>
+                            : s.status === 'completed' ? <span className="text-xs rounded-full px-2 py-0.5 bg-sand text-ink/50">Selesai</span>
+                            : <span className="text-xs rounded-full px-2 py-0.5 bg-copper-100 text-copper-700">Terjadwal</span>}
+                        </td>
+                        <td className="px-2"><ChevronRight size={16} className="text-ink/30" /></td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {openNew && <SessionForm qc={qc} onClose={() => setOpenNew(false)} />}
       {rosterFor && <RosterModal qc={qc} session={rosterFor} onClose={() => setRosterFor(null)} />}

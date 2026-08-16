@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, Text
+from sqlalchemy import String, Integer, Text, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import BaseModel
 
@@ -22,3 +22,6 @@ class StudioSettings(BaseModel):
     cancellation_window_hours: Mapped[int] = mapped_column(Integer, default=12, nullable=False)
     # Berapa jam sebelum kelas mulai member masih boleh booking (0 = sampai mulai).
     booking_lead_close_hours: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Harga sekali datang (drop-in) untuk member kategori "per datang" tanpa paket.
+    drop_in_price: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)

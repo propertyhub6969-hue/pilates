@@ -34,6 +34,10 @@ class Payment(BaseModel):
     member_package_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("member_packages.id", ondelete="SET NULL"), nullable=True
     )
+    # Untuk pembayaran drop-in (per datang) — tautkan ke booking-nya
+    booking_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True
+    )
 
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     method: Mapped[PaymentMethod] = mapped_column(

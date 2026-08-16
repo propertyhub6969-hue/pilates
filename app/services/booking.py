@@ -21,6 +21,8 @@ from app.models.studio import StudioSettings
 from app.models.schedule import ClassSession, ClassSessionStatus, ClassTemplate
 from app.models.booking import Booking, BookingStatus
 from app.models.package import MemberPackage
+from app.models.user import User, MemberCategory
+from app.models.payment import Payment, PaymentMethod, PaymentStatus
 from app.services.quota import is_usable, refresh_status
 
 TZ = ZoneInfo(settings.TIMEZONE)
@@ -99,6 +101,38 @@ def _refund_quota(mp: MemberPackage) -> None:
         refresh_status(mp)
 
 
+async def _ensure_dropin_payment(db: AsyncSession, booking: Booking, session: ClassSession) -> None:
+    """Buat tagihan drop-in (per datang) utk booking ini bila belum ada. Status PENDING —
+    ditagih/ditandai lunas saat member datang & bayar."""
+    exists = (
+        await db.execute(select(Payment).where(Payment.booking_id == booking.id))
+    ).scalar_one_or_none()
+    if exists:
+        return
+    studio = await get_studio(db)
+    d = session.session_date
+    db.add(Payment(
+        member_id=booking.member_id,
+        booking_id=booking.id,
+        amount=float(studio.drop_in_price or 0),
+        method=PaymentMethod.CASH,
+        status=PaymentStatus.PENDING,
+        note=f"Drop-in (per datang) — {session.title}, {d.day}/{d.month}/{d.year}",
+    ))
+
+
+async def _void_dropin_payment(db: AsyncSession, booking: Booking) -> None:
+    """Saat booking drop-in dibatalkan: hapus tagihan pending, atau tandai refund bila sudah lunas."""
+    pays = (
+        await db.execute(select(Payment).where(Payment.booking_id == booking.id))
+    ).scalars().all()
+    for p in pays:
+        if p.status == PaymentStatus.PENDING:
+            await db.delete(p)
+        elif p.status == PaymentStatus.PAID:
+            p.status = PaymentStatus.REFUNDED
+
+
 async def book_session(db: AsyncSession, session: ClassSession, member_id) -> Booking:
     """Member (atau admin atas nama member) memesan slot pada sesi."""
     if session.status != ClassSessionStatus.SCHEDULED:
@@ -120,9 +154,13 @@ async def book_session(db: AsyncSession, session: ClassSession, member_id) -> Bo
     if existing and existing.status in (BookingStatus.BOOKED, BookingStatus.WAITLIST, BookingStatus.ATTENDED):
         raise HTTPException(400, "Anda sudah memesan sesi ini")
 
+    member = (await db.execute(select(User).where(User.id == member_id))).scalar_one_or_none()
     mp = await _pick_usable_package(db, member_id)
-    if mp is None:
+    # Drop-in: member kategori "per datang" boleh booking tanpa paket (bayar 1x di tempat)
+    allow_dropin = bool(member and member.member_category == MemberCategory.PER_DATANG)
+    if mp is None and not allow_dropin:
         raise HTTPException(400, "Tidak ada paket aktif dengan sisa kuota. Beli/aktifkan paket dulu.")
+    use_dropin = mp is None  # tak punya paket → jalur drop-in
 
     taken = await booked_count(db, session.id)
     go_waitlist = taken >= session.capacity
@@ -135,16 +173,24 @@ async def book_session(db: AsyncSession, session: ClassSession, member_id) -> Bo
     if go_waitlist:
         booking.status = BookingStatus.WAITLIST
         booking.waitlist_position = (await waitlist_count(db, session.id)) + 1
-        booking.member_package_id = None  # kuota belum ditahan utk waitlist
+        booking.member_package_id = None  # kuota/tagihan belum ditahan utk waitlist
     else:
         booking.status = BookingStatus.BOOKED
         booking.waitlist_position = None
-        booking.member_package_id = mp.id
-        _hold_quota(mp)
+        if use_dropin:
+            booking.member_package_id = None
+        else:
+            booking.member_package_id = mp.id
+            _hold_quota(mp)
 
     if existing is None:
         db.add(booking)
     await db.flush()
+
+    # Booking drop-in terkonfirmasi → buat tagihan per-datang
+    if not go_waitlist and use_dropin:
+        await _ensure_dropin_payment(db, booking, session)
+        await db.flush()
     return booking
 
 
@@ -169,6 +215,10 @@ async def cancel_booking(db: AsyncSession, booking: Booking) -> None:
         if mp:
             _refund_quota(mp)
 
+    # Booking drop-in (tanpa paket) → batalkan/refund tagihannya
+    if booking.member_package_id is None:
+        await _void_dropin_payment(db, booking)
+
     booking.status = BookingStatus.CANCELLED
     booking.cancelled_at = now_local()
     booking.member_package_id = None
@@ -192,12 +242,19 @@ async def _promote_waitlist(db: AsyncSession, session: ClassSession) -> None:
     ).scalars().all()
     for w in waiters:
         mp = await _pick_usable_package(db, w.member_id)
-        if mp is None:
-            continue  # lewati yg tak punya kuota, coba berikutnya
+        member = (await db.execute(select(User).where(User.id == w.member_id))).scalar_one_or_none()
+        allow_dropin = bool(member and member.member_category == MemberCategory.PER_DATANG)
+        if mp is None and not allow_dropin:
+            continue  # tak punya kuota & bukan per-datang → lewati, coba berikutnya
         w.status = BookingStatus.BOOKED
         w.waitlist_position = None
-        w.member_package_id = mp.id
-        _hold_quota(mp)
+        if mp is not None:
+            w.member_package_id = mp.id
+            _hold_quota(mp)
+        else:
+            w.member_package_id = None
+            await db.flush()
+            await _ensure_dropin_payment(db, w, session)
         await db.flush()
         break
 

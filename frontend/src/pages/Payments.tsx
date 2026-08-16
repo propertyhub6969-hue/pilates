@@ -86,7 +86,11 @@ export default function Payments() {
                   <tr key={p.id} className="border-b border-sand/60 last:border-0 hover:bg-sand/40 transition">
                     <td className="px-4 py-3 text-ink/60 whitespace-nowrap">{formatDateTime(p.created_at)}</td>
                     <td className="px-4 py-3 font-semibold text-ink">{p.member_name ?? '—'}</td>
-                    <td className="px-4 py-3 text-ink/60 hidden md:table-cell">{p.package_name ?? '—'}</td>
+                    <td className="px-4 py-3 text-ink/60 hidden md:table-cell">
+                      {p.package_name ?? (p.note?.startsWith('Drop-in')
+                        ? <span className="text-xs rounded-full px-2 py-0.5 bg-copper-50 text-copper-700 border border-copper-100">Drop-in</span>
+                        : '—')}
+                    </td>
                     <td className="px-4 py-3 text-ink/60 hidden sm:table-cell">{METHOD_LABEL[p.method]}</td>
                     <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">{formatRupiah(p.amount)}</td>
                     <td className="px-4 py-3"><StatusBadge s={p.status} /></td>
