@@ -47,6 +47,8 @@ class Booking(BaseModel):
     booked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     checked_in_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Penanda reminder WhatsApp H-1 sudah terkirim (agar tak dobel)
+    reminder_sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     note: Mapped[str] = mapped_column(Text, nullable=True)
 
     member: Mapped["User"] = relationship("User", back_populates="bookings", foreign_keys=[member_id])

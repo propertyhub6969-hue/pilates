@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     # Timezone — studio single-lokasi. WIB default; ganti di .env kalau beda.
     TIMEZONE: str = "Asia/Jakarta"
 
+    # WhatsApp reminder (gateway gowa / go-whatsapp-web-multidevice)
+    WA_ENABLED: bool = False               # False = dry-run (tak kirim sungguhan)
+    WA_GATEWAY_URL: str = ""               # mis. http://host.docker.internal:8056
+    WA_BASIC_AUTH: str = ""                # "user:password" utk basic auth gateway
+    REMINDER_HOUR_LOCAL: int = 17          # jam (zona studio) daemon kirim reminder H-1
+    STUDIO_WA_SIGNATURE: str = "Reformer Your Body"  # nama pengirim di teks pesan
+
     class Config:
         env_file = ".env"
         case_sensitive = True
