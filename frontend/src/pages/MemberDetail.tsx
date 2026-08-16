@@ -8,7 +8,7 @@ import { formatRupiah, formatDate, formatDateTime } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   ArrowLeft, Plus, Loader2, Snowflake, Infinity as InfinityIcon,
-  Wallet, ShoppingBag, Phone, Mail,
+  Wallet, ShoppingBag, Phone, Mail, Pencil,
 } from 'lucide-react'
 
 const STATUS_STYLE: Record<string, string> = {
@@ -56,6 +56,27 @@ export default function MemberDetail() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['member', id] }),
   })
 
+  const [editOpen, setEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState({ full_name: '', phone: '', date_of_birth: '', emergency_contact: '', notes: '' })
+  const edit = useMutation({
+    mutationFn: async () => api.patch(`/members/${id}`, {
+      full_name: editForm.full_name,
+      phone: editForm.phone || null,
+      date_of_birth: editForm.date_of_birth || null,
+      emergency_contact: editForm.emergency_contact || null,
+      notes: editForm.notes || null,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['member', id] }); setEditOpen(false) },
+    onError: (e: any) => setError(e?.response?.data?.detail ?? 'Gagal menyimpan'),
+  })
+  function openEdit(data: TDetail) {
+    setEditForm({
+      full_name: data.full_name, phone: data.phone ?? '',
+      date_of_birth: data.date_of_birth ?? '', emergency_contact: data.emergency_contact ?? '', notes: data.notes ?? '',
+    })
+    setError(''); setEditOpen(true)
+  }
+
   if (isLoading || !m) return <div className="text-ink/40 py-10 text-center">Memuat…</div>
 
   return (
@@ -70,10 +91,13 @@ export default function MemberDetail() {
               <h1 className="font-display text-2xl font-semibold">{m.full_name}</h1>
               <span className="text-xs bg-sand rounded-full px-2 py-0.5 text-ink/60">{ROLE_LABEL[m.role]}</span>
               {!m.is_active && <span className="text-xs text-clay">non-aktif</span>}
+              <button onClick={() => openEdit(m)} className="btn-ghost !px-2 !py-1 text-ink/50" title="Edit member"><Pencil size={15} /></button>
             </div>
             <div className="mt-2 text-sm text-ink/60 flex flex-wrap gap-x-4 gap-y-1">
               <span className="inline-flex items-center gap-1"><Mail size={14} />{m.email}</span>
-              {m.phone && <span className="inline-flex items-center gap-1"><Phone size={14} />{m.phone}</span>}
+              {m.phone
+                ? <span className="inline-flex items-center gap-1"><Phone size={14} />{m.phone}</span>
+                : <button onClick={() => openEdit(m)} className="inline-flex items-center gap-1 text-sage-600 font-medium"><Phone size={14} />+ No. WhatsApp</button>}
               {m.join_date && <span>Bergabung {formatDate(m.join_date)}</span>}
             </div>
           </div>
@@ -137,6 +161,44 @@ export default function MemberDetail() {
           {m.payments.length === 0 && <div className="text-ink/40 text-sm py-4 text-center">Belum ada pembayaran.</div>}
         </div>
       </div>
+
+      {/* Modal edit member */}
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Member">
+        <form onSubmit={(e) => { e.preventDefault(); setError(''); edit.mutate() }} className="space-y-4">
+          <div>
+            <label className="label">Nama lengkap</label>
+            <input className="input" required value={editForm.full_name}
+              onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">No. WhatsApp <span className="text-sage-600">· untuk pengingat kelas</span></label>
+            <input className="input" value={editForm.phone}
+              onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="08123456789" />
+            <p className="text-[11px] text-ink/40 mt-1">Reminder H-1 kelas dikirim ke nomor ini via WhatsApp.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Tgl lahir</label>
+              <input className="input" type="date" value={editForm.date_of_birth}
+                onChange={(e) => setEditForm({ ...editForm, date_of_birth: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">Kontak darurat</label>
+              <input className="input" value={editForm.emergency_contact}
+                onChange={(e) => setEditForm({ ...editForm, emergency_contact: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <label className="label">Catatan (medis/preferensi)</label>
+            <textarea className="input" rows={2} value={editForm.notes}
+              onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
+          </div>
+          {error && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{error}</div>}
+          <button type="submit" disabled={edit.isPending} className="btn-primary w-full">
+            {edit.isPending && <Loader2 size={16} className="animate-spin" />} Simpan
+          </button>
+        </form>
+      </Modal>
 
       {/* Modal jual paket */}
       <Modal open={open} onClose={() => setOpen(false)} title="Jual Paket">
