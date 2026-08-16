@@ -1,0 +1,68 @@
+# Compose PRODUKSI — deploy manual: `docker compose -f docker-compose.prod.yml up -d --build`
+# Routing domain lewat proxy Coolify (Traefik) yang sudah jalan di VPS ini,
+# sama pola dgn NexistHub & POS. Ganti host rule ke domain final saat DNS siap.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pilates_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:5436:5432"   # localhost saja — DB tak boleh terjangkau dari internet
+    volumes:
+      - pilates_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pilates_net
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pilates_backend
+    restart: always
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2"
+    networks:
+      - pilates_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pilates_frontend
+    restart: always
+    depends_on:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=coolify"
+      - "traefik.http.routers.pilates.rule=Host(`pilates.nexisthub.id`)"
+      - "traefik.http.routers.pilates.entrypoints=http"
+      - "traefik.http.services.pilates.loadbalancer.server.port=80"
+    networks:
+      - pilates_net
+      - coolify
+
+volumes:
+  pilates_pg:
+
+networks:
+  pilates_net:
+    name: pilates_network
+  coolify:
+    external: true

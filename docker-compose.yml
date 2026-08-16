@@ -1,0 +1,51 @@
+# Compose DEV/LOKAL — untuk pengembangan & smoke-test di VPS ini.
+# DB diikat ke localhost:5436 (5434=nexisthub, 5435=pos). Backend diekspos di 8010 utk uji.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pilates_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:5436:5432"
+    volumes:
+      - pilates_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - pilates_net
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pilates_backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+    volumes:
+      - .:/app          # mount source: hot-reload & migrasi hasil autogenerate tersimpan ke host
+    ports:
+      - "127.0.0.1:8010:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    networks:
+      - pilates_net
+
+volumes:
+  pilates_pg:
+
+networks:
+  pilates_net:
+    name: pilates_network
