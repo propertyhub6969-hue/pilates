@@ -41,6 +41,9 @@ async def send_whatsapp(phone: str, message: str) -> tuple[bool, str]:
     if settings.WA_BASIC_AUTH:
         token = base64.b64encode(settings.WA_BASIC_AUTH.encode()).decode()
         headers["Authorization"] = f"Basic {token}"
+    if settings.WA_DEVICE_ID:
+        # gowa multi-akun: tiap kirim wajib menyertakan device (akun WA) yang dipakai
+        headers["X-Device-Id"] = settings.WA_DEVICE_ID
 
     url = settings.WA_GATEWAY_URL.rstrip("/") + "/send/message"
     payload = {"phone": num, "message": message}

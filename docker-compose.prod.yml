@@ -58,7 +58,9 @@ services:
   # Gateway WhatsApp khusus studio (nomor sendiri, terpisah dari gowa NexistHub).
   # Scan QR sekali via UI-nya (127.0.0.1:8057 atau subdomain), sesi tersimpan di volume.
   whatsapp:
-    image: ghcr.io/aldinokemal/go-whatsapp-web-multidevice:latest
+    # Pin ke versi single-akun yg sama dgn gowa NexistHub (API cocok dgn adapter kita).
+    # `:latest` kini multi-akun (butuh device_id) & tak kompatibel.
+    image: ghcr.io/aldinokemal/go-whatsapp-web-multidevice@sha256:cdfae0dda4f8a4b36a1a3214e5599a14c6d5b86912aff0574f230af5b5ebe213
     container_name: pilates_whatsapp
     restart: always
     command: rest
