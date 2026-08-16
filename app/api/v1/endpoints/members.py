@@ -50,7 +50,30 @@ async def list_users(
     rows = (
         await db.execute(stmt.order_by(User.full_name.asc()).limit(limit).offset(offset))
     ).scalars().all()
-    return Page(items=rows, total=total)
+
+    # Ringkasan kuota utk member yang tampil di halaman ini
+    member_ids = [u.id for u in rows if u.role == UserRole.MEMBER]
+    quota: dict = {}
+    if member_ids:
+        mps = (
+            await db.execute(select(MemberPackage).where(MemberPackage.member_id.in_(member_ids)))
+        ).scalars().all()
+        by_member: dict = {}
+        for mp in mps:
+            by_member.setdefault(mp.member_id, []).append(mp)
+        for mid, pkgs in by_member.items():
+            usable = [mp for mp in pkgs if is_usable(mp)]
+            has_unl = any(mp.is_unlimited for mp in usable)
+            remaining = None if has_unl else sum((mp.sessions_remaining or 0) for mp in usable)
+            quota[mid] = (remaining, has_unl)
+
+    items = []
+    for u in rows:
+        brief = UserBrief.model_validate(u)
+        if u.id in quota:
+            brief.active_sessions_remaining, brief.has_unlimited = quota[u.id]
+        items.append(brief)
+    return Page(items=items, total=total)
 
 
 @router.post("", response_model=UserBrief, status_code=201)

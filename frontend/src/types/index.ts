@@ -9,7 +9,10 @@ export interface User {
   is_active: boolean
   date_of_birth?: string | null
   join_date?: string | null
-  created_at: string
+  created_at?: string
+  // Ringkasan kuota (diisi di daftar member)
+  active_sessions_remaining?: number | null
+  has_unlimited?: boolean
 }
 
 export interface TokenPair {

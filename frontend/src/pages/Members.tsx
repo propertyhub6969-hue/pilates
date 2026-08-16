@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
+import { waLink } from '@/utils/format'
 import type { Page, User, UserRole } from '@/types'
 import Modal from '@/components/Modal'
-import { Plus, Search, ChevronRight, Loader2, UserRound, ChevronLeft } from 'lucide-react'
+import { Plus, Search, ChevronRight, Loader2, UserRound, ChevronLeft, MessageCircle, Infinity as InfinityIcon } from 'lucide-react'
 
 type Tab = 'member' | 'instructor'
 const PAGE_SIZE = 15
@@ -59,8 +60,8 @@ export default function Members() {
         </button>
       </div>
 
-      {/* Tab + pencarian (sticky) */}
-      <div className="sticky top-16 z-10 bg-cream/95 backdrop-blur py-2 -mx-4 px-4 lg:-mx-8 lg:px-8 space-y-3">
+      {/* Tab + pencarian (sticky di bawah topbar) */}
+      <div className="sticky top-16 z-10 bg-cream border-b border-sand py-3 -mx-4 px-4 lg:-mx-8 lg:px-8 space-y-3">
         <div className="flex gap-2">
           {tabs.map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)}
@@ -86,15 +87,16 @@ export default function Members() {
                 <th className="font-semibold px-4 py-3">Nama</th>
                 <th className="font-semibold px-4 py-3 hidden sm:table-cell">Email</th>
                 <th className="font-semibold px-4 py-3 hidden md:table-cell">No. WhatsApp</th>
+                {tab === 'member' && <th className="font-semibold px-4 py-3">Sisa Sesi</th>}
                 <th className="font-semibold px-4 py-3">Status</th>
                 <th className="w-8"></th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} className="px-4 py-10 text-center text-ink/40">Memuat…</td></tr>
+                <tr><td colSpan={tab === 'member' ? 6 : 5} className="px-4 py-10 text-center text-ink/40">Memuat…</td></tr>
               ) : (data?.items.length ?? 0) === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-10 text-center text-ink/40">
+                <tr><td colSpan={tab === 'member' ? 6 : 5} className="px-4 py-10 text-center text-ink/40">
                   {q ? 'Tidak ada hasil.' : `Belum ada ${tab === 'member' ? 'member' : 'instruktur'}.`}
                 </td></tr>
               ) : (
@@ -113,7 +115,19 @@ export default function Members() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-ink/60 hidden sm:table-cell">{u.email}</td>
-                    <td className="px-4 py-3 text-ink/60 hidden md:table-cell">{u.phone || <span className="text-ink/30">—</span>}</td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      {u.phone
+                        ? <a href={waLink(u.phone)!} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                            className="text-copper-700 hover:underline inline-flex items-center gap-1.5"><MessageCircle size={14} />{u.phone}</a>
+                        : <span className="text-ink/30">—</span>}
+                    </td>
+                    {tab === 'member' && (
+                      <td className="px-4 py-3">
+                        {u.has_unlimited
+                          ? <span className="inline-flex items-center gap-1 text-copper-700 font-semibold"><InfinityIcon size={15} /></span>
+                          : <span className="font-semibold">{u.active_sessions_remaining ?? 0}</span>}
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       {u.is_active
                         ? <span className="text-xs rounded-full px-2 py-0.5 bg-copper-100 text-copper-700">Aktif</span>

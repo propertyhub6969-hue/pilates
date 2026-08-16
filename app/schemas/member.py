@@ -35,6 +35,9 @@ class UserBrief(BaseModel):
     phone: Optional[str] = None
     role: UserRole
     is_active: bool
+    # Ringkasan kuota (diisi utk role member)
+    active_sessions_remaining: Optional[int] = None
+    has_unlimited: bool = False
 
     class Config:
         from_attributes = True
