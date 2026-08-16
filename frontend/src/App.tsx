@@ -6,6 +6,7 @@ import Landing from '@/pages/Landing'
 import Login from '@/pages/Login'
 import Register from '@/pages/Register'
 import Dashboard from '@/pages/Dashboard'
+import Schedule from '@/pages/Schedule'
 import Members from '@/pages/Members'
 import MemberDetail from '@/pages/MemberDetail'
 import Packages from '@/pages/Packages'
@@ -43,6 +44,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
+        <Route path="jadwal" element={<Schedule />} />
         {staff && <Route path="member" element={<Members />} />}
         {staff && <Route path="member/:id" element={<MemberDetail />} />}
         {staff && <Route path="paket" element={<Packages />} />}

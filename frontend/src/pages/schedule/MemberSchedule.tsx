@@ -1,0 +1,118 @@
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/services/api'
+import type { ClassSession } from '@/types'
+import { formatTime, formatDayDate } from '@/utils/format'
+import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays } from 'lucide-react'
+
+function endTime(start: string, mins: number): string {
+  const [h, m] = start.split(':').map(Number)
+  const d = new Date(2000, 0, 1, h, m + mins)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function groupByDate(sessions: ClassSession[]) {
+  const map = new Map<string, ClassSession[]>()
+  for (const s of sessions) {
+    if (!map.has(s.session_date)) map.set(s.session_date, [])
+    map.get(s.session_date)!.push(s)
+  }
+  return Array.from(map.entries())
+}
+
+export default function MemberSchedule() {
+  const qc = useQueryClient()
+  const [tab, setTab] = useState<'all' | 'mine'>('all')
+
+  const { data: sessions, isLoading } = useQuery({
+    queryKey: ['sessions', tab],
+    queryFn: async () =>
+      (await api.get<ClassSession[]>('/schedule/sessions', { params: tab === 'mine' ? { mine: true } : {} })).data,
+  })
+
+  const book = useMutation({
+    mutationFn: async (session_id: string) => api.post('/bookings', { session_id }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] }) },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal booking'),
+  })
+  const cancel = useMutation({
+    mutationFn: async (booking_id: string) => api.post(`/bookings/${booking_id}/cancel`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] }) },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal membatalkan'),
+  })
+
+  const groups = groupByDate(sessions ?? [])
+
+  return (
+    <div className="space-y-5">
+      <h1 className="font-display text-2xl font-semibold">Jadwal Kelas</h1>
+
+      <div className="flex gap-2">
+        {(['all', 'mine'] as const).map((t) => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
+              tab === t ? 'bg-sage-600 text-white' : 'bg-sand text-ink/60 hover:bg-sage-100'}`}>
+            {t === 'all' ? 'Semua kelas' : 'Jadwalku'}
+          </button>
+        ))}
+      </div>
+
+      {isLoading ? (
+        <div className="text-ink/40 py-10 text-center">Memuat…</div>
+      ) : groups.length === 0 ? (
+        <div className="card text-center text-ink/50 py-10">
+          <CalendarDays className="mx-auto mb-2 text-ink/30" size={28} />
+          {tab === 'mine' ? 'Belum ada kelas yang kamu booking.' : 'Belum ada jadwal kelas.'}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {groups.map(([day, list]) => (
+            <div key={day}>
+              <h2 className="font-display text-lg font-semibold mb-2 capitalize">{formatDayDate(day)}</h2>
+              <div className="space-y-2">
+                {list.map((s) => {
+                  const full = s.booked_count >= s.capacity
+                  const mine = s.my_booking_status
+                  return (
+                    <div key={s.id} className="card flex items-center gap-4">
+                      <div className="text-center shrink-0 w-16">
+                        <div className="font-display text-lg font-semibold text-sage-700">{formatTime(s.start_time)}</div>
+                        <div className="text-[11px] text-ink/40">{endTime(formatTime(s.start_time), s.duration_minutes)}</div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold truncate">{s.title}</div>
+                        <div className="text-xs text-ink/50 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                          {s.instructor_name && <span className="inline-flex items-center gap-1"><UserRound size={12} />{s.instructor_name}</span>}
+                          {s.room && <span className="inline-flex items-center gap-1"><MapPin size={12} />{s.room}</span>}
+                          <span className="inline-flex items-center gap-1"><Users size={12} />{s.booked_count}/{s.capacity}</span>
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        {mine === 'booked' || mine === 'waitlist' ? (
+                          <div className="text-right">
+                            {mine === 'waitlist' && <div className="text-[11px] text-clay-dark mb-1">Waitlist</div>}
+                            <button onClick={() => cancel.mutate(s.my_booking_id!)} disabled={cancel.isPending}
+                              className="btn-ghost !px-3 !py-1.5 text-clay-dark">Batalkan</button>
+                          </div>
+                        ) : full ? (
+                          <button onClick={() => book.mutate(s.id)} disabled={book.isPending}
+                            className="btn-ghost !px-3 !py-1.5 border border-sand">Gabung waitlist</button>
+                        ) : (
+                          <button onClick={() => book.mutate(s.id)} disabled={book.isPending}
+                            className="btn-primary !px-4 !py-1.5">
+                            {book.isPending ? <Loader2 size={15} className="animate-spin" /> : 'Booking'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="text-xs text-ink/40 flex items-center gap-1"><Clock size={12} /> Batal &gt; 12 jam sebelum kelas, kuota kembali.</p>
+    </div>
+  )
+}

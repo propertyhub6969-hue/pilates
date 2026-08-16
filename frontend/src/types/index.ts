@@ -90,6 +90,67 @@ export interface PaymentRow {
   created_at: string
 }
 
+// ── Jadwal & Booking ──
+export type ClassSessionStatus = 'scheduled' | 'cancelled' | 'completed'
+export type BookingStatus = 'booked' | 'waitlist' | 'attended' | 'cancelled' | 'no_show'
+
+export interface ClassTemplate {
+  id: string
+  name: string
+  description?: string | null
+  instructor_id?: string | null
+  instructor_name?: string | null
+  day_of_week: number
+  start_time: string
+  duration_minutes: number
+  capacity: number
+  room?: string | null
+  is_active: boolean
+}
+
+export interface ClassSession {
+  id: string
+  title: string
+  instructor_id?: string | null
+  instructor_name?: string | null
+  session_date: string
+  start_time: string
+  duration_minutes: number
+  capacity: number
+  room?: string | null
+  status: ClassSessionStatus
+  notes?: string | null
+  booked_count: number
+  waitlist_count: number
+  my_booking_status?: BookingStatus | null
+  my_booking_id?: string | null
+}
+
+export interface BookingRow {
+  id: string
+  session_id: string
+  member_id: string
+  member_name?: string | null
+  status: BookingStatus
+  waitlist_position?: number | null
+  booked_at: string
+  checked_in_at?: string | null
+}
+
+export interface MyBooking {
+  id: string
+  status: BookingStatus
+  waitlist_position?: number | null
+  session: ClassSession
+}
+
+export const DAY_NAMES = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+
+export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
+  booked: 'Terdaftar', waitlist: 'Waitlist', attended: 'Hadir',
+  cancelled: 'Dibatalkan', no_show: 'Tidak hadir',
+}
+
 export const STATUS_LABEL: Record<MemberPackageStatus, string> = {
   active: 'Aktif', used_up: 'Kuota habis', expired: 'Kedaluwarsa',
   frozen: 'Dibekukan', cancelled: 'Dibatalkan',

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, packages, members, payments, public
+from app.api.v1.endpoints import auth, packages, members, payments, public, schedule, bookings
 
 api_router = APIRouter()
 
@@ -8,7 +8,5 @@ api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 api_router.include_router(packages.router, prefix="/packages", tags=["Packages"])
 api_router.include_router(members.router, prefix="/members", tags=["Members"])
 api_router.include_router(payments.router, prefix="/payments", tags=["Payments"])
-
-# Fase 3+:
-# api_router.include_router(schedule.router, prefix="/schedule", tags=["Schedule"])
-# api_router.include_router(bookings.router, prefix="/bookings", tags=["Bookings"])
+api_router.include_router(schedule.router, prefix="/schedule", tags=["Schedule"])
+api_router.include_router(bookings.router, prefix="/bookings", tags=["Bookings"])

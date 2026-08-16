@@ -48,10 +48,10 @@ function MemberHome() {
         </div>
       </div>
 
-      <div className="card bg-sage-50 border-sage-100 flex items-start gap-3">
-        <CalendarDays className="text-sage-600 shrink-0 mt-0.5" size={20} />
-        <p className="text-sm text-ink/60">Booking kelas dari HP akan hadir di <b>Fase 3</b>. Nantikan ya! 🧘</p>
-      </div>
+      <Link to="/jadwal" className="card bg-sage-50 border-sage-100 flex items-center gap-3 hover:shadow-card transition">
+        <CalendarDays className="text-sage-600 shrink-0" size={20} />
+        <p className="text-sm text-ink/70 flex-1">Lihat jadwal kelas &amp; booking sesimu →</p>
+      </Link>
     </div>
   )
 }
@@ -85,8 +85,8 @@ function StaffHome() {
       <div className="card sm:col-span-2 bg-sage-50 border-sage-100 flex items-start gap-3">
         <Sparkles className="text-sage-600 shrink-0 mt-0.5" size={20} />
         <p className="text-sm text-ink/60">
-          <b>Fase 2 aktif:</b> kelola paket, member/instruktur, jual paket & pembayaran.
-          Jadwal & booking menyusul di Fase 3.
+          Kelola <Link to="/jadwal" className="text-sage-700 font-semibold">jadwal & booking</Link>,
+          paket, member/instruktur, dan pembayaran dari sini.
         </p>
       </div>
     </div>

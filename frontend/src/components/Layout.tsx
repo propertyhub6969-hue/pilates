@@ -7,7 +7,7 @@ interface NavItem { icon: any; label: string; short: string; to: string; roles: 
 
 const NAV: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', short: 'Home', to: '/', roles: 'all' },
-  { icon: CalendarDays, label: 'Jadwal', short: 'Jadwal', to: '/jadwal', roles: 'all', soon: true },
+  { icon: CalendarDays, label: 'Jadwal', short: 'Jadwal', to: '/jadwal', roles: 'all' },
   { icon: Users, label: 'Member', short: 'Member', to: '/member', roles: 'staff' },
   { icon: Package, label: 'Paket', short: 'Paket', to: '/paket', roles: 'staff' },
   { icon: Wallet, label: 'Pembayaran', short: 'Bayar', to: '/pembayaran', roles: 'staff' },
