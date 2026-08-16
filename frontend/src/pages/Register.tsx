@@ -57,9 +57,10 @@ export default function Register() {
                 onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="nama@email.com" />
             </div>
             <div>
-              <label className="label">Nomor HP (opsional)</label>
+              <label className="label">Nomor WhatsApp</label>
               <input className="input" value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08…" />
+                onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08123456789" />
+              <p className="text-[11px] text-ink/40 mt-1">Untuk pengingat kelas H-1 via WhatsApp.</p>
             </div>
             <div>
               <label className="label">Password</label>

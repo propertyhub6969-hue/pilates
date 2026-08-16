@@ -99,17 +99,16 @@ export default function Members() {
             <input className="input" type="email" required value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Telepon</label>
-              <input className="input" value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08…" />
-            </div>
-            <div>
-              <label className="label">Password awal</label>
-              <input className="input" type="text" required minLength={6} value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="min. 6 karakter" />
-            </div>
+          <div>
+            <label className="label">No. WhatsApp {tab === 'member' && <span className="text-sage-600">· untuk pengingat kelas</span>}</label>
+            <input className="input" value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08123456789" />
+            {tab === 'member' && <p className="text-[11px] text-ink/40 mt-1">Reminder H-1 kelas dikirim ke nomor ini via WhatsApp.</p>}
+          </div>
+          <div>
+            <label className="label">Password awal</label>
+            <input className="input" type="text" required minLength={6} value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="min. 6 karakter" />
           </div>
           {error && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{error}</div>}
           <button type="submit" disabled={create.isPending} className="btn-primary w-full">

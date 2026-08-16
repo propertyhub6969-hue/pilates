@@ -10,6 +10,41 @@ import httpx
 from app.core.config import settings
 
 
+def _auth_headers() -> dict:
+    h = {}
+    if settings.WA_BASIC_AUTH:
+        token = base64.b64encode(settings.WA_BASIC_AUTH.encode()).decode()
+        h["Authorization"] = f"Basic {token}"
+    return h
+
+
+# Cache device id yg sedang login (agar tak query /devices tiap kirim)
+_cached_device: str | None = None
+
+
+async def resolve_device_id() -> str | None:
+    """Cari id device gowa yang state-nya logged_in. Jika WA_DEVICE_ID diisi id spesifik
+    (bukan 'auto'), pakai itu. Auto-deteksi lebih tahan re-scan (id UUID berubah)."""
+    global _cached_device
+    if settings.WA_DEVICE_ID and settings.WA_DEVICE_ID != "auto":
+        return settings.WA_DEVICE_ID
+    if _cached_device:
+        return _cached_device
+    if not settings.WA_GATEWAY_URL:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(settings.WA_GATEWAY_URL.rstrip("/") + "/devices", headers=_auth_headers())
+        data = resp.json().get("results", []) or []
+        for dev in data:
+            if dev.get("state") == "logged_in":
+                _cached_device = dev.get("id")
+                return _cached_device
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
 def normalize_phone(phone: str) -> str | None:
     """Normalisasi nomor Indonesia ke format 62xxxxxxxxxx (tanpa +, spasi, dsb)."""
     if not phone:
@@ -37,13 +72,12 @@ async def send_whatsapp(phone: str, message: str) -> tuple[bool, str]:
     if not settings.WA_ENABLED or not settings.WA_GATEWAY_URL:
         return False, f"DRY-RUN (tak terkirim) → {num}"
 
-    headers = {}
-    if settings.WA_BASIC_AUTH:
-        token = base64.b64encode(settings.WA_BASIC_AUTH.encode()).decode()
-        headers["Authorization"] = f"Basic {token}"
-    if settings.WA_DEVICE_ID:
-        # gowa multi-akun: tiap kirim wajib menyertakan device (akun WA) yang dipakai
-        headers["X-Device-Id"] = settings.WA_DEVICE_ID
+    headers = _auth_headers()
+    device_id = await resolve_device_id()
+    if not device_id:
+        return False, "tidak ada device WhatsApp yang login di gateway"
+    # gowa multi-akun: tiap kirim wajib menyertakan device (akun WA) yang dipakai
+    headers["X-Device-Id"] = device_id
 
     url = settings.WA_GATEWAY_URL.rstrip("/") + "/send/message"
     payload = {"phone": num, "message": message}
