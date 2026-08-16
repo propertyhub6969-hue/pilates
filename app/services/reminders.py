@@ -27,7 +27,7 @@ def _compose_h1(name: str, s: ClassSession) -> str:
     return (
         f"Halo {first} 👋\n\n"
         f"Pengingat kelas *{s.title}* besok:\n"
-        f"🗓️ {hari}\n⏰ {s.start_time.strftime('%H:%M')} WIB{room}\n\n"
+        f"🗓️ {hari}\n⏰ {s.start_time.strftime('%H:%M')} {settings.TZ_LABEL}{room}\n\n"
         f"Sampai jumpa di studio! 🧘\n"
         f"_Balas pesan ini bila berhalangan hadir agar slot bisa dipakai member lain._\n\n"
         f"— {settings.STUDIO_WA_SIGNATURE}"
@@ -40,7 +40,7 @@ def _compose_h2(name: str, s: ClassSession) -> str:
     return (
         f"Halo {first} 👋\n\n"
         f"Kelas *{s.title}* kamu mulai *sebentar lagi* — hari ini pukul "
-        f"*{s.start_time.strftime('%H:%M')} WIB*{room}.\n\n"
+        f"*{s.start_time.strftime('%H:%M')} {settings.TZ_LABEL}*{room}.\n\n"
         f"Sampai jumpa di studio ya! 🧘\n\n"
         f"— {settings.STUDIO_WA_SIGNATURE}"
     )

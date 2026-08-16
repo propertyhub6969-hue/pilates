@@ -43,8 +43,17 @@ class Settings(BaseSettings):
         "http://localhost:5173",
     ]
 
-    # Timezone — studio single-lokasi. WIB default; ganti di .env kalau beda.
-    TIMEZONE: str = "Asia/Jakarta"
+    # Timezone — studio single-lokasi. Ganti di .env sesuai lokasi.
+    TIMEZONE: str = "Asia/Makassar"  # WITA (UTC+8)
+
+    @property
+    def TZ_LABEL(self) -> str:
+        """Label singkat zona utk teks pesan (WIB/WITA/WIT)."""
+        return {
+            "Asia/Jakarta": "WIB",
+            "Asia/Makassar": "WITA",
+            "Asia/Jayapura": "WIT",
+        }.get(self.TIMEZONE, "")
 
     # WhatsApp reminder (gateway gowa / go-whatsapp-web-multidevice)
     WA_ENABLED: bool = False               # False = dry-run (tak kirim sungguhan)
