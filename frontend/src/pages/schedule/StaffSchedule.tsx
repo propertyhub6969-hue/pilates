@@ -7,27 +7,96 @@ import { formatTime, formatDayDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   Plus, RefreshCw, Users, UserRound, MapPin, Loader2, CalendarDays,
-  Pencil, Trash2, XCircle, CalendarClock,
+  Pencil, Trash2, XCircle, CalendarClock, CheckCircle2, RotateCcw,
 } from 'lucide-react'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
+const TABS = [
+  { key: 'sesi', label: 'Sesi' },
+  { key: 'template', label: 'Template' },
+  { key: 'kehadiran', label: 'Kehadiran' },
+] as const
+type TabKey = typeof TABS[number]['key']
+
 export default function StaffSchedule() {
   const qc = useQueryClient()
-  const [tab, setTab] = useState<'sesi' | 'template'>('sesi')
+  const [tab, setTab] = useState<TabKey>('sesi')
   return (
     <div className="space-y-5">
       <h1 className="font-display text-2xl font-semibold">Jadwal & Booking</h1>
       <div className="flex gap-2">
-        {(['sesi', 'template'] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)}
+        {TABS.map((t) => (
+          <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
-              tab === t ? 'bg-sage-600 text-white' : 'bg-sand text-ink/60 hover:bg-sage-100'}`}>
-            {t === 'sesi' ? 'Sesi' : 'Template'}
+              tab === t.key ? 'bg-sage-600 text-white' : 'bg-sand text-ink/60 hover:bg-sage-100'}`}>
+            {t.label}
           </button>
         ))}
       </div>
-      {tab === 'sesi' ? <SessionsTab qc={qc} /> : <TemplatesTab qc={qc} />}
+      {tab === 'sesi' && <SessionsTab qc={qc} />}
+      {tab === 'template' && <TemplatesTab qc={qc} />}
+      {tab === 'kehadiran' && <AttendanceTab />}
+    </div>
+  )
+}
+
+function AttendanceTab() {
+  const [range, setRange] = useState({
+    from: new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10),
+    to: todayISO(),
+  })
+  const { data, isLoading } = useQuery({
+    queryKey: ['attendance-report', range],
+    queryFn: async () =>
+      (await api.get('/reports/attendance', { params: { from: range.from, to: range.to } })).data as {
+        sessions_total: number; sessions_cancelled: number; attended: number; no_show: number
+        booked_open: number; attendance_rate: number
+        top_members: { member_id: string; member_name: string; attended: number; no_show: number }[]
+      },
+  })
+
+  const stats = data ? [
+    { label: 'Tingkat kehadiran', value: `${Math.round(data.attendance_rate * 100)}%`, accent: true },
+    { label: 'Hadir', value: data.attended },
+    { label: 'Tidak hadir', value: data.no_show },
+    { label: 'Sesi', value: data.sessions_total },
+  ] : []
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 items-end flex-wrap">
+        <div><label className="label">Dari</label><input type="date" className="input" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} /></div>
+        <div><label className="label">Sampai</label><input type="date" className="input" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} /></div>
+      </div>
+
+      {isLoading || !data ? <div className="text-ink/40 py-10 text-center">Memuat…</div> : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {stats.map((s) => (
+              <div key={s.label} className={`card text-center ${s.accent ? 'bg-sage-50 border-sage-100' : ''}`}>
+                <div className={`font-display text-2xl font-semibold ${s.accent ? 'text-sage-700' : ''}`}>{s.value}</div>
+                <div className="text-xs text-ink/50 mt-1">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <h3 className="font-display font-semibold mb-2">Peserta paling rajin</h3>
+            <div className="space-y-2">
+              {data.top_members.map((m, i) => (
+                <div key={m.member_id} className="card flex items-center gap-3">
+                  <span className="grid place-items-center w-7 h-7 rounded-full bg-sand text-ink/50 text-sm font-semibold shrink-0">{i + 1}</span>
+                  <div className="flex-1 font-semibold text-sm">{m.member_name}</div>
+                  <div className="text-sm"><span className="text-sage-700 font-semibold">{m.attended} hadir</span>
+                    {m.no_show > 0 && <span className="text-ink/40"> · {m.no_show} absen</span>}</div>
+                </div>
+              ))}
+              {data.top_members.length === 0 && <div className="text-ink/40 text-center py-8">Belum ada data kehadiran di rentang ini.</div>}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -168,12 +237,17 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
     mutationFn: async (bid: string) => api.post(`/bookings/${bid}/cancel`),
     onSuccess: inval,
   })
+  const attend = useMutation({
+    mutationFn: async (v: { bid: string; status: 'attended' | 'no_show' | 'booked' }) =>
+      api.patch(`/bookings/${v.bid}/attendance`, { status: v.status }),
+    onSuccess: inval,
+  })
   const cancelSession = useMutation({
     mutationFn: async () => api.post(`/schedule/sessions/${session.id}/cancel`),
     onSuccess: () => { inval(); onClose() },
   })
 
-  const active = (roster ?? []).filter((r) => r.status === 'booked' || r.status === 'waitlist')
+  const shown = (roster ?? []).filter((r) => r.status !== 'cancelled')
 
   return (
     <Modal open onClose={onClose} title={`${session.title} · ${formatTime(session.start_time)}`} maxWidth="max-w-lg">
@@ -191,17 +265,39 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
         )}
 
         {isLoading ? <div className="text-ink/40 py-6 text-center">Memuat…</div> : (
-          <div className="space-y-2">
-            {active.map((r) => (
-              <div key={r.id} className="flex items-center gap-3 py-2 border-b border-sand last:border-0">
-                <span className="grid place-items-center w-8 h-8 rounded-full bg-sage-100 text-sage-700"><UserRound size={16} /></span>
-                <div className="flex-1"><div className="text-sm font-semibold">{r.member_name}</div>
-                  <div className="text-[11px] text-ink/50">{BOOKING_STATUS_LABEL[r.status]}{r.status === 'waitlist' && r.waitlist_position ? ` #${r.waitlist_position}` : ''}</div>
+          <div className="space-y-1">
+            {shown.map((r) => (
+              <div key={r.id} className="flex items-center gap-2 py-2 border-b border-sand last:border-0">
+                <span className={`grid place-items-center w-8 h-8 rounded-full shrink-0 ${
+                  r.status === 'attended' ? 'bg-sage-600 text-white' : r.status === 'no_show' ? 'bg-sand text-ink/40' : 'bg-sage-100 text-sage-700'}`}>
+                  {r.status === 'attended' ? <CheckCircle2 size={16} /> : <UserRound size={16} />}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold truncate">{r.member_name}</div>
+                  <div className="text-[11px] text-ink/50">
+                    {BOOKING_STATUS_LABEL[r.status]}{r.status === 'waitlist' && r.waitlist_position ? ` #${r.waitlist_position}` : ''}
+                  </div>
                 </div>
-                <button onClick={() => cancelBooking.mutate(r.id)} className="btn-ghost !px-2 !py-1.5 text-clay-dark" title="Batalkan"><XCircle size={16} /></button>
+                {/* Kontrol absensi */}
+                {r.status === 'booked' && (
+                  <>
+                    <button onClick={() => attend.mutate({ bid: r.id, status: 'attended' })} disabled={attend.isPending}
+                      className="btn-primary !px-3 !py-1.5 text-xs">Hadir</button>
+                    <button onClick={() => attend.mutate({ bid: r.id, status: 'no_show' })} disabled={attend.isPending}
+                      className="btn-ghost !px-2 !py-1.5 text-xs text-ink/50 border border-sand">Tidak</button>
+                    <button onClick={() => cancelBooking.mutate(r.id)} className="btn-ghost !px-2 !py-1.5 text-clay-dark" title="Batalkan"><XCircle size={16} /></button>
+                  </>
+                )}
+                {(r.status === 'attended' || r.status === 'no_show') && (
+                  <button onClick={() => attend.mutate({ bid: r.id, status: 'booked' })} disabled={attend.isPending}
+                    className="btn-ghost !px-2 !py-1.5 text-xs text-ink/50" title="Batalkan absen"><RotateCcw size={15} /></button>
+                )}
+                {r.status === 'waitlist' && (
+                  <button onClick={() => cancelBooking.mutate(r.id)} className="btn-ghost !px-2 !py-1.5 text-clay-dark" title="Batalkan"><XCircle size={16} /></button>
+                )}
               </div>
             ))}
-            {active.length === 0 && <div className="text-ink/40 text-sm py-4 text-center">Belum ada peserta.</div>}
+            {shown.length === 0 && <div className="text-ink/40 text-sm py-4 text-center">Belum ada peserta.</div>}
           </div>
         )}
 

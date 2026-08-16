@@ -1,19 +1,26 @@
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
+from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_staff
 from app.models.user import User, UserRole
 from app.models.schedule import ClassSession
 from app.models.booking import Booking, BookingStatus
-from app.schemas.schedule import SessionResponse, MyBookingRow
+from app.schemas.schedule import SessionResponse, MyBookingRow, BookingRow
 from app.api.v1.endpoints.schedule import _serialize_sessions
 from app.services import booking as booking_svc
 
 router = APIRouter()
+
+
+class AttendanceUpdate(BaseModel):
+    # Peralihan absensi: booked (belum check-in) ↔ attended (hadir) ↔ no_show (tidak hadir).
+    # Kuota TIDAK berubah — sudah ditahan sejak booking.
+    status: Literal["booked", "attended", "no_show"]
 
 
 class BookRequest(BaseModel):
@@ -56,6 +63,32 @@ async def cancel_booking(booking_id: uuid.UUID, db: AsyncSession = Depends(get_d
     await booking_svc.cancel_booking(db, booking)
     session = (await db.execute(select(ClassSession).where(ClassSession.id == booking.session_id))).scalar_one()
     return (await _serialize_sessions(db, [session], user))[0]
+
+
+@router.patch("/{booking_id}/attendance", response_model=BookingRow)
+async def set_attendance(
+    booking_id: uuid.UUID,
+    payload: AttendanceUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_staff),
+):
+    """Tandai kehadiran peserta (check-in). Hanya untuk booking yang terkonfirmasi;
+    waitlist/cancelled tidak bisa. Tidak mengubah kuota."""
+    booking = (await db.execute(select(Booking).where(Booking.id == booking_id))).scalar_one_or_none()
+    if not booking:
+        raise HTTPException(404, "Booking tidak ditemukan")
+    if booking.status not in (BookingStatus.BOOKED, BookingStatus.ATTENDED, BookingStatus.NO_SHOW):
+        raise HTTPException(400, "Hanya peserta terdaftar yang bisa diabsen (bukan waitlist/batal)")
+
+    target = BookingStatus(payload.status)
+    booking.status = target
+    booking.checked_in_at = datetime.now(timezone.utc) if target == BookingStatus.ATTENDED else None
+    await db.flush()
+
+    name = (await db.execute(select(User.full_name).where(User.id == booking.member_id))).scalar_one_or_none()
+    row = BookingRow.model_validate(booking)
+    row.member_name = name
+    return row
 
 
 @router.get("/me", response_model=list[MyBookingRow])
