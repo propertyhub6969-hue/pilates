@@ -21,3 +21,6 @@ frontend/node_modules/
 .DS_Store
 *.log
 
+
+# Aset brand runtime (logo di-mount, bukan di repo)
+brand/

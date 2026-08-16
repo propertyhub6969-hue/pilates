@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { clsx } from 'clsx'
 
-// Menampilkan logo studio dari /logo.png (taruh file di frontend/public/logo.png).
-// Bila file belum ada / gagal dimuat → fallback ke wordmark "R + Reformer Your Body".
+// Menampilkan logo studio dari /brand/logo.(png|jpg). Taruh file di /opt/pilates/brand/.
+// Coba .png dulu lalu .jpg; bila keduanya tak ada → fallback wordmark "R + Reformer Your Body".
+const SOURCES = ['/brand/logo.png', '/brand/logo.jpg']
+
 export default function Brand({
   className,
   imgClassName,
@@ -12,15 +14,15 @@ export default function Brand({
   imgClassName?: string
   size?: 'sm' | 'md' | 'lg'
 }) {
-  const [broken, setBroken] = useState(false)
+  const [idx, setIdx] = useState(0)
   const h = { sm: 'h-9', md: 'h-11', lg: 'h-20' }[size]
 
-  if (!broken) {
+  if (idx < SOURCES.length) {
     return (
       <img
-        src="/brand/logo.png"
+        src={SOURCES[idx]}
         alt="Reformer Your Body"
-        onError={() => setBroken(true)}
+        onError={() => setIdx((i) => i + 1)}
         className={clsx(h, 'w-auto object-contain', imgClassName, className)}
       />
     )
