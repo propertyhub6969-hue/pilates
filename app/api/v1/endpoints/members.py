@@ -129,6 +129,27 @@ async def _load_detail(db: AsyncSession, user: User) -> MemberDetail:
     return detail
 
 
+@router.get("/counts")
+async def member_counts(db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    """Jumlah member per kategori + instruktur, utk badge di tab."""
+    rows = (
+        await db.execute(
+            select(User.member_category, func.count())
+            .where(User.role == UserRole.MEMBER)
+            .group_by(User.member_category)
+        )
+    ).all()
+    out = {"all": 0, "bulanan": 0, "private": 0, "per_datang": 0}
+    for cat, c in rows:
+        out["all"] += c
+        if cat is not None:
+            out[cat.value] = c
+    out["instructor"] = (
+        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.INSTRUCTOR))
+    ).scalar_one()
+    return out
+
+
 @router.get("/me", response_model=MemberDetail)
 async def my_detail(
     db: AsyncSession = Depends(get_db),

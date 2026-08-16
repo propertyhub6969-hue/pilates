@@ -67,7 +67,7 @@ export default function MemberDetail() {
       emergency_contact: editForm.emergency_contact || null,
       notes: editForm.notes || null,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['member', id] }); setEditOpen(false) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['member', id] }); qc.invalidateQueries({ queryKey: ['member-counts'] }); setEditOpen(false) },
     onError: (e: any) => setError(e?.response?.data?.detail ?? 'Gagal menyimpan'),
   })
   function openEdit(data: TDetail) {

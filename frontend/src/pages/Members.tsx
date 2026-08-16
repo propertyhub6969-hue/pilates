@@ -43,6 +43,11 @@ export default function Members() {
     placeholderData: keepPreviousData,
   })
 
+  const { data: counts } = useQuery({
+    queryKey: ['member-counts'],
+    queryFn: async () => (await api.get<Record<Tab, number>>('/members/counts')).data,
+  })
+
   const create = useMutation({
     mutationFn: async () =>
       (await api.post('/members', {
@@ -51,6 +56,7 @@ export default function Members() {
       })).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['member-counts'] })
       setOpen(false); setForm({ full_name: '', email: '', phone: '', password: '', category: 'bulanan' })
     },
     onError: (e: any) => setError(e?.response?.data?.detail ?? 'Gagal menyimpan'),
@@ -80,13 +86,21 @@ export default function Members() {
       {/* Tab kategori + pencarian (sticky) */}
       <div className="sticky top-16 z-10 bg-cream border-b border-sand py-3 -mx-4 px-4 lg:-mx-8 lg:px-8 space-y-3">
         <div className="flex gap-2 overflow-x-auto pb-0.5">
-          {TABS.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition ${
-                tab === t.key ? 'bg-copper-600 text-white' : 'bg-sand text-ink/60 hover:bg-copper-100'}`}>
-              {t.label}
-            </button>
-          ))}
+          {TABS.map((t) => {
+            const n = counts?.[t.key]
+            const active = tab === t.key
+            return (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition ${
+                  active ? 'bg-copper-600 text-white' : 'bg-sand text-ink/60 hover:bg-copper-100'}`}>
+                {t.label}
+                {n !== undefined && (
+                  <span className={`text-[11px] font-semibold rounded-full px-1.5 min-w-[18px] text-center ${
+                    active ? 'bg-white/25 text-white' : 'bg-white/70 text-ink/50'}`}>{n}</span>
+                )}
+              </button>
+            )
+          })}
         </div>
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/30" />
