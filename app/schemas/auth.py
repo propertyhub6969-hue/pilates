@@ -2,7 +2,8 @@ import uuid
 from datetime import date, datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
-from app.models.user import UserRole
+from app.models.user import UserRole, MemberCategory
+from app.models.payment import PaymentMethod
 
 
 class MemberRegister(BaseModel):
@@ -11,6 +12,10 @@ class MemberRegister(BaseModel):
     password: str = Field(min_length=6)
     full_name: str = Field(min_length=2, max_length=200)
     phone: Optional[str] = None
+    # Self-enrollment: pilih kategori + (opsional) paket yang dibeli sekaligus
+    member_category: Optional[MemberCategory] = None
+    package_id: Optional[uuid.UUID] = None
+    payment_method: PaymentMethod = PaymentMethod.TRANSFER
 
 
 class UserLogin(BaseModel):

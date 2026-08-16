@@ -6,7 +6,10 @@ interface AuthState {
   user: User | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
-  register: (data: { email: string; password: string; full_name: string; phone?: string }) => Promise<void>
+  register: (data: {
+    email: string; password: string; full_name: string; phone?: string
+    member_category?: string; package_id?: string; payment_method?: string
+  }) => Promise<void>
   logout: () => void
 }
 
@@ -37,7 +40,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(me.data)
   }
 
-  async function register(data: { email: string; password: string; full_name: string; phone?: string }) {
+  async function register(data: {
+    email: string; password: string; full_name: string; phone?: string
+    member_category?: string; package_id?: string; payment_method?: string
+  }) {
     await api.post('/auth/register', data)
     await login(data.email, data.password)
   }

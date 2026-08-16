@@ -115,12 +115,12 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const { activeId } = useBranch()
   const [openNew, setOpenNew] = useState(false)
   const [rosterFor, setRosterFor] = useState<ClassSession | null>(null)
-  const to = new Date(Date.now() + 21 * 864e5).toISOString().slice(0, 10)
+  const [range, setRange] = useState({ from: todayISO(), to: new Date(Date.now() + 21 * 864e5).toISOString().slice(0, 10) })
 
   const { data: sessions, isLoading } = useQuery({
-    queryKey: ['staff-sessions', activeId],
+    queryKey: ['staff-sessions', activeId, range.from, range.to],
     enabled: !!activeId,
-    queryFn: async () => (await api.get<ClassSession[]>('/schedule/sessions', { params: { from: todayISO(), to, branch_id: activeId } })).data,
+    queryFn: async () => (await api.get<ClassSession[]>('/schedule/sessions', { params: { from: range.from, to: range.to, branch_id: activeId } })).data,
   })
   const generate = useMutation({
     mutationFn: async () => (await api.post('/schedule/generate', { weeks: 4, branch_id: activeId })).data,
@@ -132,11 +132,17 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 flex-wrap">
-        <button onClick={() => setOpenNew(true)} className="btn-primary"><Plus size={16} /> Sesi</button>
-        <button onClick={() => generate.mutate()} disabled={generate.isPending} className="btn-ghost border border-sand">
-          {generate.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Generate dari template
-        </button>
+      <div className="flex gap-2 flex-wrap items-end justify-between">
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setOpenNew(true)} className="btn-primary"><Plus size={16} /> Sesi</button>
+          <button onClick={() => generate.mutate()} disabled={generate.isPending} className="btn-ghost border border-sand">
+            {generate.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Generate dari template
+          </button>
+        </div>
+        <div className="flex gap-2 items-end">
+          <div><label className="label !mb-1 text-xs">Dari</label><input type="date" className="input !py-1.5" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} /></div>
+          <div><label className="label !mb-1 text-xs">Sampai</label><input type="date" className="input !py-1.5" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} /></div>
+        </div>
       </div>
 
       <div className="card !p-0 overflow-hidden">

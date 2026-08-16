@@ -41,10 +41,21 @@ async def register_member(payload: MemberRegister, db: AsyncSession = Depends(ge
         full_name=payload.full_name.strip(),
         phone=payload.phone,
         role=UserRole.MEMBER,
+        member_category=payload.member_category,
         join_date=date.today(),
     )
     db.add(user)
     await db.flush()
+
+    # Self-enrollment: beli paket sekaligus (tagihan PENDING, dikonfirmasi staf saat bayar)
+    if payload.package_id is not None:
+        from app.services.purchase import create_purchase
+        await create_purchase(
+            db, member_id=user.id, package_id=payload.package_id,
+            method=payload.payment_method, mark_paid=False,
+            note="Pendaftaran online (menunggu pembayaran)",
+        )
+
     await db.refresh(user)
     return user
 
