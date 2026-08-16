@@ -47,7 +47,7 @@ export default function Landing() {
       {/* NAV */}
       <header className="sticky top-0 z-30 bg-cream/85 backdrop-blur border-b border-sand">
         <div className="mx-auto max-w-6xl px-5 h-16 flex items-center justify-between">
-          <a href="#top"><Brand size="sm" imgClassName="!h-10" /></a>
+          <a href="#top"><Brand size="sm" imgClassName="!h-10" showName /></a>
           <nav className="hidden md:flex items-center gap-7 text-sm text-ink/70">
             <a href="#kelas" className="hover:text-ink">Kelas</a>
             <a href="#paket" className="hover:text-ink">Paket</a>

@@ -104,7 +104,7 @@ function StaffShell() {
   const SidebarBody = (
     <>
       <div className="h-16 flex items-center px-5 border-b border-sand">
-        <Link to="/" onClick={() => setDrawer(false)}><Brand size="sm" imgClassName="!h-9" /></Link>
+        <Link to="/" onClick={() => setDrawer(false)}><Brand size="sm" imgClassName="!h-9" showName /></Link>
       </div>
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {NAV.map((n) => (
@@ -164,7 +164,7 @@ function MemberShell() {
     <div className="min-h-screen bg-cream">
       <header className="sticky top-0 z-20 bg-cream/80 backdrop-blur border-b border-sand">
         <div className="mx-auto max-w-5xl px-4 h-16 flex items-center justify-between gap-4">
-          <Link to="/" className="shrink-0"><Brand size="sm" imgClassName="!h-10" /></Link>
+          <Link to="/" className="shrink-0"><Brand size="sm" imgClassName="!h-10" showName /></Link>
 
           <nav className="hidden sm:flex items-center gap-1 flex-1 justify-center">
             {items.map((n) => (
