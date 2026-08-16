@@ -73,6 +73,7 @@ services:
       - pilates_wa:/app/storages
     networks:
       - pilates_net
+      - coolify   # agar proxy Coolify bisa route wa.reformeryourbody.com ke UI gateway
 
 volumes:
   pilates_pg:
