@@ -42,6 +42,15 @@ async def get_studio(db: AsyncSession) -> StudioSettings:
     return s
 
 
+async def get_branch(db: AsyncSession, branch_id):
+    """Cabang penentu aturan booking (batas batal, tutup booking). Fallback ke StudioSettings."""
+    from app.models.branch import Branch
+    b = (await db.execute(select(Branch).where(Branch.id == branch_id))).scalar_one_or_none()
+    if b is not None:
+        return b
+    return await get_studio(db)
+
+
 async def _count_status(db: AsyncSession, session_id, status: BookingStatus) -> int:
     return (
         await db.execute(
@@ -95,8 +104,8 @@ async def book_session(db: AsyncSession, session: ClassSession, member_id) -> Bo
     if session.status != ClassSessionStatus.SCHEDULED:
         raise HTTPException(400, "Sesi tidak tersedia untuk booking")
 
-    studio = await get_studio(db)
-    close = session_start_dt(session) - timedelta(hours=studio.booking_lead_close_hours or 0)
+    branch = await get_branch(db, session.branch_id)
+    close = session_start_dt(session) - timedelta(hours=branch.booking_lead_close_hours or 0)
     if now_local() >= close:
         raise HTTPException(400, "Pemesanan untuk sesi ini sudah ditutup")
 
@@ -147,10 +156,10 @@ async def cancel_booking(db: AsyncSession, booking: Booking) -> None:
     session = (
         await db.execute(select(ClassSession).where(ClassSession.id == booking.session_id))
     ).scalar_one()
-    studio = await get_studio(db)
+    branch = await get_branch(db, session.branch_id)
 
     was_booked = booking.status == BookingStatus.BOOKED
-    timely = now_local() < session_start_dt(session) - timedelta(hours=studio.cancellation_window_hours or 0)
+    timely = now_local() < session_start_dt(session) - timedelta(hours=branch.cancellation_window_hours or 0)
 
     # Kembalikan kuota hanya bila slot terkonfirmasi & dibatalkan tepat waktu
     if was_booked and timely and booking.member_package_id:
@@ -193,12 +202,14 @@ async def _promote_waitlist(db: AsyncSession, session: ClassSession) -> None:
         break
 
 
-async def generate_sessions(db: AsyncSession, weeks: int) -> tuple[int, int]:
-    """Generate ClassSession dari semua template aktif utk `weeks` minggu ke depan.
+async def generate_sessions(db: AsyncSession, weeks: int, branch_id=None) -> tuple[int, int]:
+    """Generate ClassSession dari template aktif utk `weeks` minggu ke depan.
+    Bila branch_id diisi → hanya cabang itu; None → semua cabang.
     Idempoten: lewati bila sesi (template, tanggal) sudah ada. Return (created, skipped)."""
-    templates = (
-        await db.execute(select(ClassTemplate).where(ClassTemplate.is_active.is_(True)))
-    ).scalars().all()
+    stmt = select(ClassTemplate).where(ClassTemplate.is_active.is_(True))
+    if branch_id is not None:
+        stmt = stmt.where(ClassTemplate.branch_id == branch_id)
+    templates = (await db.execute(stmt)).scalars().all()
 
     start = date.today()
     end = start + timedelta(weeks=weeks)
@@ -219,6 +230,7 @@ async def generate_sessions(db: AsyncSession, weeks: int) -> tuple[int, int]:
                     skipped += 1
                 else:
                     db.add(ClassSession(
+                        branch_id=tpl.branch_id,
                         template_id=tpl.id,
                         title=tpl.name,
                         instructor_id=tpl.instructor_id,

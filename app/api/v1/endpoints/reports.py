@@ -33,7 +33,11 @@ class DashboardSummary(BaseModel):
 
 
 @router.get("/dashboard", response_model=DashboardSummary)
-async def dashboard(db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+async def dashboard(
+    branch_id: uuid.UUID | None = Query(None, description="Filter kelas hari ini per cabang"),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_staff),
+):
     today = date.today()
     month_start = today.replace(day=1)
 
@@ -72,12 +76,11 @@ async def dashboard(db: AsyncSession = Depends(get_db), _: User = Depends(requir
     a, n = att.get(BookingStatus.ATTENDED, 0), att.get(BookingStatus.NO_SHOW, 0)
     rate = round(a / (a + n), 3) if (a + n) else 0.0
 
-    # Kelas hari ini + jumlah booked
-    sessions = (
-        await db.execute(
-            select(ClassSession).where(ClassSession.session_date == today).order_by(ClassSession.start_time)
-        )
-    ).scalars().all()
+    # Kelas hari ini + jumlah booked (opsional per cabang)
+    sess_stmt = select(ClassSession).where(ClassSession.session_date == today)
+    if branch_id is not None:
+        sess_stmt = sess_stmt.where(ClassSession.branch_id == branch_id)
+    sessions = (await db.execute(sess_stmt.order_by(ClassSession.start_time))).scalars().all()
     booked = {}
     if sessions:
         for sid, c in (
@@ -128,10 +131,13 @@ class AttendanceReport(BaseModel):
 async def attendance_report(
     date_from: date = Query(..., alias="from"),
     date_to: date = Query(..., alias="to"),
+    branch_id: uuid.UUID | None = Query(None, description="Filter cabang"),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_staff),
 ):
     in_range = (ClassSession.session_date >= date_from) & (ClassSession.session_date <= date_to)
+    if branch_id is not None:
+        in_range = in_range & (ClassSession.branch_id == branch_id)
 
     sessions_total = (await db.execute(select(func.count()).select_from(ClassSession).where(in_range))).scalar_one()
     sessions_cancelled = (

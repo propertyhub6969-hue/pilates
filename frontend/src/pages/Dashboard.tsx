@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '@/services/api'
 import { useAuth } from '@/context/AuthContext'
+import { useBranch } from '@/context/BranchContext'
 import { ROLE_LABEL, isStaff } from '@/types'
 import type { MemberDetail, MyBooking } from '@/types'
 import { formatRupiah, formatDate, formatDayDate, formatTime } from '@/utils/format'
@@ -19,9 +20,10 @@ interface DashboardSummary {
 }
 
 function StaffHome() {
+  const { activeId, activeBranch } = useBranch()
   const { data } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: async () => (await api.get<DashboardSummary>('/reports/dashboard')).data,
+    queryKey: ['dashboard', activeId],
+    queryFn: async () => (await api.get<DashboardSummary>('/reports/dashboard', { params: activeId ? { branch_id: activeId } : {} })).data,
   })
 
   const kpis = [
@@ -45,7 +47,7 @@ function StaffHome() {
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h2 className="font-display text-lg font-semibold">Kelas hari ini</h2>
+          <h2 className="font-display text-lg font-semibold">Kelas hari ini {activeBranch && <span className="text-ink/40 text-sm font-sans font-normal">· {activeBranch.name}</span>}</h2>
           <Link to="/jadwal" className="text-sm text-copper-700 font-semibold">Semua jadwal →</Link>
         </div>
         <div className="space-y-2">

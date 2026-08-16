@@ -5,12 +5,13 @@ import Brand from '@/components/Brand'
 import { formatRupiah } from '@/utils/format'
 import {
   Infinity as InfinityIcon, Sparkles, HeartPulse, Wind, Users2,
-  MapPin, Phone, ArrowRight, Menu,
+  MapPin, Phone, ArrowRight, Menu, Building2,
 } from 'lucide-react'
 import { useState } from 'react'
 
 interface StudioInfo { name: string; tagline?: string | null; address?: string | null; phone?: string | null }
 interface Pkg { id: string; name: string; description?: string | null; is_unlimited: boolean; session_count?: number | null; price: number }
+interface BranchInfo { id: string; name: string; address?: string | null; phone?: string | null }
 
 const CLASSES = [
   { icon: Wind, title: 'Reformer Flow', desc: 'Gerakan mengalir di atas reformer untuk kekuatan inti, mobilitas, dan postur.' },
@@ -33,6 +34,10 @@ export default function Landing() {
   const { data: packages } = useQuery({
     queryKey: ['public-packages'],
     queryFn: async () => (await api.get<Pkg[]>('/public/packages')).data,
+  })
+  const { data: branches } = useQuery({
+    queryKey: ['public-branches'],
+    queryFn: async () => (await api.get<BranchInfo[]>('/public/branches')).data,
   })
 
   const name = studio?.name ?? 'Reformer Your Body'
@@ -161,11 +166,16 @@ export default function Landing() {
           <div>
             <h2 className="font-display text-3xl sm:text-4xl font-semibold">Kunjungi kami</h2>
             <p className="text-white/70 mt-3 max-w-md">Datang, rasakan kelas pertamamu, dan mulai perjalanan bergerak dengan lebih sadar.</p>
-            <div className="mt-6 space-y-3 text-white/85">
-              {studio?.address && <div className="flex items-center gap-3"><MapPin size={18} /> {studio.address}</div>}
-              {studio?.phone && <div className="flex items-center gap-3"><Phone size={18} /> {studio.phone}</div>}
-              {!studio?.address && !studio?.phone && (
-                <div className="text-white/50 text-sm">Alamat &amp; kontak studio dapat diatur di pengaturan back office.</div>
+            <div className="mt-6 space-y-4">
+              {(branches ?? []).map((b) => (
+                <div key={b.id} className="text-white/85">
+                  <div className="font-semibold flex items-center gap-2"><Building2 size={16} /> {b.name}</div>
+                  {b.address && <div className="flex items-start gap-2 text-white/70 text-sm mt-1 ml-6"><MapPin size={14} className="mt-0.5 shrink-0" /> {b.address}</div>}
+                  {b.phone && <div className="flex items-center gap-2 text-white/70 text-sm ml-6"><Phone size={14} /> {b.phone}</div>}
+                </div>
+              ))}
+              {(!branches || branches.length === 0) && (
+                <div className="text-white/50 text-sm">Lokasi cabang dapat diatur di back office.</div>
               )}
             </div>
           </div>

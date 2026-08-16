@@ -8,6 +8,7 @@ from app.models.booking import BookingStatus
 
 # ── Template kelas berulang ──
 class TemplateBase(BaseModel):
+    branch_id: uuid.UUID
     name: str = Field(min_length=2, max_length=150)
     description: Optional[str] = None
     instructor_id: Optional[uuid.UUID] = None
@@ -46,6 +47,7 @@ class TemplateResponse(TemplateBase):
 # ── Generate sesi dari template ──
 class GenerateRequest(BaseModel):
     weeks: int = Field(default=4, ge=1, le=12, description="Generate sesi utk N minggu ke depan")
+    branch_id: Optional[uuid.UUID] = Field(default=None, description="Batasi ke satu cabang; None = semua cabang")
 
 
 class GenerateResult(BaseModel):
@@ -55,6 +57,7 @@ class GenerateResult(BaseModel):
 
 # ── Sesi kelas konkret ──
 class SessionCreate(BaseModel):
+    branch_id: uuid.UUID
     title: str = Field(min_length=2, max_length=150)
     instructor_id: Optional[uuid.UUID] = None
     session_date: date
@@ -79,6 +82,8 @@ class SessionUpdate(BaseModel):
 
 class SessionResponse(BaseModel):
     id: uuid.UUID
+    branch_id: uuid.UUID
+    branch_name: Optional[str] = None
     title: str
     instructor_id: Optional[uuid.UUID] = None
     instructor_name: Optional[str] = None

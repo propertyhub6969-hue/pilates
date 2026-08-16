@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { useBranch } from '@/context/BranchContext'
 import { ROLE_LABEL, isStaff, type UserRole } from '@/types'
 import Brand from '@/components/Brand'
 import {
   LogOut, LayoutDashboard, CalendarDays, Users, Wallet, Package,
-  ChevronDown, UserRound, Settings as SettingsIcon, Menu, X,
+  ChevronDown, UserRound, Settings as SettingsIcon, Menu, X, Building2, Plus,
 } from 'lucide-react'
 
 interface NavItem { icon: any; label: string; short: string; to: string; roles: 'all' | 'staff' }
@@ -16,7 +17,41 @@ const NAV: NavItem[] = [
   { icon: Users, label: 'Member', short: 'Member', to: '/member', roles: 'staff' },
   { icon: Package, label: 'Paket', short: 'Paket', to: '/paket', roles: 'staff' },
   { icon: Wallet, label: 'Pembayaran', short: 'Bayar', to: '/pembayaran', roles: 'staff' },
+  { icon: Building2, label: 'Cabang', short: 'Cabang', to: '/cabang', roles: 'staff' },
 ]
+
+function BranchSwitcher() {
+  const { branches, activeBranch, setActiveId } = useBranch()
+  const [open, setOpen] = useState(false)
+  if (branches.length === 0) return null
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 rounded-full bg-sand hover:bg-copper-100 px-3 py-1.5 text-sm font-medium transition">
+        <Building2 size={15} className="text-copper-600" />
+        <span className="max-w-[100px] sm:max-w-[160px] truncate">{activeBranch?.name ?? 'Cabang'}</span>
+        <ChevronDown size={14} className="text-ink/40" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 mt-2 w-60 bg-white rounded-xl shadow-card border border-sand py-1.5 z-50">
+            <div className="px-3 py-1.5 text-[11px] uppercase tracking-wider text-ink/40">Cabang aktif</div>
+            {branches.map((b) => (
+              <button key={b.id} onClick={() => { setActiveId(b.id); setOpen(false) }}
+                className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm hover:bg-sand ${b.id === activeBranch?.id ? 'text-copper-700 font-semibold' : 'text-ink/70'}`}>
+                <Building2 size={14} /> {b.name}{b.is_default ? ' · utama' : ''}
+              </button>
+            ))}
+            <Link to="/cabang" onClick={() => setOpen(false)} className="flex items-center gap-2 px-3 py-2 text-sm text-copper-700 border-t border-sand mt-1">
+              <Plus size={14} /> Kelola cabang
+            </Link>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 export default function Layout() {
   const { user } = useAuth()
@@ -106,9 +141,10 @@ function StaffShell() {
       <div className="lg:pl-60">
         {/* Topbar — hamburger (mobile) + logo (mobile) di kiri, menu user di kanan */}
         <header className="sticky top-0 z-20 h-16 flex items-center justify-between px-4 lg:px-8 bg-cream/85 backdrop-blur border-b border-sand">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <button onClick={() => setDrawer(true)} className="btn-ghost !px-2 lg:hidden"><Menu size={20} /></button>
-            <div className="lg:hidden"><Brand size="sm" imgClassName="!h-9" /></div>
+            <div className="lg:hidden shrink-0"><Brand size="sm" imgClassName="!h-9" /></div>
+            <BranchSwitcher />
           </div>
           <UserMenu />
         </header>

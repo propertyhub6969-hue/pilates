@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
+import { useBranch } from '@/context/BranchContext'
 import type { ClassSession } from '@/types'
 import { formatTime, formatDayDate } from '@/utils/format'
-import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays } from 'lucide-react'
+import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays, Building2 } from 'lucide-react'
 
 function endTime(start: string, mins: number): string {
   const [h, m] = start.split(':').map(Number)
@@ -22,12 +23,16 @@ function groupByDate(sessions: ClassSession[]) {
 
 export default function MemberSchedule() {
   const qc = useQueryClient()
+  const { branches, activeId, setActiveId } = useBranch()
   const [tab, setTab] = useState<'all' | 'mine'>('all')
 
   const { data: sessions, isLoading } = useQuery({
-    queryKey: ['sessions', tab],
+    queryKey: ['sessions', tab, activeId],
+    enabled: tab === 'mine' || !!activeId,
     queryFn: async () =>
-      (await api.get<ClassSession[]>('/schedule/sessions', { params: tab === 'mine' ? { mine: true } : {} })).data,
+      (await api.get<ClassSession[]>('/schedule/sessions', {
+        params: tab === 'mine' ? { mine: true } : { branch_id: activeId },
+      })).data,
   })
 
   const book = useMutation({
@@ -57,6 +62,19 @@ export default function MemberSchedule() {
         ))}
       </div>
 
+      {/* Pemilih cabang (hanya saat lihat semua kelas & >1 cabang) */}
+      {tab === 'all' && branches.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          {branches.map((b) => (
+            <button key={b.id} onClick={() => setActiveId(b.id)}
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition ${
+                b.id === activeId ? 'bg-copper-100 border-copper-200 text-copper-700 font-semibold' : 'bg-white border-sand text-ink/60'}`}>
+              <Building2 size={14} /> {b.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="text-ink/40 py-10 text-center">Memuat…</div>
       ) : groups.length === 0 ? (
@@ -85,6 +103,7 @@ export default function MemberSchedule() {
                           {s.instructor_name && <span className="inline-flex items-center gap-1"><UserRound size={12} />{s.instructor_name}</span>}
                           {s.room && <span className="inline-flex items-center gap-1"><MapPin size={12} />{s.room}</span>}
                           <span className="inline-flex items-center gap-1"><Users size={12} />{s.booked_count}/{s.capacity}</span>
+                          {tab === 'mine' && s.branch_name && <span className="inline-flex items-center gap-1 text-copper-600"><Building2 size={12} />{s.branch_name}</span>}
                         </div>
                       </div>
                       <div className="shrink-0">

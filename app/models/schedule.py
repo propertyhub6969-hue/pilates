@@ -14,6 +14,9 @@ class ClassTemplate(BaseModel):
     """
     __tablename__ = "class_templates"
 
+    branch_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
 
@@ -45,6 +48,9 @@ class ClassSession(BaseModel):
     """
     __tablename__ = "class_sessions"
 
+    branch_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     template_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("class_templates.id", ondelete="SET NULL"), nullable=True, index=True
     )

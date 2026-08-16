@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.models.schedule import ClassSession, ClassSessionStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
+from app.models.branch import Branch
 from app.services.whatsapp import send_whatsapp
 from app.services.booking import now_local, session_start_dt
 
@@ -19,7 +20,17 @@ DAY_ID = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
 _KINDS = ("h1", "h2")
 
 
-def _compose_h1(name: str, s: ClassSession) -> str:
+def _loc(branch: Branch | None) -> str:
+    """Baris lokasi cabang utk pesan."""
+    if not branch:
+        return ""
+    line = f"\n📍 {branch.name}"
+    if branch.address:
+        line += f" — {branch.address}"
+    return line
+
+
+def _compose_h1(name: str, s: ClassSession, branch: Branch | None) -> str:
     d = s.session_date
     hari = f"{DAY_ID[d.weekday()]}, {d.day}/{d.month}/{d.year}"
     room = f"\nRuang: {s.room}" if s.room else ""
@@ -27,20 +38,20 @@ def _compose_h1(name: str, s: ClassSession) -> str:
     return (
         f"Halo {first} 👋\n\n"
         f"Pengingat kelas *{s.title}* besok:\n"
-        f"🗓️ {hari}\n⏰ {s.start_time.strftime('%H:%M')} {settings.TZ_LABEL}{room}\n\n"
+        f"🗓️ {hari}\n⏰ {s.start_time.strftime('%H:%M')} {settings.TZ_LABEL}{room}{_loc(branch)}\n\n"
         f"Sampai jumpa di studio! 🧘\n"
         f"_Balas pesan ini bila berhalangan hadir agar slot bisa dipakai member lain._\n\n"
         f"— {settings.STUDIO_WA_SIGNATURE}"
     )
 
 
-def _compose_h2(name: str, s: ClassSession) -> str:
+def _compose_h2(name: str, s: ClassSession, branch: Branch | None) -> str:
     room = f" · Ruang {s.room}" if s.room else ""
     first = (name or "Kak").split(" ")[0]
     return (
         f"Halo {first} 👋\n\n"
         f"Kelas *{s.title}* kamu mulai *sebentar lagi* — hari ini pukul "
-        f"*{s.start_time.strftime('%H:%M')} {settings.TZ_LABEL}*{room}.\n\n"
+        f"*{s.start_time.strftime('%H:%M')} {settings.TZ_LABEL}*{room}.{_loc(branch)}\n\n"
         f"Sampai jumpa di studio ya! 🧘\n\n"
         f"— {settings.STUDIO_WA_SIGNATURE}"
     )
@@ -79,7 +90,14 @@ async def run_reminder_pass(db: AsyncSession, kind: str = "h1", force: bool = Fa
     if not sessions:
         return results
 
+    # cache cabang
+    bids = {s.branch_id for s in sessions}
+    branches = {
+        b.id: b for b in (await db.execute(select(Branch).where(Branch.id.in_(bids)))).scalars().all()
+    }
+
     for session in sessions:
+        branch = branches.get(session.branch_id)
         rows = (await db.execute(
             select(Booking, User)
             .join(User, Booking.member_id == User.id)
@@ -93,7 +111,7 @@ async def run_reminder_pass(db: AsyncSession, kind: str = "h1", force: bool = Fa
                 results["skipped"] += 1
                 results["detail"].append(f"{member.full_name}: tak ada nomor HP")
                 continue
-            ok, info = await send_whatsapp(member.phone, compose(member.full_name, session))
+            ok, info = await send_whatsapp(member.phone, compose(member.full_name, session, branch))
             if ok:
                 setattr(booking, col, datetime.now(timezone.utc))
                 results["sent"] += 1

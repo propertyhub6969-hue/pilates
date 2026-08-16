@@ -9,6 +9,7 @@ from app.models.user import User, UserRole
 from app.models.schedule import ClassTemplate, ClassSession, ClassSessionStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.package import MemberPackage
+from app.models.branch import Branch
 from app.schemas.common import Page
 from app.schemas.schedule import (
     TemplateCreate, TemplateUpdate, TemplateResponse,
@@ -33,9 +34,17 @@ async def _instructor_names(db: AsyncSession, ids: set) -> dict:
 
 
 @router.get("/templates", response_model=Page[TemplateResponse])
-async def list_templates(db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+async def list_templates(
+    branch_id: uuid.UUID = Query(..., description="Cabang"),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_staff),
+):
     rows = (
-        await db.execute(select(ClassTemplate).order_by(ClassTemplate.day_of_week, ClassTemplate.start_time))
+        await db.execute(
+            select(ClassTemplate)
+            .where(ClassTemplate.branch_id == branch_id)
+            .order_by(ClassTemplate.day_of_week, ClassTemplate.start_time)
+        )
     ).scalars().all()
     names = await _instructor_names(db, {t.instructor_id for t in rows})
     items = []
@@ -48,6 +57,7 @@ async def list_templates(db: AsyncSession = Depends(get_db), _: User = Depends(r
 
 @router.post("/templates", response_model=TemplateResponse, status_code=201)
 async def create_template(payload: TemplateCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    await _validate_branch(db, payload.branch_id)
     await _validate_instructor(db, payload.instructor_id)
     tpl = ClassTemplate(**payload.model_dump())
     db.add(tpl)
@@ -92,9 +102,15 @@ async def _validate_instructor(db: AsyncSession, instructor_id):
         raise HTTPException(400, "Instruktur tidak valid")
 
 
+async def _validate_branch(db: AsyncSession, branch_id):
+    b = (await db.execute(select(Branch).where(Branch.id == branch_id))).scalar_one_or_none()
+    if not b:
+        raise HTTPException(400, "Cabang tidak valid")
+
+
 @router.post("/generate", response_model=GenerateResult)
 async def generate(payload: GenerateRequest, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
-    created, skipped = await booking_svc.generate_sessions(db, payload.weeks)
+    created, skipped = await booking_svc.generate_sessions(db, payload.weeks, branch_id=payload.branch_id)
     return GenerateResult(created=created, skipped=skipped)
 
 
@@ -118,6 +134,13 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
         elif status == BookingStatus.WAITLIST:
             waits[sid] = c
     names = await _instructor_names(db, {s.instructor_id for s in rows})
+    # nama cabang
+    bids = {s.branch_id for s in rows}
+    branch_names = {
+        bid: name for bid, name in (
+            await db.execute(select(Branch.id, Branch.name).where(Branch.id.in_(bids)))
+        ).all()
+    }
     # booking milik viewer (member) pada sesi-sesi ini
     mine = {}
     if viewer.role == UserRole.MEMBER:
@@ -135,6 +158,7 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
     for s in rows:
         r = SessionResponse.model_validate(s)
         r.instructor_name = names.get(s.instructor_id)
+        r.branch_name = branch_names.get(s.branch_id)
         r.booked_count = booked.get(s.id, 0)
         r.waitlist_count = waits.get(s.id, 0)
         b = mine.get(s.id)
@@ -149,6 +173,7 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
 async def list_sessions(
     date_from: date = Query(default_factory=date.today, alias="from"),
     date_to: date | None = Query(default=None, alias="to"),
+    branch_id: uuid.UUID | None = Query(None, description="Filter cabang"),
     mine: bool = Query(False, description="Member: hanya sesi yang saya booking"),
     db: AsyncSession = Depends(get_db),
     viewer: User = Depends(get_current_user),
@@ -158,6 +183,8 @@ async def list_sessions(
     stmt = select(ClassSession).where(
         ClassSession.session_date >= date_from, ClassSession.session_date <= date_to
     )
+    if branch_id is not None:
+        stmt = stmt.where(ClassSession.branch_id == branch_id)
     # Member hanya lihat sesi terjadwal (bukan yg dibatalkan), kecuali minta punyanya
     if viewer.role == UserRole.MEMBER and not mine:
         stmt = stmt.where(ClassSession.status == ClassSessionStatus.SCHEDULED)
@@ -180,6 +207,7 @@ async def list_sessions(
 
 @router.post("/sessions", response_model=SessionResponse, status_code=201)
 async def create_session(payload: SessionCreate, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)):
+    await _validate_branch(db, payload.branch_id)
     await _validate_instructor(db, payload.instructor_id)
     s = ClassSession(**payload.model_dump(), status=ClassSessionStatus.SCHEDULED)
     db.add(s)

@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { BranchProvider } from '@/context/BranchContext'
 import { isStaff } from '@/types'
 import { IS_OFFICE } from '@/utils/domain'
 import Landing from '@/pages/Landing'
@@ -13,6 +14,7 @@ import Packages from '@/pages/Packages'
 import Payments from '@/pages/Payments'
 import Settings from '@/pages/Settings'
 import Profile from '@/pages/Profile'
+import Branches from '@/pages/Branches'
 import Layout from '@/components/Layout'
 
 function Splash() {
@@ -43,18 +45,21 @@ export default function App() {
   // Sudah login — aplikasi (dashboard sadar-peran)
   const staff = isStaff(user.role)
   return (
-    <Routes>
-      <Route path="/" element={<Layout />}>
-        <Route index element={<Dashboard />} />
-        <Route path="jadwal" element={<Schedule />} />
-        <Route path="profil" element={<Profile />} />
-        {staff && <Route path="member" element={<Members />} />}
-        {staff && <Route path="member/:id" element={<MemberDetail />} />}
-        {staff && <Route path="paket" element={<Packages />} />}
-        {staff && <Route path="pembayaran" element={<Payments />} />}
-        {staff && <Route path="pengaturan" element={<Settings />} />}
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <BranchProvider>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="jadwal" element={<Schedule />} />
+          <Route path="profil" element={<Profile />} />
+          {staff && <Route path="member" element={<Members />} />}
+          {staff && <Route path="member/:id" element={<MemberDetail />} />}
+          {staff && <Route path="paket" element={<Packages />} />}
+          {staff && <Route path="pembayaran" element={<Payments />} />}
+          {staff && <Route path="cabang" element={<Branches />} />}
+          {staff && <Route path="pengaturan" element={<Settings />} />}
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BranchProvider>
   )
 }

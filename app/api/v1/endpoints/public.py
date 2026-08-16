@@ -4,11 +4,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.studio import StudioSettings
 from app.models.package import Package
+from app.models.branch import Branch
 from pydantic import BaseModel
 from typing import Optional, List
 import uuid
 
 router = APIRouter()
+
+
+class BranchPublic(BaseModel):
+    id: uuid.UUID
+    name: str
+    address: Optional[str] = None
+    phone: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/branches", response_model=List[BranchPublic])
+async def public_branches(db: AsyncSession = Depends(get_db)):
+    """Cabang aktif untuk landing page (tanpa autentikasi)."""
+    rows = (
+        await db.execute(
+            select(Branch).where(Branch.is_active.is_(True)).order_by(Branch.is_default.desc(), Branch.name.asc())
+        )
+    ).scalars().all()
+    return rows
 
 
 class StudioPublic(BaseModel):

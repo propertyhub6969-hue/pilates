@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
+import { useBranch } from '@/context/BranchContext'
 import type { ClassSession, ClassTemplate, BookingRow, Page, User } from '@/types'
 import { DAY_NAMES, BOOKING_STATUS_LABEL } from '@/types'
 import { formatTime, formatDayDate } from '@/utils/format'
@@ -42,14 +43,15 @@ export default function StaffSchedule() {
 }
 
 function AttendanceTab() {
+  const { activeId } = useBranch()
   const [range, setRange] = useState({
     from: new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10),
     to: todayISO(),
   })
   const { data, isLoading } = useQuery({
-    queryKey: ['attendance-report', range],
+    queryKey: ['attendance-report', range, activeId],
     queryFn: async () =>
-      (await api.get('/reports/attendance', { params: { from: range.from, to: range.to } })).data as {
+      (await api.get('/reports/attendance', { params: { from: range.from, to: range.to, branch_id: activeId } })).data as {
         sessions_total: number; sessions_cancelled: number; attended: number; no_show: number
         booked_open: number; attendance_rate: number
         top_members: { member_id: string; member_name: string; attended: number; no_show: number }[]
@@ -110,16 +112,18 @@ function useInstructors() {
 
 // ─────────────── SESI ───────────────
 function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const { activeId } = useBranch()
   const [openNew, setOpenNew] = useState(false)
   const [rosterFor, setRosterFor] = useState<ClassSession | null>(null)
   const to = new Date(Date.now() + 21 * 864e5).toISOString().slice(0, 10)
 
   const { data: sessions, isLoading } = useQuery({
-    queryKey: ['staff-sessions'],
-    queryFn: async () => (await api.get<ClassSession[]>('/schedule/sessions', { params: { from: todayISO(), to } })).data,
+    queryKey: ['staff-sessions', activeId],
+    enabled: !!activeId,
+    queryFn: async () => (await api.get<ClassSession[]>('/schedule/sessions', { params: { from: todayISO(), to, branch_id: activeId } })).data,
   })
   const generate = useMutation({
-    mutationFn: async () => (await api.post('/schedule/generate', { weeks: 4 })).data,
+    mutationFn: async () => (await api.post('/schedule/generate', { weeks: 4, branch_id: activeId })).data,
     onSuccess: (r: any) => { qc.invalidateQueries({ queryKey: ['staff-sessions'] }); alert(`Selesai: ${r.created} sesi dibuat, ${r.skipped} dilewati.`) },
   })
 
@@ -179,11 +183,13 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 }
 
 function SessionForm({ qc, onClose }: { qc: ReturnType<typeof useQueryClient>; onClose: () => void }) {
+  const { activeId } = useBranch()
   const { data: instructors } = useInstructors()
   const [f, setF] = useState({ title: '', instructor_id: '', session_date: todayISO(), start_time: '07:00', duration_minutes: '55', capacity: '8', room: '' })
   const [err, setErr] = useState('')
   const save = useMutation({
     mutationFn: async () => api.post('/schedule/sessions', {
+      branch_id: activeId,
       title: f.title, instructor_id: f.instructor_id || null, session_date: f.session_date,
       start_time: f.start_time, duration_minutes: Number(f.duration_minutes), capacity: Number(f.capacity), room: f.room || null,
     }),
@@ -312,10 +318,12 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
 
 // ─────────────── TEMPLATE ───────────────
 function TemplatesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const { activeId } = useBranch()
   const { data: instructors } = useInstructors()
   const { data, isLoading } = useQuery({
-    queryKey: ['templates'],
-    queryFn: async () => (await api.get<Page<ClassTemplate>>('/schedule/templates')).data,
+    queryKey: ['templates', activeId],
+    enabled: !!activeId,
+    queryFn: async () => (await api.get<Page<ClassTemplate>>('/schedule/templates', { params: { branch_id: activeId } })).data,
   })
   const [edit, setEdit] = useState<ClassTemplate | 'new' | null>(null)
   const del = useMutation({
@@ -353,6 +361,7 @@ function TemplatesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 function TemplateForm({ qc, instructors, tpl, onClose }: {
   qc: ReturnType<typeof useQueryClient>; instructors: User[]; tpl: ClassTemplate | null; onClose: () => void
 }) {
+  const { activeId } = useBranch()
   const [f, setF] = useState({
     name: tpl?.name ?? '', instructor_id: tpl?.instructor_id ?? '', day_of_week: String(tpl?.day_of_week ?? 0),
     start_time: tpl ? formatTime(tpl.start_time) : '07:00', duration_minutes: String(tpl?.duration_minutes ?? 55),
@@ -361,11 +370,12 @@ function TemplateForm({ qc, instructors, tpl, onClose }: {
   const [err, setErr] = useState('')
   const save = useMutation({
     mutationFn: async () => {
-      const body = {
+      const body: any = {
         name: f.name, instructor_id: f.instructor_id || null, day_of_week: Number(f.day_of_week),
         start_time: f.start_time, duration_minutes: Number(f.duration_minutes), capacity: Number(f.capacity), room: f.room || null,
       }
-      return tpl ? api.patch(`/schedule/templates/${tpl.id}`, body) : api.post('/schedule/templates', body)
+      if (tpl) return api.patch(`/schedule/templates/${tpl.id}`, body)
+      return api.post('/schedule/templates', { ...body, branch_id: activeId })
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['templates'] }); onClose() },
     onError: (e: any) => setErr(e?.response?.data?.detail ?? 'Gagal menyimpan'),

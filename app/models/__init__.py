@@ -2,6 +2,7 @@
 from app.models.base import BaseModel  # noqa: F401
 from app.models.user import User, UserRole  # noqa: F401
 from app.models.studio import StudioSettings  # noqa: F401
+from app.models.branch import Branch  # noqa: F401
 from app.models.package import (  # noqa: F401
     Package, MemberPackage, MemberPackageStatus,
 )

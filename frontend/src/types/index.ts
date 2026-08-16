@@ -90,12 +90,25 @@ export interface PaymentRow {
   created_at: string
 }
 
+// ── Cabang ──
+export interface Branch {
+  id: string
+  name: string
+  address?: string | null
+  phone?: string | null
+  cancellation_window_hours: number
+  booking_lead_close_hours: number
+  is_active: boolean
+  is_default: boolean
+}
+
 // ── Jadwal & Booking ──
 export type ClassSessionStatus = 'scheduled' | 'cancelled' | 'completed'
 export type BookingStatus = 'booked' | 'waitlist' | 'attended' | 'cancelled' | 'no_show'
 
 export interface ClassTemplate {
   id: string
+  branch_id: string
   name: string
   description?: string | null
   instructor_id?: string | null
@@ -110,6 +123,8 @@ export interface ClassTemplate {
 
 export interface ClassSession {
   id: string
+  branch_id: string
+  branch_name?: string | null
   title: string
   instructor_id?: string | null
   instructor_name?: string | null
