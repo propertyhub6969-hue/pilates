@@ -4,7 +4,8 @@ import { api } from '@/services/api'
 import type { Page, PaymentRow, PaymentStatus } from '@/types'
 import { PAY_STATUS_LABEL, METHOD_LABEL } from '@/types'
 import { formatRupiah, formatDateTime } from '@/utils/format'
-import { CheckCircle2, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import Modal from '@/components/Modal'
+import { CheckCircle2, Loader2, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
 
 const PAGE_SIZE = 15
 const FILTERS: { key: PaymentStatus | 'all'; label: string }[] = [
@@ -40,6 +41,21 @@ export default function Payments() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['payments'] }),
   })
 
+  const [proofView, setProofView] = useState<{ url: string; isPdf: boolean } | null>(null)
+  const [proofLoading, setProofLoading] = useState<string | null>(null)
+  async function viewProof(id: string) {
+    setProofLoading(id)
+    try {
+      const res = await api.get(`/payments/${id}/proof`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      setProofView({ url, isPdf: (res.data as Blob).type === 'application/pdf' })
+    } catch { alert('Gagal memuat bukti') } finally { setProofLoading(null) }
+  }
+  function closeProof() {
+    if (proofView) URL.revokeObjectURL(proofView.url)
+    setProofView(null)
+  }
+
   const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
@@ -72,15 +88,16 @@ export default function Payments() {
                 <th className="font-semibold px-4 py-3 hidden md:table-cell">Paket</th>
                 <th className="font-semibold px-4 py-3 hidden sm:table-cell">Metode</th>
                 <th className="font-semibold px-4 py-3 text-right">Jumlah</th>
+                <th className="font-semibold px-4 py-3">Bukti</th>
                 <th className="font-semibold px-4 py-3">Status</th>
                 <th className="w-10"></th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-ink/40">Memuat…</td></tr>
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-ink/40">Memuat…</td></tr>
               ) : (data?.items.length ?? 0) === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-ink/40">Belum ada pembayaran.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-ink/40">Belum ada pembayaran.</td></tr>
               ) : (
                 data!.items.map((p) => (
                   <tr key={p.id} className="border-b border-sand/60 last:border-0 hover:bg-sand/40 transition">
@@ -93,6 +110,14 @@ export default function Payments() {
                     </td>
                     <td className="px-4 py-3 text-ink/60 hidden sm:table-cell">{METHOD_LABEL[p.method]}</td>
                     <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">{formatRupiah(p.amount)}</td>
+                    <td className="px-4 py-3">
+                      {p.has_proof
+                        ? <button onClick={() => viewProof(p.id)} disabled={proofLoading === p.id}
+                            className="inline-flex items-center gap-1 text-xs text-copper-700 hover:underline">
+                            {proofLoading === p.id ? <Loader2 size={13} className="animate-spin" /> : <ImageIcon size={14} />} Lihat
+                          </button>
+                        : <span className="text-ink/30 text-xs">—</span>}
+                    </td>
                     <td className="px-4 py-3"><StatusBadge s={p.status} /></td>
                     <td className="px-2 py-3">
                       {p.status === 'pending' && (
@@ -123,6 +148,12 @@ export default function Payments() {
           </div>
         </div>
       </div>
+
+      <Modal open={!!proofView} onClose={closeProof} title="Bukti Transfer" maxWidth="max-w-2xl">
+        {proofView && (proofView.isPdf
+          ? <iframe src={proofView.url} className="w-full h-[70vh] rounded-lg border border-sand" title="Bukti" />
+          : <img src={proofView.url} alt="Bukti transfer" className="w-full rounded-lg" />)}
+      </Modal>
     </div>
   )
 }

@@ -48,6 +48,8 @@ class Payment(BaseModel):
     )
     paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     note: Mapped[str] = mapped_column(Text, nullable=True)
+    # Path relatif file bukti transfer (di volume upload), mis. "proofs/<id>.jpg"
+    proof_path: Mapped[str] = mapped_column(String(300), nullable=True)
 
     # Siapa yang mencatat (admin/owner)
     recorded_by_id: Mapped[uuid.UUID] = mapped_column(

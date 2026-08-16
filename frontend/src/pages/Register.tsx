@@ -1,17 +1,16 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { api } from '@/services/api'
-import { useAuth } from '@/context/AuthContext'
+import { api, tokenStore } from '@/services/api'
 import { formatRupiah } from '@/utils/format'
-import { Loader2, Infinity as InfinityIcon, Check, Zap } from 'lucide-react'
+import { Loader2, Infinity as InfinityIcon, Check, Zap, Upload } from 'lucide-react'
 
 interface Pkg { id: string; name: string; description?: string | null; is_unlimited: boolean; session_count?: number | null; price: number }
 
 export default function Register() {
-  const { register } = useAuth()
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '' })
   const [plan, setPlan] = useState<string>('per_datang') // 'per_datang' | packageId
+  const [proof, setProof] = useState<File | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -24,19 +23,27 @@ export default function Register() {
     e.preventDefault()
     setError(''); setLoading(true)
     const isDropIn = plan === 'per_datang'
+    const email = form.email.trim().toLowerCase()
     try {
-      await register({
-        full_name: form.full_name.trim(),
-        email: form.email.trim().toLowerCase(),
-        phone: form.phone || undefined,
-        password: form.password,
+      await api.post('/auth/register', {
+        full_name: form.full_name.trim(), email, phone: form.phone || undefined, password: form.password,
         member_category: isDropIn ? 'per_datang' : 'bulanan',
-        package_id: isDropIn ? undefined : plan,
-        payment_method: 'transfer',
+        package_id: isDropIn ? undefined : plan, payment_method: 'transfer',
       })
+      // login (simpan token) tanpa memicu redirect dulu, agar bisa unggah bukti
+      const { data: tok } = await api.post('/auth/login', { email, password: form.password })
+      tokenStore.set(tok.access_token, tok.refresh_token)
+      if (!isDropIn && proof) {
+        const me = await api.get('/members/me')
+        const pay = (me.data.payments ?? []).find((p: any) => p.status === 'pending')
+        if (pay) {
+          const fd = new FormData(); fd.append('file', proof)
+          await api.post(`/payments/${pay.id}/proof`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        }
+      }
+      window.location.href = '/'
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? 'Gagal mendaftar. Coba lagi.')
-    } finally {
       setLoading(false)
     }
   }
@@ -102,6 +109,20 @@ export default function Register() {
                 <p className="text-[11px] text-ink/45 mt-2">Setelah daftar, tagihan tercatat & dikonfirmasi studio saat pembayaran diterima.</p>
               )}
             </div>
+
+            {/* Bukti transfer */}
+            {plan !== 'per_datang' && (
+              <div>
+                <label className="label">Bukti transfer <span className="text-ink/40">(opsional)</span></label>
+                <label className="flex items-center gap-2 input cursor-pointer text-ink/60 hover:border-copper-300">
+                  <Upload size={16} className="text-copper-600" />
+                  <span className="truncate">{proof ? proof.name : 'Pilih gambar / PDF bukti transfer…'}</span>
+                  <input type="file" accept="image/*,application/pdf" className="hidden"
+                    onChange={(e) => setProof(e.target.files?.[0] ?? null)} />
+                </label>
+                <p className="text-[11px] text-ink/40 mt-1">Bisa juga dikirim nanti. Studio akan verifikasi pembayaranmu.</p>
+              </div>
+            )}
 
             {error && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{error}</div>}
 

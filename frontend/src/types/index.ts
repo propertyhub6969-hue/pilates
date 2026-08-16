@@ -101,6 +101,7 @@ export interface PaymentRow {
   status: PaymentStatus
   paid_at?: string | null
   note?: string | null
+  has_proof?: boolean
   created_at: string
 }
 

@@ -16,6 +16,7 @@ class PaymentRow(BaseModel):
     status: PaymentStatus
     paid_at: Optional[datetime] = None
     note: Optional[str] = None
+    has_proof: bool = False
     created_at: datetime
 
     class Config:
