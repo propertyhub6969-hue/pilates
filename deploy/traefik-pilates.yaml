@@ -1,0 +1,31 @@
+http:
+  routers:
+    pilates-http:
+      rule: "Host(`pilates.nexisthub.id`)"
+      entryPoints:
+        - http
+      middlewares:
+        - pilates-redirect-to-https
+      service: pilates-svc
+      priority: 100
+
+    pilates-https:
+      rule: "Host(`pilates.nexisthub.id`)"
+      entryPoints:
+        - https
+      service: pilates-svc
+      priority: 100
+      tls:
+        certResolver: letsencrypt
+
+  middlewares:
+    pilates-redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+  services:
+    pilates-svc:
+      loadBalancer:
+        servers:
+          - url: "http://pilates_frontend:80"

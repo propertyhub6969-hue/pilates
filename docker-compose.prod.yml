@@ -48,12 +48,9 @@ services:
     restart: always
     depends_on:
       - backend
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=coolify"
-      - "traefik.http.routers.pilates.rule=Host(`pilates.nexisthub.id`)"
-      - "traefik.http.routers.pilates.entrypoints=http"
-      - "traefik.http.services.pilates.loadbalancer.server.port=80"
+    # Routing + TLS diatur lewat file dynamic Traefik: /data/coolify/proxy/dynamic/pilates.yaml
+    # (http→https redirect + certResolver letsencrypt), pola sama nexisthub.yaml/pos.yaml.
+    # Container hanya perlu join network `coolify` agar proxy bisa menjangkaunya.
     networks:
       - pilates_net
       - coolify
