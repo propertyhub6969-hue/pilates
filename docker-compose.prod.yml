@@ -55,8 +55,28 @@ services:
       - pilates_net
       - coolify
 
+  # Gateway WhatsApp khusus studio (nomor sendiri, terpisah dari gowa NexistHub).
+  # Scan QR sekali via UI-nya (127.0.0.1:8057 atau subdomain), sesi tersimpan di volume.
+  whatsapp:
+    image: ghcr.io/aldinokemal/go-whatsapp-web-multidevice:latest
+    container_name: pilates_whatsapp
+    restart: always
+    command: rest
+    environment:
+      APP_PORT: "3000"
+      APP_BASIC_AUTH: ${WA_BASIC_AUTH}
+      APP_OS: ReformerYourBody
+      TZ: ${TIMEZONE}
+    ports:
+      - "127.0.0.1:8057:3000"   # localhost — akses QR via tunnel/subdomain
+    volumes:
+      - pilates_wa:/app/storages
+    networks:
+      - pilates_net
+
 volumes:
   pilates_pg:
+  pilates_wa:
 
 networks:
   pilates_net:
