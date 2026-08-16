@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 
 const STATUS_STYLE: Record<string, string> = {
-  active: 'bg-sage-100 text-sage-700',
+  active: 'bg-copper-100 text-copper-700',
   used_up: 'bg-sand text-ink/50',
   expired: 'bg-sand text-ink/50',
   frozen: 'bg-clay/10 text-clay-dark',
@@ -97,13 +97,13 @@ export default function MemberDetail() {
               <span className="inline-flex items-center gap-1"><Mail size={14} />{m.email}</span>
               {m.phone
                 ? <span className="inline-flex items-center gap-1"><Phone size={14} />{m.phone}</span>
-                : <button onClick={() => openEdit(m)} className="inline-flex items-center gap-1 text-sage-600 font-medium"><Phone size={14} />+ No. WhatsApp</button>}
+                : <button onClick={() => openEdit(m)} className="inline-flex items-center gap-1 text-copper-600 font-medium"><Phone size={14} />+ No. WhatsApp</button>}
               {m.join_date && <span>Bergabung {formatDate(m.join_date)}</span>}
             </div>
           </div>
-          <div className="rounded-xl2 bg-sage-50 border border-sage-100 px-5 py-3 text-center">
+          <div className="rounded-xl2 bg-copper-50 border border-copper-100 px-5 py-3 text-center">
             <div className="text-xs text-ink/50">Sisa kuota</div>
-            <div className="font-display text-2xl font-semibold text-sage-700">
+            <div className="font-display text-2xl font-semibold text-copper-700">
               {m.has_unlimited ? <span className="inline-flex items-center gap-1"><InfinityIcon size={22} /></span> : (m.active_sessions_remaining ?? 0)}
             </div>
           </div>
@@ -153,7 +153,7 @@ export default function MemberDetail() {
                 <div className="font-semibold">{formatRupiah(p.amount)}</div>
                 <div className="text-xs text-ink/50">{formatDateTime(p.created_at)} · {METHOD_LABEL[p.method]}</div>
               </div>
-              <span className={`text-[11px] rounded-full px-2 py-0.5 ${p.status === 'paid' ? 'bg-sage-100 text-sage-700' : p.status === 'pending' ? 'bg-clay/10 text-clay-dark' : 'bg-sand text-ink/50'}`}>
+              <span className={`text-[11px] rounded-full px-2 py-0.5 ${p.status === 'paid' ? 'bg-copper-100 text-copper-700' : p.status === 'pending' ? 'bg-clay/10 text-clay-dark' : 'bg-sand text-ink/50'}`}>
                 {PAY_STATUS_LABEL[p.status]}
               </span>
             </div>
@@ -171,7 +171,7 @@ export default function MemberDetail() {
               onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} />
           </div>
           <div>
-            <label className="label">No. WhatsApp <span className="text-sage-600">· untuk pengingat kelas</span></label>
+            <label className="label">No. WhatsApp <span className="text-copper-600">· untuk pengingat kelas</span></label>
             <input className="input" value={editForm.phone}
               onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="08123456789" />
             <p className="text-[11px] text-ink/40 mt-1">Reminder H-1 kelas dikirim ke nomor ini via WhatsApp.</p>

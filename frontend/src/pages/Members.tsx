@@ -51,7 +51,7 @@ export default function Members() {
         {tabs.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
-              tab === t.key ? 'bg-sage-600 text-white' : 'bg-sand text-ink/60 hover:bg-sage-100'}`}>
+              tab === t.key ? 'bg-copper-600 text-white' : 'bg-sand text-ink/60 hover:bg-copper-100'}`}>
             {t.label}
           </button>
         ))}
@@ -70,7 +70,7 @@ export default function Members() {
           {data?.items.map((u) => (
             <button key={u.id} onClick={() => nav(`/member/${u.id}`)}
               className="w-full card flex items-center gap-3 text-left hover:shadow-card transition">
-              <span className="grid place-items-center w-10 h-10 rounded-full bg-sage-100 text-sage-700 shrink-0">
+              <span className="grid place-items-center w-10 h-10 rounded-full bg-copper-100 text-copper-700 shrink-0">
                 <UserRound size={18} />
               </span>
               <div className="flex-1 min-w-0">
@@ -100,7 +100,7 @@ export default function Members() {
               onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </div>
           <div>
-            <label className="label">No. WhatsApp {tab === 'member' && <span className="text-sage-600">· untuk pengingat kelas</span>}</label>
+            <label className="label">No. WhatsApp {tab === 'member' && <span className="text-copper-600">· untuk pengingat kelas</span>}</label>
             <input className="input" value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08123456789" />
             {tab === 'member' && <p className="text-[11px] text-ink/40 mt-1">Reminder H-1 kelas dikirim ke nomor ini via WhatsApp.</p>}

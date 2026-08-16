@@ -29,7 +29,7 @@ export default function StaffSchedule() {
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
-              tab === t.key ? 'bg-sage-600 text-white' : 'bg-sand text-ink/60 hover:bg-sage-100'}`}>
+              tab === t.key ? 'bg-copper-600 text-white' : 'bg-sand text-ink/60 hover:bg-copper-100'}`}>
             {t.label}
           </button>
         ))}
@@ -74,8 +74,8 @@ function AttendanceTab() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {stats.map((s) => (
-              <div key={s.label} className={`card text-center ${s.accent ? 'bg-sage-50 border-sage-100' : ''}`}>
-                <div className={`font-display text-2xl font-semibold ${s.accent ? 'text-sage-700' : ''}`}>{s.value}</div>
+              <div key={s.label} className={`card text-center ${s.accent ? 'bg-copper-50 border-copper-100' : ''}`}>
+                <div className={`font-display text-2xl font-semibold ${s.accent ? 'text-copper-700' : ''}`}>{s.value}</div>
                 <div className="text-xs text-ink/50 mt-1">{s.label}</div>
               </div>
             ))}
@@ -88,7 +88,7 @@ function AttendanceTab() {
                 <div key={m.member_id} className="card flex items-center gap-3">
                   <span className="grid place-items-center w-7 h-7 rounded-full bg-sand text-ink/50 text-sm font-semibold shrink-0">{i + 1}</span>
                   <div className="flex-1 font-semibold text-sm">{m.member_name}</div>
-                  <div className="text-sm"><span className="text-sage-700 font-semibold">{m.attended} hadir</span>
+                  <div className="text-sm"><span className="text-copper-700 font-semibold">{m.attended} hadir</span>
                     {m.no_show > 0 && <span className="text-ink/40"> · {m.no_show} absen</span>}</div>
                 </div>
               ))}
@@ -151,7 +151,7 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
                     <button key={s.id} onClick={() => setRosterFor(s)}
                       className={`w-full card flex items-center gap-4 text-left hover:shadow-card transition ${s.status === 'cancelled' ? 'opacity-50' : ''}`}>
                       <div className="text-center shrink-0 w-14">
-                        <div className="font-display text-lg font-semibold text-sage-700">{formatTime(s.start_time)}</div>
+                        <div className="font-display text-lg font-semibold text-copper-700">{formatTime(s.start_time)}</div>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold truncate">{s.title} {s.status === 'cancelled' && <span className="text-clay text-xs">(dibatalkan)</span>}</div>
@@ -269,7 +269,7 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
             {shown.map((r) => (
               <div key={r.id} className="flex items-center gap-2 py-2 border-b border-sand last:border-0">
                 <span className={`grid place-items-center w-8 h-8 rounded-full shrink-0 ${
-                  r.status === 'attended' ? 'bg-sage-600 text-white' : r.status === 'no_show' ? 'bg-sand text-ink/40' : 'bg-sage-100 text-sage-700'}`}>
+                  r.status === 'attended' ? 'bg-copper-600 text-white' : r.status === 'no_show' ? 'bg-sand text-ink/40' : 'bg-copper-100 text-copper-700'}`}>
                   {r.status === 'attended' ? <CheckCircle2 size={16} /> : <UserRound size={16} />}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -332,7 +332,7 @@ function TemplatesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
             <div key={t.id} className={`card flex items-center gap-4 ${!t.is_active ? 'opacity-50' : ''}`}>
               <div className="text-center shrink-0 w-16">
                 <div className="font-semibold text-sm">{DAY_NAMES[t.day_of_week]}</div>
-                <div className="text-sage-700 font-display">{formatTime(t.start_time)}</div>
+                <div className="text-copper-700 font-display">{formatTime(t.start_time)}</div>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold truncate">{t.name}</div>

@@ -101,7 +101,7 @@ export default function Packages() {
                 {p.validity_days && <span>· berlaku {p.validity_days} hari</span>}
               </div>
               {p.description && <p className="text-sm text-ink/50 mt-1">{p.description}</p>}
-              <div className="mt-3 font-display text-xl font-semibold text-sage-700">{formatRupiah(p.price)}</div>
+              <div className="mt-3 font-display text-xl font-semibold text-copper-700">{formatRupiah(p.price)}</div>
               {!p.is_active && <span className="text-xs text-clay">Diarsipkan</span>}
             </div>
           ))}

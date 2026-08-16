@@ -28,7 +28,7 @@ export default function Register() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-sage-600 text-white">
+      <div className="hidden lg:flex flex-col justify-between p-12 bg-copper-600 text-white">
         <Link to="/" className="flex items-center gap-2">
           <span className="grid place-items-center w-10 h-10 rounded-full bg-white/15 font-display font-semibold">R</span>
           <span className="font-display text-lg font-semibold">Reformer Your Body</span>
@@ -77,7 +77,7 @@ export default function Register() {
           </form>
 
           <p className="text-sm text-ink/50 mt-6 text-center">
-            Sudah punya akun? <Link to="/login" className="text-sage-700 font-semibold">Masuk</Link>
+            Sudah punya akun? <Link to="/login" className="text-copper-700 font-semibold">Masuk</Link>
           </p>
         </div>
       </div>

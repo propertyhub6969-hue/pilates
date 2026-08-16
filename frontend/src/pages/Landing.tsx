@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '@/services/api'
+import Brand from '@/components/Brand'
 import { formatRupiah } from '@/utils/format'
 import {
   Infinity as InfinityIcon, Sparkles, HeartPulse, Wind, Users2,
@@ -41,10 +42,7 @@ export default function Landing() {
       {/* NAV */}
       <header className="sticky top-0 z-30 bg-cream/85 backdrop-blur border-b border-sand">
         <div className="mx-auto max-w-6xl px-5 h-16 flex items-center justify-between">
-          <a href="#top" className="flex items-center gap-2">
-            <span className="grid place-items-center w-9 h-9 rounded-full bg-sage-600 text-white font-display font-semibold">R</span>
-            <span className="font-display text-lg font-semibold tracking-tight">{name}</span>
-          </a>
+          <a href="#top"><Brand size="sm" imgClassName="!h-10" /></a>
           <nav className="hidden md:flex items-center gap-7 text-sm text-ink/70">
             <a href="#kelas" className="hover:text-ink">Kelas</a>
             <a href="#paket" className="hover:text-ink">Paket</a>
@@ -71,11 +69,11 @@ export default function Landing() {
 
       {/* HERO */}
       <section id="top" className="relative overflow-hidden">
-        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-sage-100 blur-3xl opacity-60" />
+        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-copper-100 blur-3xl opacity-60" />
         <div className="absolute top-40 -left-24 w-80 h-80 rounded-full bg-clay/10 blur-3xl" />
         <div className="relative mx-auto max-w-6xl px-5 py-20 sm:py-28 grid lg:grid-cols-2 gap-12 items-center">
           <div>
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-sage-600 bg-sage-50 rounded-full px-3 py-1">
+            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-copper-600 bg-copper-50 rounded-full px-3 py-1">
               <Sparkles size={14} /> Studio Pilates Reformer
             </span>
             <h1 className="font-display text-5xl sm:text-6xl font-semibold leading-[1.05] mt-5">
@@ -90,11 +88,10 @@ export default function Landing() {
             </div>
           </div>
           <div className="relative">
-            <div className="aspect-[4/5] rounded-[2rem] bg-gradient-to-br from-sage-500 to-sage-700 shadow-card grid place-items-center">
-              <div className="text-center text-white/90 px-8">
-                <div className="font-display text-7xl font-semibold">R</div>
-                <p className="font-display text-2xl mt-2">{name}</p>
-                <p className="text-white/60 text-sm mt-3">Reformer · Mat · Private</p>
+            <div className="aspect-[4/5] rounded-[2rem] bg-gradient-to-br from-sand to-copper-100 shadow-card grid place-items-center p-10 border border-copper-200/60">
+              <div className="text-center">
+                <Brand size="lg" imgClassName="!h-44 mx-auto" />
+                <p className="text-ink/45 text-xs mt-6 tracking-[0.2em] uppercase">Reformer · Mat · Private</p>
               </div>
             </div>
           </div>
@@ -123,7 +120,7 @@ export default function Landing() {
           <div className="grid md:grid-cols-3 gap-6 mt-10">
             {CLASSES.map((c) => (
               <div key={c.title} className="card">
-                <span className="grid place-items-center w-12 h-12 rounded-xl bg-sage-50 text-sage-600"><c.icon size={24} /></span>
+                <span className="grid place-items-center w-12 h-12 rounded-xl bg-copper-50 text-copper-600"><c.icon size={24} /></span>
                 <h3 className="font-semibold text-lg mt-4">{c.title}</h3>
                 <p className="text-ink/55 text-sm mt-2">{c.desc}</p>
               </div>
@@ -147,7 +144,7 @@ export default function Landing() {
                   {p.is_unlimited ? <span className="inline-flex items-center gap-1"><InfinityIcon size={15} /> Unlimited</span> : `${p.session_count} sesi`}
                 </div>
                 {p.description && <p className="text-ink/50 text-sm mt-2">{p.description}</p>}
-                <div className="font-display text-2xl font-semibold text-sage-700 mt-4">{formatRupiah(p.price)}</div>
+                <div className="font-display text-2xl font-semibold text-copper-700 mt-4">{formatRupiah(p.price)}</div>
                 <Link to="/register" className="btn-primary w-full mt-4">Pilih paket ini</Link>
               </div>
             ))}
@@ -159,7 +156,7 @@ export default function Landing() {
       </section>
 
       {/* KONTAK */}
-      <section id="kontak" className="bg-sage-600 text-white py-20">
+      <section id="kontak" className="bg-copper-600 text-white py-20">
         <div className="mx-auto max-w-6xl px-5 grid md:grid-cols-2 gap-10 items-center">
           <div>
             <h2 className="font-display text-3xl sm:text-4xl font-semibold">Kunjungi kami</h2>
@@ -176,7 +173,7 @@ export default function Landing() {
             <h3 className="font-display text-2xl font-semibold">Sudah jadi member?</h3>
             <p className="text-white/70 mt-2">Masuk untuk lihat sisa kuota &amp; kelola paketmu.</p>
             <div className="flex gap-3 mt-6">
-              <Link to="/login" className="btn bg-white text-sage-700 hover:bg-cream flex-1">Masuk</Link>
+              <Link to="/login" className="btn bg-white text-copper-700 hover:bg-cream flex-1">Masuk</Link>
               <Link to="/register" className="btn bg-clay text-white hover:bg-clay-dark flex-1">Daftar</Link>
             </div>
           </div>

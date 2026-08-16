@@ -29,7 +29,7 @@ export default function Profile() {
       <h1 className="font-display text-2xl font-semibold">Profil</h1>
 
       <div className="card flex items-center gap-4">
-        <span className="grid place-items-center w-14 h-14 rounded-full bg-sage-100 text-sage-700"><UserRound size={26} /></span>
+        <span className="grid place-items-center w-14 h-14 rounded-full bg-copper-100 text-copper-700"><UserRound size={26} /></span>
         <div>
           <div className="font-display text-lg font-semibold">{user?.full_name}</div>
           <div className="text-sm text-ink/50">{user?.email} · {user && ROLE_LABEL[user.role]}</div>
@@ -50,7 +50,7 @@ export default function Profile() {
               onChange={(e) => setF({ ...f, confirm: e.target.value })} /></div>
         </div>
         {msg && (
-          <div className={`text-sm rounded-lg px-3 py-2 ${msg.type === 'ok' ? 'text-sage-700 bg-sage-50 border border-sage-100' : 'text-clay-dark bg-clay/10 border border-clay/20'}`}>
+          <div className={`text-sm rounded-lg px-3 py-2 ${msg.type === 'ok' ? 'text-copper-700 bg-copper-50 border border-copper-100' : 'text-clay-dark bg-clay/10 border border-clay/20'}`}>
             {msg.text}
           </div>
         )}

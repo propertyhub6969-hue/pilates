@@ -51,7 +51,7 @@ export default function MemberSchedule() {
         {(['all', 'mine'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
-              tab === t ? 'bg-sage-600 text-white' : 'bg-sand text-ink/60 hover:bg-sage-100'}`}>
+              tab === t ? 'bg-copper-600 text-white' : 'bg-sand text-ink/60 hover:bg-copper-100'}`}>
             {t === 'all' ? 'Semua kelas' : 'Jadwalku'}
           </button>
         ))}
@@ -76,7 +76,7 @@ export default function MemberSchedule() {
                   return (
                     <div key={s.id} className="card flex items-center gap-4">
                       <div className="text-center shrink-0 w-16">
-                        <div className="font-display text-lg font-semibold text-sage-700">{formatTime(s.start_time)}</div>
+                        <div className="font-display text-lg font-semibold text-copper-700">{formatTime(s.start_time)}</div>
                         <div className="text-[11px] text-ink/40">{endTime(formatTime(s.start_time), s.duration_minutes)}</div>
                       </div>
                       <div className="flex-1 min-w-0">

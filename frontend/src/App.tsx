@@ -18,7 +18,7 @@ import Layout from '@/components/Layout'
 function Splash() {
   return (
     <div className="min-h-screen grid place-items-center bg-cream">
-      <div className="animate-pulse text-sage-600 font-display text-xl">Reformer Your Body…</div>
+      <div className="animate-pulse text-copper-600 font-display text-xl">Reformer Your Body…</div>
     </div>
   )
 }

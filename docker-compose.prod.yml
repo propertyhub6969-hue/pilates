@@ -46,6 +46,9 @@ services:
       dockerfile: Dockerfile
     container_name: pilates_frontend
     restart: always
+    volumes:
+      # Aset brand runtime — taruh logo.png di /opt/pilates/brand, langsung tampil (tanpa build ulang)
+      - /opt/pilates/brand:/usr/share/nginx/html/brand:ro
     depends_on:
       - backend
     # Routing + TLS diatur lewat file dynamic Traefik: /data/coolify/proxy/dynamic/pilates.yaml

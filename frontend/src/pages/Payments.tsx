@@ -38,7 +38,7 @@ export default function Payments() {
         <h1 className="font-display text-2xl font-semibold">Pembayaran</h1>
         <div className="text-right">
           <div className="text-xs text-ink/50">Total lunas (tampil)</div>
-          <div className="font-display text-xl font-semibold text-sage-700">{formatRupiah(total)}</div>
+          <div className="font-display text-xl font-semibold text-copper-700">{formatRupiah(total)}</div>
         </div>
       </div>
 
@@ -46,7 +46,7 @@ export default function Payments() {
         {FILTERS.map((f) => (
           <button key={f.key} onClick={() => setFilter(f.key)}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
-              filter === f.key ? 'bg-sage-600 text-white' : 'bg-sand text-ink/60 hover:bg-sage-100'}`}>
+              filter === f.key ? 'bg-copper-600 text-white' : 'bg-sand text-ink/60 hover:bg-copper-100'}`}>
             {f.label}
           </button>
         ))}
@@ -66,7 +66,7 @@ export default function Payments() {
               </div>
               <div className="text-right shrink-0">
                 <div className="font-semibold">{formatRupiah(p.amount)}</div>
-                <span className={`text-[11px] rounded-full px-2 py-0.5 ${p.status === 'paid' ? 'bg-sage-100 text-sage-700' : p.status === 'pending' ? 'bg-clay/10 text-clay-dark' : 'bg-sand text-ink/50'}`}>
+                <span className={`text-[11px] rounded-full px-2 py-0.5 ${p.status === 'paid' ? 'bg-copper-100 text-copper-700' : p.status === 'pending' ? 'bg-clay/10 text-clay-dark' : 'bg-sand text-ink/50'}`}>
                   {PAY_STATUS_LABEL[p.status]}
                 </span>
               </div>

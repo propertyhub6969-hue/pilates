@@ -4,22 +4,22 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Palet "Calm Studio" — hangat & tenang, khas wellness (bukan korporat)
-        cream: '#FAF8F5',   // latar utama
-        sand: '#F1ECE4',    // panel/kartu lembut
-        ink: '#2A2724',     // teks utama
-        clay: {             // aksen terracotta hangat (CTA sekunder)
-          DEFAULT: '#C97B5A',
-          dark: '#B5674A',
+        // Palet "Rose Gold" — selaras logo Reformer Your Body (tembaga hangat di atas krem)
+        cream: '#FAF5EF',   // latar utama (krem hangat)
+        sand: '#F3E7DB',    // panel/kartu lembut
+        ink: '#3B2E28',     // teks utama (coklat tua hangat)
+        clay: {             // aksen terracotta (CTA sekunder)
+          DEFAULT: '#C0714E',
+          dark: '#A55B3B',
         },
-        sage: {             // warna utama (brand)
-          50: '#F0F3EF',
-          100: '#DCE4DA',
-          200: '#B9C8B5',
-          400: '#7E9377',
-          500: '#5F7659',
-          600: '#4C6147',
-          700: '#3C4E39',
+        copper: {           // warna utama (brand) — rose gold / tembaga
+          50: '#FBF1EB',
+          100: '#F4DED2',
+          200: '#E8C2AF',
+          400: '#CF9880',
+          500: '#BD7A61',
+          600: '#A9654E',
+          700: '#8A5140',
         },
       },
       fontFamily: {
@@ -27,8 +27,8 @@ export default {
         display: ['"Fraunces"', 'Georgia', 'serif'],
       },
       boxShadow: {
-        soft: '0 2px 12px rgba(42,39,36,0.06)',
-        card: '0 4px 24px rgba(42,39,36,0.08)',
+        soft: '0 2px 12px rgba(59,46,40,0.07)',
+        card: '0 4px 24px rgba(59,46,40,0.10)',
       },
       borderRadius: {
         xl2: '1.25rem',
