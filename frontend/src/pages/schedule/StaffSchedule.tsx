@@ -178,11 +178,13 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span className="inline-flex items-center gap-1 font-semibold"><Users size={14} />{s.booked_count}/{s.capacity}</span>
                           {s.waitlist_count > 0 && <span className="text-[11px] text-clay-dark ml-1">+{s.waitlist_count} wl</span>}
+                          <span className="block text-[11px] text-ink/40">{s.bulanan_count} bulanan</span>
                         </td>
                         <td className="px-4 py-3">
                           {s.status === 'cancelled' ? <span className="text-xs rounded-full px-2 py-0.5 bg-clay/10 text-clay-dark">Dibatalkan</span>
                             : s.status === 'completed' ? <span className="text-xs rounded-full px-2 py-0.5 bg-sand text-ink/50">Selesai</span>
                             : <span className="text-xs rounded-full px-2 py-0.5 bg-copper-100 text-copper-700">Terjadwal</span>}
+                          {s.is_underfilled && <span className="text-xs rounded-full px-2 py-0.5 bg-clay/15 text-clay-dark ml-1" title="Bulanan di bawah target minimal">Sepi</span>}
                         </td>
                         <td className="px-2"><ChevronRight size={16} className="text-ink/30" /></td>
                       </tr>
@@ -272,6 +274,14 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
     onSuccess: () => { inval(); onClose() },
   })
 
+  const [reOpen, setReOpen] = useState(false)
+  const [re, setRe] = useState({ session_date: session.session_date, start_time: formatTime(session.start_time), notify: true })
+  const reschedule = useMutation({
+    mutationFn: async () => api.post(`/schedule/sessions/${session.id}/reschedule`, re),
+    onSuccess: () => { inval(); setReOpen(false); onClose() },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menjadwalkan ulang'),
+  })
+
   const shown = (roster ?? []).filter((r) => r.status !== 'cancelled')
 
   return (
@@ -326,9 +336,31 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
           </div>
         )}
 
-        {session.status !== 'cancelled' && (
-          <button onClick={() => { if (confirm('Batalkan sesi ini? Kuota semua peserta dikembalikan.')) cancelSession.mutate() }}
-            className="btn-ghost w-full text-clay-dark border border-clay/20"><CalendarClock size={16} /> Batalkan sesi ini</button>
+        {session.status !== 'cancelled' && !reOpen && (
+          <div className="flex gap-2">
+            <button onClick={() => setReOpen(true)} className="btn-ghost flex-1 border border-sand"><CalendarClock size={16} /> Jadwalkan Ulang</button>
+            <button onClick={() => { if (confirm('Batalkan sesi ini? Kuota semua peserta dikembalikan.')) cancelSession.mutate() }}
+              className="btn-ghost flex-1 text-clay-dark border border-clay/20"><XCircle size={16} /> Batalkan sesi</button>
+          </div>
+        )}
+
+        {session.status !== 'cancelled' && reOpen && (
+          <form onSubmit={(e) => { e.preventDefault(); reschedule.mutate() }} className="rounded-xl border border-sand p-3 space-y-3">
+            <div className="text-sm font-semibold">Jadwalkan Ulang</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="label">Tanggal baru</label><input className="input" type="date" required value={re.session_date} onChange={(e) => setRe({ ...re, session_date: e.target.value })} /></div>
+              <div><label className="label">Jam mulai</label><input className="input" type="time" required value={re.start_time} onChange={(e) => setRe({ ...re, start_time: e.target.value })} /></div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={re.notify} onChange={(e) => setRe({ ...re, notify: e.target.checked })} />
+              Beri tahu peserta via WhatsApp
+            </label>
+            <p className="text-[11px] text-ink/40">Booking peserta otomatis ikut pindah ke waktu baru.</p>
+            <div className="flex gap-2">
+              <button className="btn-primary flex-1" disabled={reschedule.isPending}>{reschedule.isPending && <Loader2 size={15} className="animate-spin" />} Simpan & pindahkan</button>
+              <button type="button" onClick={() => setReOpen(false)} className="btn-ghost border border-sand">Batal</button>
+            </div>
+          </form>
         )}
       </div>
     </Modal>

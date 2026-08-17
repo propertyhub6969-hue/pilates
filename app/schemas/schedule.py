@@ -105,9 +105,17 @@ class SessionResponse(BaseModel):
     booking_opens_at: Optional[datetime] = None
     booking_closes_at: Optional[datetime] = None
     can_book: bool = False
+    bulanan_count: int = 0               # jumlah bulanan yang sudah booking (staf)
+    is_underfilled: bool = False         # bulanan < target minimal → "sesi sepi"
 
     class Config:
         from_attributes = True
+
+
+class RescheduleRequest(BaseModel):
+    session_date: date
+    start_time: time
+    notify: bool = True                  # kirim WA ke peserta terdaftar (best-effort)
 
 
 # ── Booking ──

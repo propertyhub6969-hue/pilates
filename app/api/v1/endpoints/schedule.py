@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.deps import get_current_user, require_staff
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, MemberCategory
 from app.models.schedule import ClassTemplate, ClassSession, ClassSessionStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.package import MemberPackage
@@ -14,7 +14,7 @@ from app.schemas.common import Page
 from app.schemas.schedule import (
     TemplateCreate, TemplateUpdate, TemplateResponse,
     GenerateRequest, GenerateResult,
-    SessionCreate, SessionUpdate, SessionResponse, BookingRow,
+    SessionCreate, SessionUpdate, SessionResponse, BookingRow, RescheduleRequest,
 )
 from app.services import booking as booking_svc
 from app.services.quota import refresh_status, _now as _quota_now
@@ -133,6 +133,17 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
             booked[sid] = c
         elif status == BookingStatus.WAITLIST:
             waits[sid] = c
+    # jumlah booking bulanan per sesi (utk deteksi "sesi sepi")
+    bul_rows = (
+        await db.execute(
+            select(Booking.session_id, func.count())
+            .join(User, Booking.member_id == User.id)
+            .where(Booking.session_id.in_(ids), Booking.status == BookingStatus.BOOKED,
+                   User.member_category == MemberCategory.BULANAN)
+            .group_by(Booking.session_id)
+        )
+    ).all()
+    bulanan = {sid: c for sid, c in bul_rows}
     names = await _instructor_names(db, {s.instructor_id for s in rows})
     # nama cabang
     bids = {s.branch_id for s in rows}
@@ -173,6 +184,12 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
             r.my_booking_status = b.status
             r.my_booking_id = b.id
 
+        r.bulanan_count = bulanan.get(s.id, 0)
+        r.is_underfilled = (
+            s.status == ClassSessionStatus.SCHEDULED
+            and s.session_date >= date.today()
+            and r.bulanan_count < (studio.min_bulanan or 0)
+        )
         if s.status != ClassSessionStatus.SCHEDULED:
             r.booking_state = "cancelled"
             r.can_book = False
@@ -287,6 +304,67 @@ async def cancel_session(session_id: uuid.UUID, db: AsyncSession = Depends(get_d
         b.member_package_id = None
     s.status = ClassSessionStatus.CANCELLED
     await db.flush()
+    await db.refresh(s)
+    return (await _serialize_sessions(db, [s], staff))[0]
+
+
+async def _notify_reschedule(db: AsyncSession, session: ClassSession, old_date, old_time) -> int:
+    """Kirim WA ke peserta terdaftar (booked+waitlist) bahwa sesi dijadwalkan ulang. Best-effort."""
+    from app.services.whatsapp import send_whatsapp
+    from app.models.studio import StudioSettings
+    studio = (await db.execute(select(StudioSettings))).scalars().first()
+    sname = studio.name if studio else "Reformer Your Body"
+    rows = (
+        await db.execute(
+            select(User.full_name, User.phone)
+            .join(Booking, Booking.member_id == User.id)
+            .where(Booking.session_id == session.id,
+                   Booking.status.in_([BookingStatus.BOOKED, BookingStatus.WAITLIST]),
+                   User.phone.isnot(None))
+        )
+    ).all()
+    def fmt(d, t):
+        return f"{d.strftime('%d/%m/%Y')} {t.strftime('%H:%M')}"
+    sent = 0
+    for name, phone in rows:
+        msg = (
+            f"Halo {name}, kelas *{session.title}* DIJADWALKAN ULANG.\n"
+            f"Semula: {fmt(old_date, old_time)} WITA\n"
+            f"Menjadi: *{fmt(session.session_date, session.start_time)} WITA*\n\n"
+            f"Bookingmu otomatis ikut pindah. Cek aplikasi untuk detail. Terima kasih 🙏\n{sname}"
+        )
+        try:
+            ok, _ = await send_whatsapp(phone, msg)
+            if ok:
+                sent += 1
+        except Exception:  # noqa: BLE001
+            pass
+    return sent
+
+
+@router.post("/sessions/{session_id}/reschedule", response_model=SessionResponse)
+async def reschedule_session(
+    session_id: uuid.UUID,
+    payload: RescheduleRequest,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Pindahkan sesi ke tanggal/jam lain. Booking peserta ikut pindah (tetap terpasang).
+    Jendela booking otomatis dihitung ulang dari tanggal baru. Opsional: beri tahu peserta via WA."""
+    s = (await db.execute(select(ClassSession).where(ClassSession.id == session_id))).scalar_one_or_none()
+    if not s:
+        raise HTTPException(404, "Sesi tidak ditemukan")
+    if s.status != ClassSessionStatus.SCHEDULED:
+        raise HTTPException(400, "Hanya sesi terjadwal yang bisa dijadwalkan ulang")
+    old_date, old_time = s.session_date, s.start_time
+    s.session_date = payload.session_date
+    s.start_time = payload.start_time
+    await db.flush()
+    if payload.notify:
+        try:
+            await _notify_reschedule(db, s, old_date, old_time)
+        except Exception:  # noqa: BLE001
+            pass
     await db.refresh(s)
     return (await _serialize_sessions(db, [s], staff))[0]
 
