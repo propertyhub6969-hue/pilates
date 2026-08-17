@@ -14,8 +14,9 @@ import {
 const fmtDateTime = (iso: string) =>
   new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
-const todayISO = () => new Date().toISOString().slice(0, 10)
-const firstOfMonth = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10) }
+// Tanggal zona studio (WITA), tahan bug UTC di dekat tengah malam.
+const todayISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date())
+const firstOfMonth = () => todayISO().slice(0, 8) + '01'
 const PAGE_SIZE = 15
 
 function useAccounts() {

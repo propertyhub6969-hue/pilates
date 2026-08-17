@@ -477,7 +477,8 @@ async def expenses_xlsx(
 
     for col, w in zip("ABCDE", [14, 22, 40, 22, 18]):
         ws.column_dimensions[col].width = w
-    return _xlsx_response(wb, f"Pengeluaran_{(date_from or date.today()).strftime('%Y%m%d')}.xlsx")
+    from app.services.booking import today_local
+    return _xlsx_response(wb, f"Pengeluaran_{(date_from or today_local()).strftime('%Y%m%d')}.xlsx")
 
 
 async def _validate_category(db: AsyncSession, key: str) -> None:

@@ -13,8 +13,9 @@ interface Report {
   accounts: FinancialAccount[]
 }
 
-const firstOfMonth = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10) }
-const todayISO = () => new Date().toISOString().slice(0, 10)
+// Tanggal zona studio (WITA), tahan bug UTC di dekat tengah malam.
+const todayISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date())
+const firstOfMonth = () => todayISO().slice(0, 8) + '01'
 
 interface Studio { name: string; address?: string | null; phone?: string | null }
 
