@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useBranch } from '@/context/BranchContext'
 import { ROLE_LABEL, isStaff, type UserRole } from '@/types'
 import Brand from '@/components/Brand'
+import NotificationBell from '@/components/NotificationBell'
 import {
   LogOut, LayoutDashboard, CalendarDays, Users, Wallet, Package,
   ChevronDown, UserRound, Settings as SettingsIcon, Menu, X, Building2, Plus,
@@ -149,7 +150,10 @@ function StaffShell() {
             <div className="lg:hidden shrink-0"><Brand size="sm" imgClassName="!h-9" /></div>
             <BranchSwitcher />
           </div>
-          <UserMenu />
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <UserMenu />
+          </div>
         </header>
 
         <main key={loc.pathname} className="max-w-5xl mx-auto px-4 lg:px-8 py-6 lg:py-8">

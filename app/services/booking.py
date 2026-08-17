@@ -102,22 +102,39 @@ def _refund_quota(mp: MemberPackage) -> None:
 
 
 async def _ensure_dropin_payment(db: AsyncSession, booking: Booking, session: ClassSession) -> None:
-    """Buat tagihan drop-in (per datang) utk booking ini bila belum ada. Status PENDING —
-    ditagih/ditandai lunas saat member datang & bayar."""
+    """Tagihan drop-in (per datang) utk booking ini. Bila member sudah punya tagihan drop-in
+    yang belum terpakai (mis. dari aktivasi), pakai itu; kalau tidak, buat baru. Status PENDING."""
     exists = (
         await db.execute(select(Payment).where(Payment.booking_id == booking.id))
     ).scalar_one_or_none()
     if exists:
         return
-    studio = await get_studio(db)
     d = session.session_date
+    label = f"Drop-in (per datang) — {session.title}, {d.day}/{d.month}/{d.year}"
+    # Tagihan drop-in belum terpakai (booking_id NULL) → pasangkan ke booking ini.
+    unattached = (
+        await db.execute(
+            select(Payment).where(
+                Payment.member_id == booking.member_id,
+                Payment.booking_id.is_(None),
+                Payment.member_package_id.is_(None),
+                Payment.note.like("Drop-in%"),
+                Payment.status == PaymentStatus.PENDING,
+            ).order_by(Payment.created_at.asc()).limit(1)
+        )
+    ).scalar_one_or_none()
+    if unattached is not None:
+        unattached.booking_id = booking.id
+        unattached.note = label
+        return
+    studio = await get_studio(db)
     db.add(Payment(
         member_id=booking.member_id,
         booking_id=booking.id,
         amount=float(studio.drop_in_price or 0),
         method=PaymentMethod.CASH,
         status=PaymentStatus.PENDING,
-        note=f"Drop-in (per datang) — {session.title}, {d.day}/{d.month}/{d.year}",
+        note=label,
     ))
 
 

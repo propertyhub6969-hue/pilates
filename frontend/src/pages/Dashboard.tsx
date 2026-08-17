@@ -168,14 +168,14 @@ function EnrollCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
         {(packages ?? []).map((p) => (
           <PlanCard key={p.id} active={plan === p.id} onClick={() => setPlan(p.id)} title={p.name}
             desc={(p.is_unlimited ? 'Unlimited' : `${p.session_count} sesi`) + (p.description ? ` · ${p.description}` : '')}
-            right={<span className="font-display font-semibold text-copper-700 whitespace-nowrap">{p.is_unlimited ? <InfinityIcon size={16} className="inline" /> : formatRupiah(p.price)}</span>} />
+            right={<span className="font-display font-semibold text-copper-700 whitespace-nowrap">{formatRupiah(p.price)}</span>} />
         ))}
       </div>
 
       {error && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{error}</div>}
       <button onClick={() => { setError(''); enroll.mutate() }} disabled={enroll.isPending} className="btn-primary w-full">
         {enroll.isPending && <Loader2 size={16} className="animate-spin" />}
-        {plan === 'per_datang' ? 'Aktifkan (Per Datang)' : 'Lanjut ke Pembayaran'}
+        Lanjutkan Pembayaran
       </button>
     </div>
   )

@@ -183,6 +183,18 @@ async def enroll_me(
             method=PaymentMethod.TRANSFER, mark_paid=False, activate=False,
             note="Aktivasi keanggotaan (menunggu pembayaran)",
         )
+    elif payload.member_category == MemberCategory.PER_DATANG:
+        # Per datang: buat tagihan drop-in pertama (menunggu pembayaran).
+        # Booking pertama nanti memakai tagihan ini (lihat services/booking._ensure_dropin_payment).
+        from app.models.studio import StudioSettings
+        studio = (await db.execute(select(StudioSettings))).scalars().first()
+        price = float(studio.drop_in_price or 0) if studio else 0
+        if price > 0:
+            db.add(Payment(
+                member_id=user.id, amount=price, method=PaymentMethod.TRANSFER,
+                status=PaymentStatus.PENDING, note="Drop-in (per datang) — aktivasi",
+            ))
+            await db.flush()
     return await _load_detail(db, user)
 
 
