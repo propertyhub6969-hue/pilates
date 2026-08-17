@@ -8,7 +8,7 @@ import { formatRupiah, formatDate, formatDateTime } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   ArrowLeft, Plus, Loader2, Snowflake, Infinity as InfinityIcon,
-  Wallet, ShoppingBag, Phone, Mail, Pencil, Trash2, Power,
+  Wallet, ShoppingBag, Phone, Mail, Pencil, Trash2, Power, KeyRound, Check,
 } from 'lucide-react'
 
 const STATUS_STYLE: Record<string, string> = {
@@ -92,6 +92,18 @@ export default function MemberDetail() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['member', id] }); qc.invalidateQueries({ queryKey: ['users'] }) },
   })
 
+  const [pwOpen, setPwOpen] = useState(false)
+  const [pwValue, setPwValue] = useState('')
+  const [pwDone, setPwDone] = useState(false)
+  const [pwErr, setPwErr] = useState('')
+  const setPw = useMutation({
+    mutationFn: async () => api.post(`/members/${id}/set-password`, { new_password: pwValue }),
+    onSuccess: () => { setPwDone(true); setPwErr('') },
+    onError: (e: any) => setPwErr(e?.response?.data?.detail ?? 'Gagal menyetel password'),
+  })
+  function openReset() { setPwValue(''); setPwDone(false); setPwErr(''); setPwOpen(true) }
+  function genPw() { setPwValue('ryb' + Math.floor(1000 + Math.random() * 9000)) }
+
   if (isLoading || !m) return <div className="text-ink/40 py-10 text-center">Memuat…</div>
 
   return (
@@ -108,6 +120,7 @@ export default function MemberDetail() {
               {m.member_category && <span className="text-xs bg-copper-50 text-copper-700 border border-copper-100 rounded-full px-2 py-0.5">{CATEGORY_LABEL[m.member_category]}</span>}
               {!m.is_active && <span className="text-xs text-clay">non-aktif</span>}
               <button onClick={() => openEdit(m)} className="btn-ghost !px-2 !py-1 text-ink/50" title="Edit member"><Pencil size={15} /></button>
+              <button onClick={openReset} className="btn-ghost !px-2 !py-1 text-ink/50" title="Reset password"><KeyRound size={15} /></button>
               {!m.is_active && (
                 <button onClick={() => reactivate.mutate()} disabled={reactivate.isPending} className="btn-ghost !px-2 !py-1 text-copper-700" title="Aktifkan kembali">
                   {reactivate.isPending ? <Loader2 size={15} className="animate-spin" /> : <Power size={15} />}
@@ -192,6 +205,37 @@ export default function MemberDetail() {
           {remove.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} Hapus member
         </button>
       </div>
+
+      {/* Modal reset password (admin) */}
+      <Modal open={pwOpen} onClose={() => setPwOpen(false)} title="Reset Password Member">
+        {pwDone ? (
+          <div className="space-y-4">
+            <div className="text-sm text-copper-700 bg-copper-50 border border-copper-100 rounded-lg px-3 py-2 flex items-center gap-2">
+              <Check size={16} /> Password berhasil disetel.
+            </div>
+            <div className="text-sm text-ink/70">Sampaikan password baru ini ke <b>{m.full_name}</b>:</div>
+            <div className="font-mono text-lg text-center bg-sand rounded-lg py-3 select-all">{pwValue}</div>
+            <p className="text-xs text-ink/45">Minta member segera menggantinya sendiri di menu Profil setelah masuk.</p>
+            <button onClick={() => setPwOpen(false)} className="btn-primary w-full">Selesai</button>
+          </div>
+        ) : (
+          <form onSubmit={(e) => { e.preventDefault(); setPwErr(''); setPw.mutate() }} className="space-y-4">
+            <p className="text-sm text-ink/60">Tetapkan password sementara untuk member ini. Berguna bila member lupa password dan tak bisa menerima OTP (mis. ganti nomor).</p>
+            <div>
+              <label className="label">Password baru</label>
+              <div className="flex gap-2">
+                <input className="input flex-1" required minLength={6} value={pwValue}
+                  onChange={(e) => setPwValue(e.target.value)} placeholder="Minimal 6 karakter" />
+                <button type="button" onClick={genPw} className="btn-ghost border border-sand shrink-0">Acak</button>
+              </div>
+            </div>
+            {pwErr && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{pwErr}</div>}
+            <button className="btn-primary w-full" disabled={setPw.isPending || pwValue.length < 6}>
+              {setPw.isPending && <Loader2 size={16} className="animate-spin" />} Setel Password
+            </button>
+          </form>
+        )}
+      </Modal>
 
       {/* Modal edit member */}
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Member">

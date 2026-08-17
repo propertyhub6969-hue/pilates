@@ -14,6 +14,7 @@ from app.schemas.member import (
     UserCreate, UserUpdate, UserBrief, MemberDetail,
     MemberPackageResponse, PaymentResponse, PurchaseCreate, EnrollRequest,
 )
+from app.schemas.auth import SetPassword
 from app.services.quota import refresh_status, is_usable
 
 router = APIRouter()
@@ -227,6 +228,24 @@ async def update_user(
     await db.flush()
     await db.refresh(user)
     return user
+
+
+@router.post("/{user_id}/set-password", status_code=204)
+async def admin_set_password(
+    user_id: uuid.UUID,
+    payload: SetPassword,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_staff),
+):
+    """Admin/owner menetapkan password baru untuk seorang user (mis. member lupa & ganti nomor)."""
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(404, "User tidak ditemukan")
+    if user.role == UserRole.OWNER and actor.role != UserRole.OWNER:
+        raise HTTPException(403, "Tidak bisa mengubah akun owner")
+    user.hashed_password = get_password_hash(payload.new_password)
+    await db.flush()
+    return None
 
 
 @router.delete("/{user_id}")

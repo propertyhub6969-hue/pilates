@@ -88,6 +88,10 @@ export default function Login() {
             </button>
           </form>
 
+          <p className="text-sm text-ink/50 mt-4 text-center">
+            <Link to="/lupa-password" className="text-copper-700 font-medium hover:underline">Lupa password?</Link>
+          </p>
+
           {!IS_OFFICE && (
             <p className="text-sm text-ink/50 mt-6 text-center">
               Belum punya akun? <Link to="/register" className="text-copper-700 font-semibold">Daftar sebagai member</Link>

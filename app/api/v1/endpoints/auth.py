@@ -1,9 +1,11 @@
 import os
 import uuid
-from datetime import date
+import hashlib
+import secrets
+from datetime import date, datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import (
@@ -12,12 +14,16 @@ from app.core.security import (
 )
 from app.schemas.auth import (
     MemberRegister, UserLogin, Token, TokenRefresh, UserResponse,
+    ForgotPassword, ResetPassword,
 )
 from app.schemas.studio import ChangePassword
 from app.models.user import User, UserRole
+from app.models.password_reset import PasswordResetOTP
 from app.api.deps import get_current_user
 
 router = APIRouter()
+
+_GENERIC_RESET_MSG = "Jika data cocok, kode reset telah dikirim via WhatsApp."
 
 
 def _tokens_for(user: User) -> Token:
@@ -174,3 +180,89 @@ async def get_avatar(user_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     if not os.path.exists(full):
         raise HTTPException(404, "File foto hilang")
     return FileResponse(full)
+
+
+# ─────────────── LUPA PASSWORD (WA OTP) ───────────────
+OTP_TTL_MINUTES = 10
+OTP_MAX_ATTEMPTS = 5
+
+
+def _hash_code(code: str) -> str:
+    return hashlib.sha256(code.encode()).hexdigest()
+
+
+async def _find_user_by_identifier(db: AsyncSession, identifier: str) -> User | None:
+    ident = identifier.strip()
+    if "@" in ident:
+        return (await db.execute(select(User).where(User.email == ident.lower()))).scalar_one_or_none()
+    # cocokkan lewat nomor telepon (normalisasi format Indonesia)
+    from app.services.whatsapp import normalize_phone
+    target = normalize_phone(ident)
+    if not target:
+        return None
+    rows = (await db.execute(select(User).where(User.phone.isnot(None)))).scalars().all()
+    for u in rows:
+        if normalize_phone(u.phone or "") == target:
+            return u
+    return None
+
+
+@router.post("/forgot-password")
+async def forgot_password(payload: ForgotPassword, db: AsyncSession = Depends(get_db)):
+    """Kirim kode OTP reset via WhatsApp. Respons selalu generik (anti-enumerasi)."""
+    user = await _find_user_by_identifier(db, payload.identifier)
+    if user and user.is_active and user.phone:
+        # batalkan kode lama yang belum terpakai
+        await db.execute(
+            update(PasswordResetOTP).where(
+                PasswordResetOTP.user_id == user.id, PasswordResetOTP.used.is_(False)
+            ).values(used=True)
+        )
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        otp = PasswordResetOTP(
+            user_id=user.id, code_hash=_hash_code(code),
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=OTP_TTL_MINUTES),
+        )
+        db.add(otp)
+        await db.flush()
+        from app.services.whatsapp import send_whatsapp
+        msg = (
+            f"*Reformer Your Body*\n\nKode reset password Anda: *{code}*\n"
+            f"Berlaku {OTP_TTL_MINUTES} menit. Jangan bagikan kode ini ke siapa pun.\n\n"
+            "Abaikan pesan ini jika Anda tidak meminta reset password."
+        )
+        try:
+            await send_whatsapp(user.phone, msg)
+        except Exception:  # noqa: BLE001
+            pass
+    return {"ok": True, "message": _GENERIC_RESET_MSG}
+
+
+@router.post("/reset-password")
+async def reset_password(payload: ResetPassword, db: AsyncSession = Depends(get_db)):
+    """Verifikasi kode OTP lalu set password baru."""
+    user = await _find_user_by_identifier(db, payload.identifier)
+    if not user:
+        raise HTTPException(400, "Kode salah atau kedaluwarsa. Minta kode baru.")
+    otp = (
+        await db.execute(
+            select(PasswordResetOTP).where(
+                PasswordResetOTP.user_id == user.id, PasswordResetOTP.used.is_(False)
+            ).order_by(PasswordResetOTP.created_at.desc()).limit(1)
+        )
+    ).scalar_one_or_none()
+    if not otp or otp.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(400, "Kode salah atau kedaluwarsa. Minta kode baru.")
+    if otp.attempts >= OTP_MAX_ATTEMPTS:
+        otp.used = True
+        await db.flush()
+        raise HTTPException(400, "Terlalu banyak percobaan. Minta kode baru.")
+    if _hash_code(payload.code.strip()) != otp.code_hash:
+        otp.attempts += 1
+        await db.flush()
+        raise HTTPException(400, "Kode salah. Coba lagi.")
+    # sukses
+    user.hashed_password = get_password_hash(payload.new_password)
+    otp.used = True
+    await db.flush()
+    return {"ok": True, "message": "Password berhasil diganti. Silakan login."}

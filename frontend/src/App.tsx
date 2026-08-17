@@ -6,6 +6,7 @@ import { IS_OFFICE } from '@/utils/domain'
 import Landing from '@/pages/Landing'
 import Login from '@/pages/Login'
 import Register from '@/pages/Register'
+import ForgotPassword from '@/pages/ForgotPassword'
 import Dashboard from '@/pages/Dashboard'
 import Schedule from '@/pages/Schedule'
 import Members from '@/pages/Members'
@@ -36,6 +37,7 @@ export default function App() {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/lupa-password" element={<ForgotPassword />} />
         {!IS_OFFICE && <Route path="/register" element={<Register />} />}
         {/* apex: beranda = landing page; office: langsung ke login */}
         <Route path="/" element={IS_OFFICE ? <Navigate to="/login" replace /> : <Landing />} />

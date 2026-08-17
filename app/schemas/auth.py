@@ -33,6 +33,22 @@ class TokenRefresh(BaseModel):
     refresh_token: str
 
 
+class ForgotPassword(BaseModel):
+    """Nomor WA / email terdaftar untuk minta kode reset."""
+    identifier: str = Field(min_length=3, max_length=255)
+
+
+class ResetPassword(BaseModel):
+    identifier: str = Field(min_length=3, max_length=255)
+    code: str = Field(min_length=4, max_length=8)
+    new_password: str = Field(min_length=6, max_length=128)
+
+
+class SetPassword(BaseModel):
+    """Admin menetapkan password baru untuk seorang user."""
+    new_password: str = Field(min_length=6, max_length=128)
+
+
 class UserResponse(BaseModel):
     id: uuid.UUID
     email: EmailStr
