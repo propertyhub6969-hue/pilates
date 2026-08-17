@@ -1,10 +1,12 @@
 import uuid
 from datetime import date, timedelta
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
-from app.api.deps import get_current_user, require_staff
+from app.api.deps import get_current_user, require_staff, require_owner
 from app.models.user import User, UserRole, MemberCategory
 from app.models.schedule import ClassTemplate, ClassSession, ClassSessionStatus
 from app.models.booking import Booking, BookingStatus
@@ -367,6 +369,31 @@ async def reschedule_session(
             pass
     await db.refresh(s)
     return (await _serialize_sessions(db, [s], staff))[0]
+
+
+class BroadcastRequest(BaseModel):
+    kind: str                              # 'bulanan' | 'dropin'
+    target_date: Optional[date] = None     # default: hitung dari jendela (H-2 / H-1)
+
+
+@router.post("/broadcast")
+async def trigger_broadcast(
+    payload: BroadcastRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_owner),
+):
+    """Kirim broadcast jadwal SEKARANG (uji/manual). Bulanan → grup; per-datang → personal ber-jeda.
+    Tanpa target_date: bulanan=H-2 (hari ini + hari-buka-bulanan), per-datang=H-1."""
+    from app.services import broadcast as bc
+    studio = await booking_svc.get_studio(db)
+    today = date.today()
+    if payload.kind == "bulanan":
+        td = payload.target_date or (today + timedelta(days=studio.bulanan_open_days_before or 2))
+        return await bc.announce_bulanan(db, td)
+    elif payload.kind == "dropin":
+        td = payload.target_date or (today + timedelta(days=studio.dropin_open_days_before or 1))
+        return await bc.notify_dropin(db, td, jitter=(0.5, 1.5))  # uji manual: jeda pendek
+    raise HTTPException(400, "kind harus 'bulanan' atau 'dropin'")
 
 
 @router.get("/sessions/{session_id}/roster", response_model=list[BookingRow])

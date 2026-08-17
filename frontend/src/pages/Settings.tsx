@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import { Loader2, Check } from 'lucide-react'
+import { Loader2, Check, Send, RefreshCw } from 'lucide-react'
 
 interface StudioSettings {
   id: string
@@ -21,6 +21,9 @@ interface StudioSettings {
   booking_close_time: string
   default_capacity: number
   min_bulanan: number
+  wa_broadcast_enabled: boolean
+  wa_group_bulanan?: string | null
+  booking_url: string
 }
 
 export default function Settings() {
@@ -33,6 +36,21 @@ export default function Settings() {
     queryFn: async () => (await api.get<StudioSettings>('/studio/settings')).data,
   })
   useEffect(() => { if (data) setF(data) }, [data])
+
+  const [wantGroups, setWantGroups] = useState(false)
+  const { data: groups, isFetching: groupsLoading } = useQuery({
+    queryKey: ['wa-groups'],
+    enabled: wantGroups,
+    queryFn: async () => (await api.get<{ jid: string; name: string }[]>('/studio/wa-groups')).data,
+  })
+  const [testMsg, setTestMsg] = useState('')
+  async function testBroadcast(kind: 'bulanan' | 'dropin') {
+    setTestMsg('Mengirim…')
+    try {
+      const { data } = await api.post('/schedule/broadcast', { kind })
+      setTestMsg(data?.ok ? `✓ ${kind === 'bulanan' ? 'Terkirim ke grup' : `Terkirim ke ${data.sent ?? 0}/${data.total ?? 0} per-datang`} (${data.info ?? ''})` : `Gagal: ${data?.reason ?? data?.info ?? '—'}`)
+    } catch (e: any) { setTestMsg('Gagal: ' + (e?.response?.data?.detail ?? 'error')) }
+  }
 
   const save = useMutation({
     mutationFn: async () => (await api.patch('/studio/settings', {
@@ -49,6 +67,9 @@ export default function Settings() {
       booking_close_time: f.booking_close_time || '00:00',
       default_capacity: Number(f.default_capacity ?? 14),
       min_bulanan: Number(f.min_bulanan ?? 10),
+      wa_broadcast_enabled: !!f.wa_broadcast_enabled,
+      wa_group_bulanan: f.wa_group_bulanan || null,
+      booking_url: f.booking_url || 'https://reformeryourbody.com/jadwal',
     })).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['studio-settings'] })
@@ -141,6 +162,40 @@ export default function Settings() {
               <input className="input" type="number" min={0} value={f.min_bulanan ?? 10}
                 onChange={(e) => setF({ ...f, min_bulanan: Number(e.target.value) })} />
               <p className="text-[11px] text-ink/40 mt-1">Ambang "sesi sepi" (dipakai nanti).</p></div>
+          </div>
+        </div>
+
+        <div className="card space-y-4">
+          <h2 className="font-semibold">Broadcast Jadwal WhatsApp</h2>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={!!f.wa_broadcast_enabled} onChange={(e) => setF({ ...f, wa_broadcast_enabled: e.target.checked })} />
+            <span>Aktifkan broadcast otomatis. <span className="text-ink/50">H-2 20:00 → post ke grup bulanan/private; H-1 20:00 → WA personal ke per-datang bertiket.</span></span>
+          </label>
+          <div>
+            <label className="label">Grup WhatsApp (bulanan &amp; private)</label>
+            <div className="flex gap-2">
+              <select className="input flex-1" value={f.wa_group_bulanan ?? ''} onChange={(e) => setF({ ...f, wa_group_bulanan: e.target.value })}>
+                <option value="">— pilih grup —</option>
+                {f.wa_group_bulanan && !groups?.some((g) => g.jid === f.wa_group_bulanan) && <option value={f.wa_group_bulanan}>Tersimpan: {f.wa_group_bulanan}</option>}
+                {groups?.map((g) => <option key={g.jid} value={g.jid}>{g.name}</option>)}
+              </select>
+              <button type="button" onClick={() => setWantGroups(true)} className="btn-ghost border border-sand shrink-0">
+                {groupsLoading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Muat grup
+              </button>
+            </div>
+            <p className="text-[11px] text-ink/40 mt-1">Klik "Muat grup" untuk ambil daftar grup dari akun WhatsApp gateway, lalu pilih grup member. Nomor gateway harus jadi anggota grup.</p>
+          </div>
+          <div>
+            <label className="label">Link booking (dicantumkan di pesan)</label>
+            <input className="input" value={f.booking_url ?? ''} onChange={(e) => setF({ ...f, booking_url: e.target.value })} placeholder="https://reformeryourbody.com/jadwal" />
+          </div>
+          <div className="border-t border-sand pt-3">
+            <p className="text-[11px] text-ink/45 mb-2">Uji kirim (pakai pengaturan yang <b>sudah disimpan</b>). Bulanan → sesi H-2; per-datang → sesi H-1.</p>
+            <div className="flex gap-2 flex-wrap">
+              <button type="button" onClick={() => testBroadcast('bulanan')} className="btn-ghost border border-sand text-sm"><Send size={15} /> Uji ke grup</button>
+              <button type="button" onClick={() => testBroadcast('dropin')} className="btn-ghost border border-sand text-sm"><Send size={15} /> Uji personal per-datang</button>
+            </div>
+            {testMsg && <div className="text-xs text-ink/60 bg-sand/60 rounded-lg px-3 py-2 mt-2">{testMsg}</div>}
           </div>
         </div>
 

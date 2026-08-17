@@ -22,6 +22,9 @@ class StudioSettingsResponse(BaseModel):
     booking_close_time: str = "00:00"
     default_capacity: int = 14
     min_bulanan: int = 10
+    wa_broadcast_enabled: bool = False
+    wa_group_bulanan: Optional[str] = None
+    booking_url: str = "https://reformeryourbody.com/jadwal"
 
     class Config:
         from_attributes = True
@@ -45,6 +48,9 @@ class StudioSettingsUpdate(BaseModel):
     booking_close_time: Optional[str] = Field(default=None, max_length=5)
     default_capacity: Optional[int] = Field(default=None, ge=1, le=100)
     min_bulanan: Optional[int] = Field(default=None, ge=0, le=100)
+    wa_broadcast_enabled: Optional[bool] = None
+    wa_group_bulanan: Optional[str] = Field(default=None, max_length=120)
+    booking_url: Optional[str] = Field(default=None, max_length=200)
 
 
 class ChangePassword(BaseModel):

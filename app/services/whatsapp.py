@@ -62,30 +62,69 @@ def normalize_phone(phone: str) -> str | None:
     return digits
 
 
-async def send_whatsapp(phone: str, message: str) -> tuple[bool, str]:
-    """Kirim satu pesan WA. Return (terkirim, keterangan).
-    Dry-run bila WA_ENABLED=False / gateway belum diset."""
-    num = normalize_phone(phone)
-    if not num:
-        return False, "nomor tidak valid"
-
+async def _post_message(target: str, message: str) -> tuple[bool, str]:
+    """Kirim ke `target` (nomor 62xxx utk personal, atau JID `...@g.us` utk grup)."""
     if not settings.WA_ENABLED or not settings.WA_GATEWAY_URL:
-        return False, f"DRY-RUN (tak terkirim) → {num}"
-
+        return False, f"DRY-RUN (tak terkirim) → {target}"
     headers = _auth_headers()
     device_id = await resolve_device_id()
     if not device_id:
         return False, "tidak ada device WhatsApp yang login di gateway"
-    # gowa multi-akun: tiap kirim wajib menyertakan device (akun WA) yang dipakai
-    headers["X-Device-Id"] = device_id
-
+    headers["X-Device-Id"] = device_id  # gowa multi-akun: wajib device yang dipakai
     url = settings.WA_GATEWAY_URL.rstrip("/") + "/send/message"
-    payload = {"phone": num, "message": message}
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            resp = await client.post(url, json=payload, headers=headers)
+        async with httpx.AsyncClient(timeout=25) as client:
+            resp = await client.post(url, json={"phone": target, "message": message}, headers=headers)
         if resp.status_code // 100 == 2:
             return True, "terkirim"
         return False, f"gateway HTTP {resp.status_code}: {resp.text[:120]}"
     except Exception as e:  # noqa: BLE001
         return False, f"error: {e}"
+
+
+async def send_whatsapp(phone: str, message: str) -> tuple[bool, str]:
+    """Kirim satu pesan WA ke nomor personal. Dry-run bila WA_ENABLED=False."""
+    num = normalize_phone(phone)
+    if not num:
+        return False, "nomor tidak valid"
+    return await _post_message(num, message)
+
+
+async def send_whatsapp_group(group_jid: str, message: str) -> tuple[bool, str]:
+    """Kirim pesan ke GRUP (JID `...@g.us`). Risiko rendah: 1 pesan, aktivitas grup normal."""
+    if not group_jid:
+        return False, "grup belum dipilih"
+    if "@g.us" not in group_jid:
+        group_jid = f"{group_jid}@g.us"
+    return await _post_message(group_jid, message)
+
+
+async def list_wa_groups() -> list[dict]:
+    """Daftar grup yang diikuti akun WA (utk dipilih di Pengaturan). Return [{jid, name}]."""
+    if not settings.WA_GATEWAY_URL:
+        return []
+    device_id = await resolve_device_id()
+    if not device_id:
+        return []
+    headers = _auth_headers()
+    headers["X-Device-Id"] = device_id
+    base = settings.WA_GATEWAY_URL.rstrip("/")
+    for path in ("/user/my/groups", "/group"):
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.get(base + path, headers=headers)
+            if resp.status_code // 100 != 2:
+                continue
+            results = resp.json().get("results")
+            rows = results.get("data", results) if isinstance(results, dict) else results
+            out = []
+            for g in (rows or []):
+                jid = g.get("JID") or g.get("jid") or g.get("id")
+                name = g.get("Name") or g.get("name") or g.get("subject") or "(tanpa nama)"
+                if jid:
+                    out.append({"jid": jid, "name": name})
+            if out:
+                return out
+        except Exception:  # noqa: BLE001
+            continue
+    return []

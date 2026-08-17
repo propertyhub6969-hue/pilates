@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, Text, Numeric
+from sqlalchemy import String, Integer, Text, Numeric, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import BaseModel
 
@@ -39,6 +39,11 @@ class StudioSettings(BaseModel):
     # Kapasitas & target minimal per sesi kelas grup.
     default_capacity: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
     min_bulanan: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+
+    # ── Broadcast jadwal via WhatsApp (Fase 2) ──
+    wa_broadcast_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    wa_group_bulanan: Mapped[str] = mapped_column(String(120), nullable=True)   # JID grup bulanan+private
+    booking_url: Mapped[str] = mapped_column(String(200), default="https://reformeryourbody.com/jadwal", nullable=False)
 
     # Nomor WhatsApp admin yang menerima notifikasi (mis. bukti transfer masuk).
     admin_whatsapp: Mapped[str] = mapped_column(String(30), nullable=True)
