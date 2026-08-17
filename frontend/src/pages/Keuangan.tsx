@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import type { FinancialAccount, ExpenseRow, ExpenseCategory, AccountType, Page } from '@/types'
+import type { FinancialAccount, ExpenseRow, ExpenseEditRow, ExpenseCategory, AccountType, Page } from '@/types'
 import { EXPENSE_CATEGORY_LABEL } from '@/types'
 import { formatRupiah, formatDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
-  Plus, Loader2, Trash2, Wallet, Landmark, ChevronLeft, ChevronRight, Pencil,
+  Plus, Loader2, Trash2, Wallet, Landmark, ChevronLeft, ChevronRight, Pencil, History, UserRound,
 } from 'lucide-react'
+
+const fmtDateTime = (iso: string) =>
+  new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const PAGE_SIZE = 15
@@ -48,7 +51,8 @@ function ExpensesTab() {
   const [page, setPage] = useState(1)
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
-  const [f, setF] = useState({ expense_date: todayISO(), category: 'sewa' as ExpenseCategory, amount: '', account_id: '', description: '' })
+  const [histId, setHistId] = useState<string | null>(null)
+  const [f, setF] = useState<{ id?: string; expense_date: string; category: ExpenseCategory; amount: string; account_id: string; description: string }>({ expense_date: todayISO(), category: 'sewa', amount: '', account_id: '', description: '' })
 
   useEffect(() => { setPage(1) }, [])
 
@@ -58,11 +62,21 @@ function ExpensesTab() {
     placeholderData: keepPreviousData,
   })
 
+  const { data: history, isLoading: histLoading } = useQuery({
+    queryKey: ['expense-history', histId],
+    enabled: !!histId,
+    queryFn: async () => (await api.get<ExpenseEditRow[]>(`/finance/expenses/${histId}/history`)).data,
+  })
+
   const save = useMutation({
-    mutationFn: async () => api.post('/finance/expenses', {
-      expense_date: f.expense_date, category: f.category, amount: Number(f.amount),
-      account_id: f.account_id, description: f.description || null,
-    }),
+    mutationFn: async () => {
+      const body = {
+        expense_date: f.expense_date, category: f.category, amount: Number(f.amount),
+        account_id: f.account_id, description: f.description || null,
+      }
+      if (f.id) return api.patch(`/finance/expenses/${f.id}`, body)
+      return api.post('/finance/expenses', body)
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); qc.invalidateQueries({ queryKey: ['fin-accounts'] }); setOpen(false) },
     onError: (e: any) => setError(e?.response?.data?.detail ?? 'Gagal menyimpan'),
   })
@@ -74,6 +88,11 @@ function ExpensesTab() {
   function openNew() {
     setError('')
     setF({ expense_date: todayISO(), category: 'sewa', amount: '', account_id: accounts?.[0]?.id ?? '', description: '' })
+    setOpen(true)
+  }
+  function openEdit(e: ExpenseRow) {
+    setError('')
+    setF({ id: e.id, expense_date: e.expense_date, category: e.category, amount: String(e.amount), account_id: e.account_id ?? '', description: e.description ?? '' })
     setOpen(true)
   }
 
@@ -94,7 +113,7 @@ function ExpensesTab() {
                 <th className="font-semibold px-4 py-3 hidden md:table-cell">Keterangan</th>
                 <th className="font-semibold px-4 py-3 hidden sm:table-cell">Akun</th>
                 <th className="font-semibold px-4 py-3 text-right">Jumlah</th>
-                <th className="w-8"></th>
+                <th className="font-semibold px-4 py-3 text-right w-28">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -107,7 +126,17 @@ function ExpensesTab() {
                     <td className="px-4 py-3 text-ink/60 hidden md:table-cell">{e.description || '—'}</td>
                     <td className="px-4 py-3 text-ink/60 hidden sm:table-cell">{e.account_name || '—'}</td>
                     <td className="px-4 py-3 text-right font-semibold whitespace-nowrap text-clay-dark">{formatRupiah(e.amount)}</td>
-                    <td className="px-2"><button onClick={() => { if (confirm('Hapus pengeluaran ini?')) del.mutate(e.id) }} className="btn-ghost !px-2 !py-1.5 text-clay-dark"><Trash2 size={15} /></button></td>
+                    <td className="px-2">
+                      <div className="flex items-center justify-end gap-0.5">
+                        <button title="Ubah" onClick={() => openEdit(e)} className="btn-ghost !px-2 !py-1.5 text-ink/55"><Pencil size={15} /></button>
+                        <button title="Riwayat edit" onClick={() => setHistId(e.id)} disabled={!e.edit_count}
+                          className="btn-ghost !px-2 !py-1.5 relative text-ink/55 disabled:opacity-25">
+                          <History size={15} />
+                          {e.edit_count > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 grid place-items-center rounded-full bg-copper-600 text-white text-[9px] font-bold leading-none">{e.edit_count}</span>}
+                        </button>
+                        <button title="Hapus" onClick={() => { if (confirm('Hapus pengeluaran ini?')) del.mutate(e.id) }} className="btn-ghost !px-2 !py-1.5 text-clay-dark"><Trash2 size={15} /></button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
             </tbody>
@@ -123,7 +152,7 @@ function ExpensesTab() {
         </div>
       </div>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Catat Pengeluaran">
+      <Modal open={open} onClose={() => setOpen(false)} title={f.id ? 'Ubah Pengeluaran' : 'Catat Pengeluaran'}>
         <form onSubmit={(e) => { e.preventDefault(); setError(''); save.mutate() }} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Tanggal</label><input type="date" className="input" required value={f.expense_date} onChange={(e) => setF({ ...f, expense_date: e.target.value })} /></div>
@@ -145,6 +174,27 @@ function ExpensesTab() {
           {error && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{error}</div>}
           <button className="btn-primary w-full" disabled={save.isPending || !f.account_id}>{save.isPending && <Loader2 size={16} className="animate-spin" />} Simpan</button>
         </form>
+      </Modal>
+
+      <Modal open={!!histId} onClose={() => setHistId(null)} title="Riwayat Edit">
+        {histLoading ? (
+          <div className="text-ink/40 py-8 text-center text-sm">Memuat…</div>
+        ) : (history?.length ?? 0) === 0 ? (
+          <div className="text-ink/40 py-8 text-center text-sm">Belum ada perubahan.</div>
+        ) : (
+          <ol className="space-y-3">
+            {history!.map((h) => (
+              <li key={h.id} className="relative pl-6 border-l-2 border-sand">
+                <span className="absolute -left-[7px] top-1 w-3 h-3 rounded-full bg-copper-500 border-2 border-white" />
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-ink/80">
+                  <UserRound size={13} className="text-copper-600" /> {h.edited_by_name || 'Pengguna'}
+                </div>
+                <div className="text-[11px] text-ink/45 mb-1">{fmtDateTime(h.created_at)}</div>
+                <div className="text-sm text-ink/70 whitespace-pre-line">{h.summary || '—'}</div>
+              </li>
+            ))}
+          </ol>
+        )}
       </Modal>
     </div>
   )

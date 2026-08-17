@@ -62,6 +62,17 @@ class ExpenseRow(BaseModel):
     account_name: Optional[str] = None
     description: Optional[str] = None
     created_at: datetime
+    edit_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class ExpenseEditRow(BaseModel):
+    id: uuid.UUID
+    edited_by_name: Optional[str] = None
+    summary: Optional[str] = None
+    created_at: datetime
 
     class Config:
         from_attributes = True

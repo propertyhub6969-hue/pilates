@@ -136,6 +136,14 @@ export interface ExpenseRow {
   account_name?: string | null
   description?: string | null
   created_at: string
+  edit_count: number
+}
+
+export interface ExpenseEditRow {
+  id: string
+  edited_by_name?: string | null
+  summary?: string | null
+  created_at: string
 }
 
 // ── Cabang ──

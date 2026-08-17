@@ -7,6 +7,13 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import BaseModel
 
 
+CATEGORY_LABEL = {
+    "sewa": "Sewa", "gaji": "Gaji", "utilitas": "Utilitas (listrik/air)",
+    "peralatan": "Peralatan", "perlengkapan": "Perlengkapan", "marketing": "Marketing",
+    "kebersihan": "Kebersihan", "lainnya": "Lainnya",
+}
+
+
 class AccountType(str, enum.Enum):
     CASH = "cash"   # Kas / tunai
     BANK = "bank"   # Rekening bank
@@ -49,3 +56,17 @@ class Expense(BaseModel):
     recorded_by_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class ExpenseEdit(BaseModel):
+    """Riwayat perubahan sebuah pengeluaran — siapa mengubah apa & kapan."""
+    __tablename__ = "expense_edits"
+
+    expense_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    edited_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    edited_by_name: Mapped[str] = mapped_column(String(200), nullable=True)  # denormalisasi agar riwayat tetap utuh
+    summary: Mapped[str] = mapped_column(Text, nullable=True)  # ringkasan perubahan (sebelum → sesudah)

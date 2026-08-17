@@ -8,17 +8,25 @@ from typing import Optional
 from app.core.database import get_db
 from app.api.deps import require_staff, get_current_user
 from app.models.user import User
-from app.models.finance import FinancialAccount, AccountType, Expense, ExpenseCategory
+from app.models.finance import FinancialAccount, AccountType, Expense, ExpenseCategory, ExpenseEdit, CATEGORY_LABEL
 from app.models.payment import Payment, PaymentStatus
 from app.schemas.common import Page
 from app.schemas.finance import (
     AccountCreate, AccountUpdate, AccountResponse,
-    ExpenseCreate, ExpenseUpdate, ExpenseRow,
+    ExpenseCreate, ExpenseUpdate, ExpenseRow, ExpenseEditRow,
     FinanceReport, CategoryAmount,
 )
 from app.services.finance import account_balance
 
 router = APIRouter()
+
+
+def _fmt_rp(v) -> str:
+    return f"Rp{int(round(float(v or 0))):,}".replace(",", ".")
+
+
+def _fmt_date(d) -> str:
+    return f"{d.day:02d}/{d.month:02d}/{d.year}" if d else "—"
 
 
 class TransferAccount(BaseModel):
@@ -104,7 +112,10 @@ async def list_expenses(
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
 ):
-    stmt = select(Expense, FinancialAccount.name).outerjoin(FinancialAccount, Expense.account_id == FinancialAccount.id)
+    edit_count_sq = (
+        select(func.count(ExpenseEdit.id)).where(ExpenseEdit.expense_id == Expense.id).scalar_subquery()
+    )
+    stmt = select(Expense, FinancialAccount.name, edit_count_sq).outerjoin(FinancialAccount, Expense.account_id == FinancialAccount.id)
     conds = []
     if date_from:
         conds.append(Expense.expense_date >= date_from)
@@ -124,9 +135,10 @@ async def list_expenses(
 
     rows = (await db.execute(stmt.order_by(Expense.expense_date.desc(), Expense.created_at.desc()).limit(limit).offset(offset))).all()
     items = []
-    for exp, acc_name in rows:
+    for exp, acc_name, ecount in rows:
         row = ExpenseRow.model_validate(exp)
         row.account_name = acc_name
+        row.edit_count = ecount or 0
         items.append(row)
     return Page(items=items, total=total)
 
@@ -145,19 +157,68 @@ async def create_expense(payload: ExpenseCreate, db: AsyncSession = Depends(get_
     return row
 
 
+async def _account_name(db: AsyncSession, account_id) -> str:
+    if not account_id:
+        return "—"
+    name = (await db.execute(select(FinancialAccount.name).where(FinancialAccount.id == account_id))).scalar_one_or_none()
+    return name or "—"
+
+
 @router.patch("/expenses/{expense_id}", response_model=ExpenseRow)
-async def update_expense(expense_id: uuid.UUID, payload: ExpenseUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+async def update_expense(expense_id: uuid.UUID, payload: ExpenseUpdate, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)):
     exp = (await db.execute(select(Expense).where(Expense.id == expense_id))).scalar_one_or_none()
     if not exp:
         raise HTTPException(404, "Pengeluaran tidak ditemukan")
-    for k, v in payload.model_dump(exclude_unset=True).items():
-        setattr(exp, k, v)
+
+    data = payload.model_dump(exclude_unset=True)
+    changes: list[str] = []
+    for field, new_val in data.items():
+        old_val = getattr(exp, field)
+        if field == "amount":
+            if float(old_val) == float(new_val):
+                continue
+            changes.append(f"Jumlah: {_fmt_rp(old_val)} → {_fmt_rp(new_val)}")
+        elif field == "category":
+            if old_val == new_val:
+                continue
+            changes.append(f"Kategori: {CATEGORY_LABEL.get(old_val.value, old_val.value)} → {CATEGORY_LABEL.get(new_val.value, new_val.value)}")
+        elif field == "expense_date":
+            if old_val == new_val:
+                continue
+            changes.append(f"Tanggal: {_fmt_date(old_val)} → {_fmt_date(new_val)}")
+        elif field == "account_id":
+            if old_val == new_val:
+                continue
+            changes.append(f"Akun: {await _account_name(db, old_val)} → {await _account_name(db, new_val)}")
+        elif field == "description":
+            if (old_val or "") == (new_val or ""):
+                continue
+            changes.append(f"Keterangan: {old_val or '—'} → {new_val or '—'}")
+        setattr(exp, field, new_val)
+
+    if changes:
+        db.add(ExpenseEdit(
+            expense_id=exp.id, edited_by_id=staff.id, edited_by_name=staff.full_name,
+            summary="; ".join(changes),
+        ))
+
     await db.flush()
     await db.refresh(exp)
+    ecount = (await db.execute(select(func.count(ExpenseEdit.id)).where(ExpenseEdit.expense_id == exp.id))).scalar_one()
     row = ExpenseRow.model_validate(exp)
-    if exp.account_id:
-        row.account_name = (await db.execute(select(FinancialAccount.name).where(FinancialAccount.id == exp.account_id))).scalar_one_or_none()
+    row.account_name = await _account_name(db, exp.account_id) if exp.account_id else None
+    row.edit_count = ecount or 0
     return row
+
+
+@router.get("/expenses/{expense_id}/history", response_model=list[ExpenseEditRow])
+async def expense_history(expense_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    rows = (
+        await db.execute(
+            select(ExpenseEdit).where(ExpenseEdit.expense_id == expense_id).order_by(ExpenseEdit.created_at.desc())
+        )
+    ).scalars().all()
+    return rows
 
 
 @router.delete("/expenses/{expense_id}", status_code=204)
