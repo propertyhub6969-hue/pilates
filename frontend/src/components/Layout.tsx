@@ -7,6 +7,7 @@ import Brand from '@/components/Brand'
 import {
   LogOut, LayoutDashboard, CalendarDays, Users, Wallet, Package,
   ChevronDown, UserRound, Settings as SettingsIcon, Menu, X, Building2, Plus,
+  Coins, BarChart3,
 } from 'lucide-react'
 
 interface NavItem { icon: any; label: string; short: string; to: string; roles: 'all' | 'staff' }
@@ -17,6 +18,8 @@ const NAV: NavItem[] = [
   { icon: Users, label: 'Member', short: 'Member', to: '/member', roles: 'staff' },
   { icon: Package, label: 'Paket', short: 'Paket', to: '/paket', roles: 'staff' },
   { icon: Wallet, label: 'Pembayaran', short: 'Bayar', to: '/pembayaran', roles: 'staff' },
+  { icon: Coins, label: 'Keuangan', short: 'Uang', to: '/keuangan', roles: 'staff' },
+  { icon: BarChart3, label: 'Laporan', short: 'Laporan', to: '/laporan', roles: 'staff' },
   { icon: Building2, label: 'Cabang', short: 'Cabang', to: '/cabang', roles: 'staff' },
 ]
 

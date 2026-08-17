@@ -15,6 +15,8 @@ import Payments from '@/pages/Payments'
 import Settings from '@/pages/Settings'
 import Profile from '@/pages/Profile'
 import Branches from '@/pages/Branches'
+import Keuangan from '@/pages/Keuangan'
+import Laporan from '@/pages/Laporan'
 import Layout from '@/components/Layout'
 
 function Splash() {
@@ -56,6 +58,8 @@ export default function App() {
           {staff && <Route path="paket" element={<Packages />} />}
           {staff && <Route path="pembayaran" element={<Payments />} />}
           {staff && <Route path="cabang" element={<Branches />} />}
+          {staff && <Route path="keuangan" element={<Keuangan />} />}
+          {staff && <Route path="laporan" element={<Laporan />} />}
           {staff && <Route path="pengaturan" element={<Settings />} />}
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

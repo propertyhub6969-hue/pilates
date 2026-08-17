@@ -105,6 +105,37 @@ export interface PaymentRow {
   created_at: string
 }
 
+// ── Keuangan ──
+export type AccountType = 'cash' | 'bank'
+export type ExpenseCategory = 'sewa' | 'gaji' | 'utilitas' | 'peralatan' | 'perlengkapan' | 'marketing' | 'kebersihan' | 'lainnya'
+
+export const EXPENSE_CATEGORY_LABEL: Record<ExpenseCategory, string> = {
+  sewa: 'Sewa', gaji: 'Gaji / Honor', utilitas: 'Utilitas (listrik/air)', peralatan: 'Peralatan',
+  perlengkapan: 'Perlengkapan', marketing: 'Marketing', kebersihan: 'Kebersihan', lainnya: 'Lainnya',
+}
+
+export interface FinancialAccount {
+  id: string
+  name: string
+  type: AccountType
+  bank_name?: string | null
+  account_number?: string | null
+  opening_balance: number
+  is_active: boolean
+  balance: number
+}
+
+export interface ExpenseRow {
+  id: string
+  expense_date: string
+  category: ExpenseCategory
+  amount: number
+  account_id?: string | null
+  account_name?: string | null
+  description?: string | null
+  created_at: string
+}
+
 // ── Cabang ──
 export interface Branch {
   id: string

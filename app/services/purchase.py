@@ -42,6 +42,11 @@ async def create_purchase(
     db.add(mp)
     await db.flush()
 
+    account_id = None
+    if mark_paid:
+        from app.services.finance import resolve_income_account
+        account_id = await resolve_income_account(db, method)
+
     payment = Payment(
         member_id=member_id,
         member_package_id=mp.id,
@@ -51,6 +56,7 @@ async def create_purchase(
         paid_at=now if mark_paid else None,
         note=note,
         recorded_by_id=recorded_by,
+        account_id=account_id,
     )
     db.add(payment)
     await db.flush()

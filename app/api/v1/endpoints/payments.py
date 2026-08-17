@@ -65,7 +65,11 @@ async def update_payment_status(
     if not pay:
         raise HTTPException(404, "Pembayaran tidak ditemukan")
     pay.status = payload.status
-    pay.paid_at = datetime.now(timezone.utc) if payload.status == PaymentStatus.PAID else pay.paid_at
+    if payload.status == PaymentStatus.PAID:
+        pay.paid_at = datetime.now(timezone.utc)
+        if pay.account_id is None:  # atribusikan ke akun kas/bank sesuai metode
+            from app.services.finance import resolve_income_account
+            pay.account_id = await resolve_income_account(db, pay.method)
     await db.flush()
     await db.refresh(pay)
     row = PaymentRow.model_validate(pay)

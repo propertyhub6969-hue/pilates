@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, packages, members, payments, public, schedule, bookings, reports, studio, branches
+from app.api.v1.endpoints import auth, packages, members, payments, public, schedule, bookings, reports, studio, branches, finance
 
 api_router = APIRouter()
 
@@ -13,3 +13,4 @@ api_router.include_router(bookings.router, prefix="/bookings", tags=["Bookings"]
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(studio.router, prefix="/studio", tags=["Studio"])
 api_router.include_router(branches.router, prefix="/branches", tags=["Branches"])
+api_router.include_router(finance.router, prefix="/finance", tags=["Finance"])

@@ -38,6 +38,10 @@ class Payment(BaseModel):
     booking_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True
     )
+    # Akun kas/bank penerima (diisi saat pembayaran LUNAS) — utk saldo & laporan
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("financial_accounts.id", ondelete="SET NULL"), nullable=True
+    )
 
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     method: Mapped[PaymentMethod] = mapped_column(
