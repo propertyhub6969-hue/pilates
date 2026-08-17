@@ -71,9 +71,26 @@ docker compose -f docker-compose.prod.yml logs -f backend
 
 **Aturan kuota** (`services/booking.py`): booking **menahan** 1 kuota → check-in mengonsumsi → batal **tepat waktu** (> `cancellation_window_hours` cabang) mengembalikan → no-show/telat menghanguskan. Kapasitas penuh → waitlist; slot kosong → promosi otomatis. Unlimited tak di-decrement.
 
-**Drop-in (per datang)**: member kategori `per_datang` boleh booking **tanpa paket** → dibuat **tagihan PENDING** senilai `StudioSettings.drop_in_price`. Batal → tagihan pending dihapus / lunas → refund.
-
 **Member & paket dibagi seluruh studio** (satu keanggotaan, booking di cabang mana saja). Cuma jadwal yang per-cabang.
+
+### ⭐ Alur Jadwal & Booking (redesign Fase 1–3, LIVE 18 Agu 2026)
+
+Detail lengkap keputusan di memori `reformer-jadwal-redesign-plan.md`.
+
+**Tiket drop-in (per-datang = prepaid 1 sesi):** per-datang bayar lunas 1× DULU → dapat **tiket** = `MemberPackage` 1 sesi (`services/purchase.create_dropin_ticket`). Booking meng-consume tiket seperti kuota biasa → habis. Mau lagi = beli tiket lagi. Beli: `POST /members/me/dropin-ticket` (self-serve, FROZEN+pending → aktif saat bukti diverifikasi lewat flow verify existing) atau `POST /members/{id}/dropin-ticket` (admin catat). ★ Model lama "bayar saat booking" DIHAPUS.
+
+**Jendela booking berjenjang** (`services/booking.py`, dari `StudioSettings`, zona WITA; staf `bypass_window=True`):
+- Bulanan/Private: buka **H-2 20:00** (`bulanan_open_days_before`/`_time`).
+- Per-datang: buka **H-1 20:00** (`dropin_open_days_before`/`_time`), wajib punya tiket.
+- Tutup: **akhir H-1** (H-0 00:00, `booking_close_days_before`/`_time`).
+- Kapasitas maks `default_capacity` (14), target min bulanan `min_bulanan` (10). Semua diatur di Pengaturan.
+- `SessionResponse` bawa `booking_state` (not_open/open/full/closed/cancelled) + `slots_remaining` + `opens_at`/`closes_at` + `can_book` + `bulanan_count` + `is_underfilled` (badge "Sepi"). FE MemberSchedule tampilkan pill status + tombol sadar-jendela.
+
+**Sesi sepi & Jadwalkan Ulang:** badge "Sepi" (bulanan < min) di tabel jadwal staf. `POST /schedule/sessions/{id}/reschedule` (pindah tanggal/jam, booking ikut, jendela dihitung ulang, opsional WA personal ke peserta). Tombol di RosterModal.
+
+**Broadcast jadwal WA (Fase 2):** `services/broadcast.py` — `announce_bulanan` (1 pesan ke **grup** WA saat H-2) & `notify_dropin` (personal sebut-nama ke per-datang bertiket, jeda acak 3-7s, saat H-1). WA adapter: `send_whatsapp_group(jid,msg)` + `list_wa_groups()`. `StudioSettings.wa_broadcast_enabled` + `wa_group_bulanan` (JID) + `booking_url`. Endpoint `GET /studio/wa-groups` (owner) + `POST /schedule/broadcast` (uji manual). Cron `scripts/send_broadcasts.py` via `cron_broadcasts.sh` @ **12:00 UTC (=20:00 WITA)** utk bulanan+dropin — **NO-OP sampai `wa_broadcast_enabled`=on**. Setting FE: kartu Broadcast WA (toggle + Muat/pilih grup + link + tombol Uji). ★ Aktivasi: Pengaturan → Muat grup → pilih grup member → centang → Simpan → Uji. Log `/var/log/pilates-broadcasts.log`. ★ Kirim grup = risiko banned rendah (1 pesan); per-datang personal & kecil = aman. Nomor gateway = nomor studio khusus (beda dari admin).
+
+**Filter jadwal staf:** tab pipeline **Mendatang / Hari ini / Besok·H-1 / Lusa·H-2 / Rentang** — tanggal lewat TAK ditampilkan (riwayat di tab Kehadiran).
 
 **Keuangan** (`models/finance.py`): `FinancialAccount` (kas/bank + saldo awal) & `Expense` (pengeluaran operasional per kategori). Endpoint `/finance/accounts|expenses|report`. Saldo akun = saldo awal + income LUNAS ter-atribusi + − pengeluaran. Income lunas otomatis masuk akun via **metode** (cash→akun kas, transfer/qris→bank) — `Payment.account_id` diisi saat lunas (`services/finance.resolve_income_account`). Menu FE: **Keuangan** (Pengeluaran + Akun + **Buku Besar**) & **Laporan** (income/expense/laba-rugi + per-kategori + saldo akun). Tab Pengeluaran & Laporan punya **filter tanggal Dari/Sampai** (default awal bulan→hari ini).
 
@@ -100,13 +117,16 @@ docker compose -f docker-compose.prod.yml logs -f backend
 - Dua jenis: **h1** (H-1, semua kelas besok) & **h2** (±2 jam sebelum kelas mulai; `REMINDER_HOURS_BEFORE`).
 - Cron (host `crontab -l`):
   ```
-  0 9 * * *  /opt/pilates/scripts/cron_reminders.sh h1   # 17:00 WITA
-  */15 * * * * /opt/pilates/scripts/cron_reminders.sh h2  # tiap 15 menit
+  0 9 * * *  /opt/pilates/scripts/cron_reminders.sh h1     # 17:00 WITA
+  */15 * * * * /opt/pilates/scripts/cron_reminders.sh h2    # tiap 15 menit
+  0 12 * * * /opt/pilates/scripts/cron_broadcasts.sh bulanan # 20:00 WITA — post grup H-2 (no-op sampai diaktifkan)
+  0 12 * * * /opt/pilates/scripts/cron_broadcasts.sh dropin  # 20:00 WITA — personal per-datang H-1
   ```
 - Log: `/var/log/pilates-reminders.log`. Kirim manual: `docker compose -f docker-compose.prod.yml exec -T backend python -m scripts.send_reminders --kind h1`.
 - **gowa multi-akun**: buat device via `POST /devices` (bukan /api/devices), semua op pakai header `X-Device-Id`, kirim `POST /send/message`. Adapter (`services/whatsapp.py`) **auto-deteksi** device yang `logged_in` (`WA_DEVICE_ID=auto`), jadi tahan re-scan.
 - **Ganti nomor WA studio:** buka wa.reformeryourbody.com (login basic-auth) → Devices → buat/pilih device → scan QR nomor baru. Auto-deteksi otomatis ikut.
-- Zona = **WITA** (Asia/Makassar); label pesan via `settings.TZ_LABEL`. Reminder skip member tanpa nomor HP. Saat ini pakai nomor pribadi Rizal — sebaiknya nomor khusus studio.
+- Zona = **WITA** (Asia/Makassar); label pesan via `settings.TZ_LABEL`. Reminder skip member tanpa nomor HP. Gateway kini pakai **nomor studio khusus** (beda dari admin) — user sudah menyiapkan 2 nomor terpisah (18 Agu 2026).
+- **Broadcast jadwal (Fase 2):** lihat blok "Alur Jadwal & Booking" di §4. Cron sudah terpasang tapi no-op sampai `wa_broadcast_enabled` diaktifkan di Pengaturan. Log `/var/log/pilates-broadcasts.log`.
 - **Notif bukti bayar ke admin** (saat member upload bukti): kirim ke `StudioSettings.admin_whatsapp` (fallback owner). ★ Bila admin_whatsapp = nomor gateway (nomor SAMA) → WA anggap **pesan-ke-diri-sendiri**, tak ada notif/bunyi. Nomor gateway **harus beda** dari admin (pakai nomor studio khusus). Kirim ke member (reminder/OTP) tak kena masalah ini karena beda nomor.
 
 ## 6. Environment (`.env`)
