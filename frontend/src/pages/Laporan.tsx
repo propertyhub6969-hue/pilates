@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import type { FinancialAccount, ExpenseCategory } from '@/types'
 import { EXPENSE_CATEGORY_LABEL } from '@/types'
-import { formatRupiah } from '@/utils/format'
-import { TrendingUp, TrendingDown, Wallet, Landmark, Scale } from 'lucide-react'
+import { formatRupiah, formatDate } from '@/utils/format'
+import { TrendingUp, TrendingDown, Wallet, Landmark, Scale, Printer } from 'lucide-react'
 
 interface Report {
   date_from: string; date_to: string
@@ -16,21 +16,83 @@ interface Report {
 const firstOfMonth = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10) }
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
+interface Studio { name: string; address?: string | null; phone?: string | null }
+
 export default function Laporan() {
   const [range, setRange] = useState({ from: firstOfMonth(), to: todayISO() })
   const { data, isLoading } = useQuery({
     queryKey: ['finance-report', range],
     queryFn: async () => (await api.get<Report>('/finance/report', { params: { from: range.from, to: range.to } })).data,
   })
+  const { data: studio } = useQuery({
+    queryKey: ['studio-settings'],
+    queryFn: async () => (await api.get<Studio>('/studio/settings')).data,
+  })
 
   const cats = [...(data?.expense_by_category ?? [])].sort((a, b) => b.amount - a.amount)
   const maxCat = Math.max(1, ...cats.map((c) => c.amount))
 
+  function printReport() {
+    if (!data) return
+    const totalBalance = data.accounts.reduce((s, a) => s + a.balance, 0)
+    const today = formatDate(todayISO())
+    const rows = (arr: [string, number][]) =>
+      arr.map(([k, v]) => `<tr><td>${k}</td><td class="amt">${formatRupiah(v)}</td></tr>`).join('')
+    const catRows = cats.length
+      ? cats.map((c) => `<tr><td>${EXPENSE_CATEGORY_LABEL[c.category]}</td><td class="amt">${formatRupiah(c.amount)}</td></tr>`).join('')
+      : '<tr><td class="muted">Tidak ada pengeluaran</td><td></td></tr>'
+    const accRows = data.accounts.length
+      ? data.accounts.map((a) => `<tr><td>${a.name}${a.bank_name ? ` (${a.bank_name})` : ''}</td><td class="amt">${formatRupiah(a.balance)}</td></tr>`).join('')
+      : '<tr><td class="muted">Belum ada akun</td><td></td></tr>'
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Laporan Keuangan — ${studio?.name ?? 'Reformer Your Body'}</title>
+<style>
+  *{box-sizing:border-box} body{font-family:'Segoe UI',Arial,sans-serif;color:#2A2724;margin:36px;font-size:14px}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #A9654E;padding-bottom:14px}
+  .studio{font-size:20px;font-weight:700;color:#8A5140}
+  .muted{color:#888;font-size:12px}
+  .title{font-weight:700;letter-spacing:.5px}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#A9654E;margin:22px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px}
+  table{width:100%;border-collapse:collapse} td{padding:5px 2px} td.amt{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .row-total td{border-top:1px solid #ccc;font-weight:700}
+  .net{display:flex;justify-content:space-between;margin:18px 0;padding:12px 16px;background:#FBF1EB;border:1px solid #E8C2AF;border-radius:8px;font-weight:700;font-size:16px}
+  .net .val{color:#8A5140}.net.neg .val{color:#A55B3B}
+  .foot{margin-top:34px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:10px}
+  @media print{body{margin:0;padding:24px}}
+</style></head><body>
+  <div class="header">
+    <div><div class="studio">${studio?.name ?? 'Reformer Your Body'}</div>${studio?.address ? `<div class="muted">${studio.address}</div>` : ''}${studio?.phone ? `<div class="muted">${studio.phone}</div>` : ''}</div>
+    <div style="text-align:right"><div class="title">LAPORAN KEUANGAN</div><div class="muted">Periode: ${formatDate(range.from)} – ${formatDate(range.to)}</div><div class="muted">Dicetak: ${today}</div></div>
+  </div>
+
+  <h2>Pendapatan</h2>
+  <table>${rows([['Pendapatan member & kelas', data.income]])}<tr class="row-total"><td>Total Pendapatan</td><td class="amt">${formatRupiah(data.income)}</td></tr></table>
+
+  <h2>Pengeluaran Operasional</h2>
+  <table>${catRows}<tr class="row-total"><td>Total Pengeluaran</td><td class="amt">${formatRupiah(data.expense)}</td></tr></table>
+
+  <div class="net ${data.net < 0 ? 'neg' : ''}"><span>${data.net >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH'}</span><span class="val">${formatRupiah(data.net)}</span></div>
+
+  <h2>Saldo Akun (saat cetak)</h2>
+  <table>${accRows}<tr class="row-total"><td>Total Saldo</td><td class="amt">${formatRupiah(totalBalance)}</td></tr></table>
+
+  <div class="foot">Dicetak otomatis oleh sistem ${studio?.name ?? 'Reformer Your Body'} · ${today}</div>
+</body></html>`
+    const w = window.open('', '_blank', 'width=820,height=1000')
+    if (!w) { alert('Popup diblokir browser. Izinkan popup untuk mencetak.'); return }
+    w.document.write(html); w.document.close(); w.focus()
+    setTimeout(() => w.print(), 300)
+  }
+
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="font-display text-2xl font-semibold">Laporan Keuangan</h1>
-        <p className="text-ink/50 text-sm">Ringkasan pemasukan, pengeluaran, dan saldo studio.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold">Laporan Keuangan</h1>
+          <p className="text-ink/50 text-sm">Ringkasan pemasukan, pengeluaran, dan saldo studio.</p>
+        </div>
+        <button onClick={printReport} disabled={!data} className="btn-ghost border border-sand shrink-0">
+          <Printer size={16} /> Cetak
+        </button>
       </div>
 
       <div className="flex gap-2 items-end flex-wrap">
