@@ -211,6 +211,10 @@ async def _find_user_by_identifier(db: AsyncSession, identifier: str) -> User | 
 async def forgot_password(payload: ForgotPassword, db: AsyncSession = Depends(get_db)):
     """Kirim kode OTP reset via WhatsApp. Respons selalu generik (anti-enumerasi)."""
     user = await _find_user_by_identifier(db, payload.identifier)
+    if not user:
+        print(f"[forgot-password] user TIDAK ditemukan utk identifier={payload.identifier!r}")
+    elif not (user.is_active and user.phone):
+        print(f"[forgot-password] user={user.full_name} tapi active={user.is_active} phone={user.phone!r} — tidak dikirim")
     if user and user.is_active and user.phone:
         # batalkan kode lama yang belum terpakai
         await db.execute(
@@ -232,9 +236,10 @@ async def forgot_password(payload: ForgotPassword, db: AsyncSession = Depends(ge
             "Abaikan pesan ini jika Anda tidak meminta reset password."
         )
         try:
-            await send_whatsapp(user.phone, msg)
-        except Exception:  # noqa: BLE001
-            pass
+            ok, info = await send_whatsapp(user.phone, msg)
+            print(f"[forgot-password] kirim OTP ke {user.full_name} ({user.phone}) → ok={ok} info={info}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[forgot-password] GAGAL kirim WA ke {user.phone}: {e}")
     return {"ok": True, "message": _GENERIC_RESET_MSG}
 
 
