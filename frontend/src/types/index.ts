@@ -111,11 +111,21 @@ export interface PaymentRow {
 
 // ── Keuangan ──
 export type AccountType = 'cash' | 'bank'
-export type ExpenseCategory = 'sewa' | 'gaji' | 'utilitas' | 'peralatan' | 'perlengkapan' | 'marketing' | 'kebersihan' | 'lainnya'
+export type ExpenseCategory = string  // key kategori (bawaan atau tambahan studio)
 
-export const EXPENSE_CATEGORY_LABEL: Record<ExpenseCategory, string> = {
+// Label bawaan sebagai fallback; label sesungguhnya diambil dari API kategori.
+export const EXPENSE_CATEGORY_LABEL: Record<string, string> = {
   sewa: 'Sewa', gaji: 'Gaji / Honor', utilitas: 'Utilitas (listrik/air)', peralatan: 'Peralatan',
   perlengkapan: 'Perlengkapan', marketing: 'Marketing', kebersihan: 'Kebersihan', lainnya: 'Lainnya',
+}
+
+export interface ExpenseCategoryRow {
+  id: string
+  key: string
+  label: string
+  is_active: boolean
+  is_builtin: boolean
+  sort_order: number
 }
 
 export interface FinancialAccount {

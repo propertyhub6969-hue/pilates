@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import date
-from sqlalchemy import String, Numeric, Boolean, Text, Date, ForeignKey, Enum as SAEnum
+from sqlalchemy import String, Numeric, Boolean, Text, Date, Integer, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import BaseModel
@@ -32,6 +32,7 @@ class FinancialAccount(BaseModel):
 
 
 class ExpenseCategory(str, enum.Enum):
+    """Kategori bawaan (dipakai utk seeding & fallback label; kolom kini String bebas)."""
     SEWA = "sewa"
     GAJI = "gaji"                 # gaji/honor instruktur & staf
     UTILITAS = "utilitas"        # listrik, air, internet
@@ -42,12 +43,23 @@ class ExpenseCategory(str, enum.Enum):
     LAINNYA = "lainnya"
 
 
+class ExpenseCategoryDef(BaseModel):
+    """Kategori pengeluaran yang bisa dikelola sendiri (built-in + tambahan studio)."""
+    __tablename__ = "expense_categories"
+
+    key: Mapped[str] = mapped_column(String(60), unique=True, nullable=False, index=True)  # slug stabil
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_builtin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+
+
 class Expense(BaseModel):
     """Pengeluaran operasional studio (uang keluar dari sebuah akun)."""
     __tablename__ = "expenses"
 
     expense_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    category: Mapped[ExpenseCategory] = mapped_column(SAEnum(ExpenseCategory, name="expensecategory"), nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(60), nullable=False, index=True)  # key → expense_categories.key
     amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     account_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("financial_accounts.id", ondelete="SET NULL"), nullable=True, index=True

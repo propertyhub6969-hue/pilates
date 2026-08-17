@@ -8,15 +8,35 @@ from typing import Optional
 from app.core.database import get_db
 from app.api.deps import require_staff, get_current_user
 from app.models.user import User
-from app.models.finance import FinancialAccount, AccountType, Expense, ExpenseCategory, ExpenseEdit, CATEGORY_LABEL
+from app.models.finance import (
+    FinancialAccount, AccountType, Expense, ExpenseEdit, ExpenseCategoryDef, CATEGORY_LABEL,
+)
 from app.models.payment import Payment, PaymentStatus
 from app.schemas.common import Page
 from app.schemas.finance import (
     AccountCreate, AccountUpdate, AccountResponse,
     ExpenseCreate, ExpenseUpdate, ExpenseRow, ExpenseEditRow,
+    ExpenseCategoryRow, ExpenseCategoryCreate, ExpenseCategoryUpdate,
     FinanceReport, CategoryAmount, LedgerEntry, LedgerResponse,
 )
 from app.services.finance import account_balance
+
+
+async def _category_labels(db: AsyncSession) -> dict:
+    """Peta {key: label} dari tabel kategori (fallback ke CATEGORY_LABEL bawaan / key mentah)."""
+    rows = (await db.execute(select(ExpenseCategoryDef.key, ExpenseCategoryDef.label))).all()
+    m = {k: lbl for k, lbl in rows}
+    return m
+
+
+def _label_for(m: dict, key: str) -> str:
+    return m.get(key) or CATEGORY_LABEL.get(key, key)
+
+
+def _slugify(text: str) -> str:
+    import re
+    s = re.sub(r"[^a-z0-9]+", "-", (text or "").strip().lower()).strip("-")
+    return s or "kategori"
 
 router = APIRouter()
 
@@ -161,6 +181,7 @@ async def _build_ledger(db: AsyncSession, account_id: uuid.UUID, date_from, date
         )
     ).all()
 
+    cat_labels = await _category_labels(db)
     events = []  # (sort_key_datetime, date, kind, description, amount)
     for amount, ts, note, member_name in inc_rows:
         d = ts.date()
@@ -169,7 +190,7 @@ async def _build_ledger(db: AsyncSession, account_id: uuid.UUID, date_from, date
             label = f"{label} — {member_name}"
         events.append((ts.replace(tzinfo=None), d, "in", label, float(amount or 0)))
     for amount, edate, category, description in exp_rows:
-        label = CATEGORY_LABEL.get(category.value, category.value)
+        label = _label_for(cat_labels, category)
         if description:
             label = f"{label} — {description}"
         events.append((datetime(edate.year, edate.month, edate.day), edate, "out", label, float(amount or 0)))
@@ -307,12 +328,71 @@ async def account_ledger_xlsx(
     )
 
 
+# ─────────────── KATEGORI PENGELUARAN ───────────────
+@router.get("/expense-categories", response_model=list[ExpenseCategoryRow])
+async def list_expense_categories(
+    include_inactive: bool = Query(False),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+):
+    stmt = select(ExpenseCategoryDef)
+    if not include_inactive:
+        stmt = stmt.where(ExpenseCategoryDef.is_active.is_(True))
+    rows = (await db.execute(stmt.order_by(ExpenseCategoryDef.sort_order, ExpenseCategoryDef.label))).scalars().all()
+    return rows
+
+
+@router.post("/expense-categories", response_model=ExpenseCategoryRow, status_code=201)
+async def create_expense_category(payload: ExpenseCategoryCreate, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    label = payload.label.strip()
+    base = _slugify(label)
+    key = base
+    i = 2
+    while (await db.execute(select(ExpenseCategoryDef.id).where(ExpenseCategoryDef.key == key))).scalar_one_or_none():
+        key = f"{base}-{i}"; i += 1
+    cat = ExpenseCategoryDef(key=key, label=label, is_active=True, is_builtin=False, sort_order=500)
+    db.add(cat)
+    await db.flush()
+    await db.refresh(cat)
+    return cat
+
+
+@router.patch("/expense-categories/{cat_id}", response_model=ExpenseCategoryRow)
+async def update_expense_category(cat_id: uuid.UUID, payload: ExpenseCategoryUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    cat = (await db.execute(select(ExpenseCategoryDef).where(ExpenseCategoryDef.id == cat_id))).scalar_one_or_none()
+    if not cat:
+        raise HTTPException(404, "Kategori tidak ditemukan")
+    data = payload.model_dump(exclude_unset=True)
+    if "label" in data and data["label"]:
+        cat.label = data["label"].strip()
+    if "is_active" in data and data["is_active"] is not None:
+        if cat.is_builtin and data["is_active"] is False:
+            raise HTTPException(400, "Kategori bawaan tidak bisa dinonaktifkan")
+        cat.is_active = data["is_active"]
+    await db.flush()
+    await db.refresh(cat)
+    return cat
+
+
+@router.delete("/expense-categories/{cat_id}", status_code=204)
+async def delete_expense_category(cat_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    cat = (await db.execute(select(ExpenseCategoryDef).where(ExpenseCategoryDef.id == cat_id))).scalar_one_or_none()
+    if not cat:
+        raise HTTPException(404, "Kategori tidak ditemukan")
+    if cat.is_builtin:
+        raise HTTPException(400, "Kategori bawaan tidak bisa dihapus (bisa dinonaktifkan lewat tambahan saja)")
+    used = (await db.execute(select(func.count()).select_from(Expense).where(Expense.category == cat.key))).scalar_one()
+    if used:
+        raise HTTPException(400, f"Kategori dipakai {used} pengeluaran — nonaktifkan saja, jangan hapus")
+    await db.delete(cat)
+    return None
+
+
 # ─────────────── PENGELUARAN ───────────────
 @router.get("/expenses", response_model=Page[ExpenseRow])
 async def list_expenses(
     date_from: date | None = Query(None, alias="from"),
     date_to: date | None = Query(None, alias="to"),
-    category: ExpenseCategory | None = Query(None),
+    category: str | None = Query(None),
     account_id: uuid.UUID | None = Query(None),
     limit: int = Query(20, le=200),
     offset: int = Query(0, ge=0),
@@ -353,7 +433,7 @@ async def list_expenses(
 async def expenses_xlsx(
     date_from: date | None = Query(None, alias="from"),
     date_to: date | None = Query(None, alias="to"),
-    category: ExpenseCategory | None = Query(None),
+    category: str | None = Query(None),
     account_id: uuid.UUID | None = Query(None),
     db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
 ):
@@ -381,11 +461,12 @@ async def expenses_xlsx(
     for i, h in enumerate(["Tanggal", "Kategori", "Keterangan", "Akun", "Jumlah"], start=1):
         cell = ws.cell(row=hr, column=i, value=h)
         cell.font = S["head"]; cell.fill = S["fill"]
+    cat_labels = await _category_labels(db)
     r = hr + 1
     total = 0.0
     for exp, acc_name in rows:
         ws.cell(row=r, column=1, value=exp.expense_date.strftime("%d/%m/%Y"))
-        ws.cell(row=r, column=2, value=CATEGORY_LABEL.get(exp.category.value, exp.category.value))
+        ws.cell(row=r, column=2, value=_label_for(cat_labels, exp.category))
         ws.cell(row=r, column=3, value=exp.description or "")
         ws.cell(row=r, column=4, value=acc_name or "")
         amt = ws.cell(row=r, column=5, value=float(exp.amount or 0)); amt.number_format = S["money"]
@@ -399,11 +480,18 @@ async def expenses_xlsx(
     return _xlsx_response(wb, f"Pengeluaran_{(date_from or date.today()).strftime('%Y%m%d')}.xlsx")
 
 
+async def _validate_category(db: AsyncSession, key: str) -> None:
+    cat = (await db.execute(select(ExpenseCategoryDef).where(ExpenseCategoryDef.key == key))).scalar_one_or_none()
+    if not cat or not cat.is_active:
+        raise HTTPException(400, "Kategori tidak valid / nonaktif")
+
+
 @router.post("/expenses", response_model=ExpenseRow, status_code=201)
 async def create_expense(payload: ExpenseCreate, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)):
     acc = (await db.execute(select(FinancialAccount).where(FinancialAccount.id == payload.account_id))).scalar_one_or_none()
     if not acc:
         raise HTTPException(400, "Akun tidak valid")
+    await _validate_category(db, payload.category)
     exp = Expense(**payload.model_dump(), recorded_by_id=staff.id)
     db.add(exp)
     await db.flush()
@@ -427,6 +515,9 @@ async def update_expense(expense_id: uuid.UUID, payload: ExpenseUpdate, db: Asyn
         raise HTTPException(404, "Pengeluaran tidak ditemukan")
 
     data = payload.model_dump(exclude_unset=True)
+    if "category" in data and data["category"] is not None and data["category"] != exp.category:
+        await _validate_category(db, data["category"])
+    cat_labels = await _category_labels(db)
     changes: list[str] = []
     for field, new_val in data.items():
         old_val = getattr(exp, field)
@@ -437,7 +528,7 @@ async def update_expense(expense_id: uuid.UUID, payload: ExpenseUpdate, db: Asyn
         elif field == "category":
             if old_val == new_val:
                 continue
-            changes.append(f"Kategori: {CATEGORY_LABEL.get(old_val.value, old_val.value)} → {CATEGORY_LABEL.get(new_val.value, new_val.value)}")
+            changes.append(f"Kategori: {_label_for(cat_labels, old_val)} → {_label_for(cat_labels, new_val)}")
         elif field == "expense_date":
             if old_val == new_val:
                 continue
@@ -507,7 +598,8 @@ async def _compute_report(db: AsyncSession, date_from: date, date_to: date) -> F
             select(Expense.category, func.coalesce(func.sum(Expense.amount), 0)).where(in_range).group_by(Expense.category)
         )
     ).all()
-    by_cat = [CategoryAmount(category=c, amount=float(a or 0)) for c, a in cat_rows]
+    cat_labels = await _category_labels(db)
+    by_cat = [CategoryAmount(category=c, label=_label_for(cat_labels, c), amount=float(a or 0)) for c, a in cat_rows]
 
     accounts = (
         await db.execute(select(FinancialAccount).where(FinancialAccount.is_active.is_(True)).order_by(FinancialAccount.type, FinancialAccount.created_at))
@@ -559,7 +651,7 @@ async def report_xlsx(
     section("PENGELUARAN OPERASIONAL")
     if data.expense_by_category:
         for ca in sorted(data.expense_by_category, key=lambda x: x.amount, reverse=True):
-            line(CATEGORY_LABEL.get(ca.category.value, ca.category.value), ca.amount)
+            line(ca.label or ca.category, ca.amount)
     else:
         ws.cell(row=r, column=1, value="Tidak ada pengeluaran").font = S["muted"]; r += 1
     line("Total Pengeluaran", data.expense, bold=True)

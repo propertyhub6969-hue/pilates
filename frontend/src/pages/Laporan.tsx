@@ -9,7 +9,7 @@ import { TrendingUp, TrendingDown, Wallet, Landmark, Scale, Printer, Sheet, Load
 interface Report {
   date_from: string; date_to: string
   income: number; expense: number; net: number
-  expense_by_category: { category: ExpenseCategory; amount: number }[]
+  expense_by_category: { category: ExpenseCategory; label?: string | null; amount: number }[]
   accounts: FinancialAccount[]
 }
 
@@ -51,7 +51,7 @@ export default function Laporan() {
     const rows = (arr: [string, number][]) =>
       arr.map(([k, v]) => `<tr><td>${k}</td><td class="amt">${formatRupiah(v)}</td></tr>`).join('')
     const catRows = cats.length
-      ? cats.map((c) => `<tr><td>${EXPENSE_CATEGORY_LABEL[c.category]}</td><td class="amt">${formatRupiah(c.amount)}</td></tr>`).join('')
+      ? cats.map((c) => `<tr><td>${c.label ?? EXPENSE_CATEGORY_LABEL[c.category] ?? c.category}</td><td class="amt">${formatRupiah(c.amount)}</td></tr>`).join('')
       : '<tr><td class="muted">Tidak ada pengeluaran</td><td></td></tr>'
     const accRows = data.accounts.length
       ? data.accounts.map((a) => `<tr><td>${a.name}${a.bank_name ? ` (${a.bank_name})` : ''}</td><td class="amt">${formatRupiah(a.balance)}</td></tr>`).join('')
@@ -146,7 +146,7 @@ export default function Laporan() {
               {cats.map((c) => (
                 <div key={c.category}>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-ink/70">{EXPENSE_CATEGORY_LABEL[c.category]}</span>
+                    <span className="text-ink/70">{c.label ?? EXPENSE_CATEGORY_LABEL[c.category] ?? c.category}</span>
                     <span className="font-semibold">{formatRupiah(c.amount)}</span>
                   </div>
                   <div className="h-2 rounded-full bg-sand overflow-hidden">

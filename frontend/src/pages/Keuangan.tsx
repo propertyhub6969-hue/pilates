@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import type { FinancialAccount, ExpenseRow, ExpenseEditRow, LedgerResponse, ExpenseCategory, AccountType, Page } from '@/types'
+import type { FinancialAccount, ExpenseRow, ExpenseEditRow, ExpenseCategoryRow, LedgerResponse, ExpenseCategory, AccountType, Page } from '@/types'
 import { EXPENSE_CATEGORY_LABEL } from '@/types'
 import { formatRupiah, formatDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   Plus, Loader2, Trash2, Wallet, Landmark, ChevronLeft, ChevronRight, Pencil, History, UserRound,
-  Printer, ArrowDownLeft, ArrowUpRight, Sheet,
+  Printer, ArrowDownLeft, ArrowUpRight, Sheet, Tags, Power,
 } from 'lucide-react'
 
 const fmtDateTime = (iso: string) =>
@@ -16,13 +16,24 @@ const fmtDateTime = (iso: string) =>
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const firstOfMonth = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10) }
 const PAGE_SIZE = 15
-const CATS: ExpenseCategory[] = ['sewa', 'gaji', 'utilitas', 'peralatan', 'perlengkapan', 'marketing', 'kebersihan', 'lainnya']
 
 function useAccounts() {
   return useQuery({
     queryKey: ['fin-accounts'],
     queryFn: async () => (await api.get<FinancialAccount[]>('/finance/accounts', { params: { include_inactive: true } })).data,
   })
+}
+
+function useCategories(includeInactive = false) {
+  return useQuery({
+    queryKey: ['expense-categories', includeInactive],
+    queryFn: async () => (await api.get<ExpenseCategoryRow[]>('/finance/expense-categories', { params: { include_inactive: includeInactive } })).data,
+  })
+}
+
+// label kategori: pakai daftar dari API, fallback ke label bawaan / key mentah
+function catLabel(cats: ExpenseCategoryRow[] | undefined, key: string): string {
+  return cats?.find((c) => c.key === key)?.label ?? EXPENSE_CATEGORY_LABEL[key] ?? key
 }
 
 const TAB_LABEL: Record<'pengeluaran' | 'akun' | 'ledger', string> = {
@@ -56,11 +67,13 @@ export default function Keuangan() {
 function ExpensesTab() {
   const qc = useQueryClient()
   const { data: accounts } = useAccounts()
+  const { data: categories } = useCategories()
   const [page, setPage] = useState(1)
   const [open, setOpen] = useState(false)
+  const [catOpen, setCatOpen] = useState(false)
   const [error, setError] = useState('')
   const [histId, setHistId] = useState<string | null>(null)
-  const [f, setF] = useState<{ id?: string; expense_date: string; category: ExpenseCategory; amount: string; account_id: string; description: string }>({ expense_date: todayISO(), category: 'sewa', amount: '', account_id: '', description: '' })
+  const [f, setF] = useState<{ id?: string; expense_date: string; category: ExpenseCategory; amount: string; account_id: string; description: string }>({ expense_date: todayISO(), category: '', amount: '', account_id: '', description: '' })
 
   useEffect(() => { setPage(1) }, [])
 
@@ -107,7 +120,7 @@ function ExpensesTab() {
 
   function openNew() {
     setError('')
-    setF({ expense_date: todayISO(), category: 'sewa', amount: '', account_id: accounts?.[0]?.id ?? '', description: '' })
+    setF({ expense_date: todayISO(), category: categories?.[0]?.key ?? 'lainnya', amount: '', account_id: accounts?.[0]?.id ?? '', description: '' })
     setOpen(true)
   }
   function openEdit(e: ExpenseRow) {
@@ -123,6 +136,7 @@ function ExpensesTab() {
     <div className="space-y-4">
       <div className="flex gap-2 flex-wrap">
         <button onClick={openNew} className="btn-primary"><Plus size={16} /> Catat Pengeluaran</button>
+        <button onClick={() => setCatOpen(true)} className="btn-ghost border border-sand"><Tags size={16} /> Kelola Kategori</button>
         <button onClick={downloadExcel} disabled={downloading || (data?.total ?? 0) === 0} className="btn-ghost border border-sand">
           {downloading ? <Loader2 size={16} className="animate-spin" /> : <Sheet size={16} />} Excel
         </button>
@@ -147,7 +161,7 @@ function ExpensesTab() {
                 : data!.items.map((e) => (
                   <tr key={e.id} className="border-b border-sand/60 last:border-0 hover:bg-sand/40 transition">
                     <td className="px-4 py-3 text-ink/60 whitespace-nowrap">{formatDate(e.expense_date)}</td>
-                    <td className="px-4 py-3"><span className="text-xs rounded-full px-2 py-0.5 bg-copper-50 text-copper-700 border border-copper-100">{EXPENSE_CATEGORY_LABEL[e.category]}</span></td>
+                    <td className="px-4 py-3"><span className="text-xs rounded-full px-2 py-0.5 bg-copper-50 text-copper-700 border border-copper-100">{catLabel(categories, e.category)}</span></td>
                     <td className="px-4 py-3 text-ink/60 hidden md:table-cell">{e.description || '—'}</td>
                     <td className="px-4 py-3 text-ink/60 hidden sm:table-cell">{e.account_name || '—'}</td>
                     <td className="px-4 py-3 text-right font-semibold whitespace-nowrap text-clay-dark">{formatRupiah(e.amount)}</td>
@@ -182,8 +196,8 @@ function ExpensesTab() {
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Tanggal</label><input type="date" className="input" required value={f.expense_date} onChange={(e) => setF({ ...f, expense_date: e.target.value })} /></div>
             <div><label className="label">Kategori</label>
-              <select className="input" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value as ExpenseCategory })}>
-                {CATS.map((c) => <option key={c} value={c}>{EXPENSE_CATEGORY_LABEL[c]}</option>)}
+              <select className="input" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
+                {categories?.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
               </select>
             </div>
           </div>
@@ -221,7 +235,80 @@ function ExpensesTab() {
           </ol>
         )}
       </Modal>
+
+      <CategoriesModal open={catOpen} onClose={() => setCatOpen(false)} />
     </div>
+  )
+}
+
+/* ─────────── KELOLA KATEGORI ─────────── */
+function CategoriesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const qc = useQueryClient()
+  const { data: cats, isLoading } = useCategories(true)
+  const [newLabel, setNewLabel] = useState('')
+  const [editing, setEditing] = useState<{ id: string; label: string } | null>(null)
+  const [err, setErr] = useState('')
+
+  const invalidate = () => { qc.invalidateQueries({ queryKey: ['expense-categories'] }); qc.invalidateQueries({ queryKey: ['expenses'] }) }
+  const add = useMutation({
+    mutationFn: async () => api.post('/finance/expense-categories', { label: newLabel.trim() }),
+    onSuccess: () => { setNewLabel(''); setErr(''); invalidate() },
+    onError: (e: any) => setErr(e?.response?.data?.detail ?? 'Gagal menambah'),
+  })
+  const rename = useMutation({
+    mutationFn: async (v: { id: string; label: string }) => api.patch(`/finance/expense-categories/${v.id}`, { label: v.label }),
+    onSuccess: () => { setEditing(null); setErr(''); invalidate() },
+    onError: (e: any) => setErr(e?.response?.data?.detail ?? 'Gagal menyimpan'),
+  })
+  const toggle = useMutation({
+    mutationFn: async (v: { id: string; is_active: boolean }) => api.patch(`/finance/expense-categories/${v.id}`, { is_active: v.is_active }),
+    onSuccess: () => { setErr(''); invalidate() },
+    onError: (e: any) => setErr(e?.response?.data?.detail ?? 'Gagal mengubah'),
+  })
+  const del = useMutation({
+    mutationFn: async (id: string) => api.delete(`/finance/expense-categories/${id}`),
+    onSuccess: () => { setErr(''); invalidate() },
+    onError: (e: any) => setErr(e?.response?.data?.detail ?? 'Gagal menghapus'),
+  })
+
+  return (
+    <Modal open={open} onClose={onClose} title="Kelola Kategori Pengeluaran">
+      <div className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); if (newLabel.trim()) add.mutate() }} className="flex gap-2">
+          <input className="input flex-1" placeholder="Nama kategori baru (mis. Kopi & Snack)" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} />
+          <button className="btn-primary shrink-0" disabled={add.isPending || !newLabel.trim()}>{add.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Tambah</button>
+        </form>
+        {err && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{err}</div>}
+
+        {isLoading ? <div className="text-ink/40 text-center py-6">Memuat…</div> : (
+          <div className="divide-y divide-sand max-h-[50vh] overflow-y-auto">
+            {cats?.map((c) => (
+              <div key={c.id} className={`flex items-center gap-2 py-2.5 ${!c.is_active ? 'opacity-50' : ''}`}>
+                {editing?.id === c.id ? (
+                  <>
+                    <input className="input flex-1 !py-1.5" value={editing.label} autoFocus onChange={(e) => setEditing({ ...editing, label: e.target.value })} />
+                    <button onClick={() => rename.mutate(editing)} className="btn-ghost !px-2 !py-1.5 text-copper-700" disabled={rename.isPending}><Plus size={15} className="rotate-45" /></button>
+                    <button onClick={() => setEditing(null)} className="btn-ghost !px-2 !py-1.5 text-ink/50">Batal</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm">{c.label} {c.is_builtin && <span className="text-[10px] text-ink/40 bg-sand rounded px-1.5 py-0.5 ml-1">bawaan</span>}{!c.is_active && <span className="text-[10px] text-clay ml-1">nonaktif</span>}</span>
+                    <button onClick={() => { setEditing({ id: c.id, label: c.label }); setErr('') }} className="btn-ghost !px-2 !py-1.5 text-ink/55" title="Ubah nama"><Pencil size={14} /></button>
+                    {!c.is_builtin && (
+                      <button onClick={() => toggle.mutate({ id: c.id, is_active: !c.is_active })} className="btn-ghost !px-2 !py-1.5 text-ink/55" title={c.is_active ? 'Nonaktifkan' : 'Aktifkan'}><Power size={14} /></button>
+                    )}
+                    {!c.is_builtin && (
+                      <button onClick={() => { if (confirm(`Hapus kategori "${c.label}"?`)) del.mutate(c.id) }} className="btn-ghost !px-2 !py-1.5 text-clay-dark" title="Hapus"><Trash2 size={14} /></button>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-[11px] text-ink/45">Kategori bawaan tak bisa dihapus/dinonaktifkan, tapi namanya boleh diubah. Kategori yang sudah dipakai pengeluaran sebaiknya dinonaktifkan (bukan dihapus).</p>
+      </div>
+    </Modal>
   )
 }
 

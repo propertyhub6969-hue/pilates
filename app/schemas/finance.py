@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
-from app.models.finance import AccountType, ExpenseCategory
+from app.models.finance import AccountType
 
 
 # ── Akun kas/bank ──
@@ -36,10 +36,32 @@ class AccountResponse(BaseModel):
         from_attributes = True
 
 
+# ── Kategori pengeluaran (dinamis) ──
+class ExpenseCategoryRow(BaseModel):
+    id: uuid.UUID
+    key: str
+    label: str
+    is_active: bool
+    is_builtin: bool
+    sort_order: int
+
+    class Config:
+        from_attributes = True
+
+
+class ExpenseCategoryCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=120)
+
+
+class ExpenseCategoryUpdate(BaseModel):
+    label: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    is_active: Optional[bool] = None
+
+
 # ── Pengeluaran ──
 class ExpenseCreate(BaseModel):
     expense_date: date
-    category: ExpenseCategory
+    category: str
     amount: float = Field(gt=0)
     account_id: uuid.UUID
     description: Optional[str] = None
@@ -47,7 +69,7 @@ class ExpenseCreate(BaseModel):
 
 class ExpenseUpdate(BaseModel):
     expense_date: Optional[date] = None
-    category: Optional[ExpenseCategory] = None
+    category: Optional[str] = None
     amount: Optional[float] = Field(default=None, gt=0)
     account_id: Optional[uuid.UUID] = None
     description: Optional[str] = None
@@ -56,7 +78,7 @@ class ExpenseUpdate(BaseModel):
 class ExpenseRow(BaseModel):
     id: uuid.UUID
     expense_date: date
-    category: ExpenseCategory
+    category: str
     amount: float
     account_id: Optional[uuid.UUID] = None
     account_name: Optional[str] = None
@@ -101,7 +123,8 @@ class LedgerResponse(BaseModel):
 
 # ── Laporan ──
 class CategoryAmount(BaseModel):
-    category: ExpenseCategory
+    category: str
+    label: Optional[str] = None
     amount: float
 
 
