@@ -228,6 +228,11 @@ export interface ClassSession {
   waitlist_count: number
   my_booking_status?: BookingStatus | null
   my_booking_id?: string | null
+  slots_remaining: number
+  booking_state: 'not_open' | 'open' | 'full' | 'closed' | 'cancelled'
+  booking_opens_at?: string | null
+  booking_closes_at?: string | null
+  can_book: boolean
 }
 
 export interface BookingRow {

@@ -9,7 +9,7 @@ import type { MemberDetail, MyBooking } from '@/types'
 import { formatRupiah, formatDate, formatDayDate, formatTime } from '@/utils/format'
 import {
   CalendarDays, Users, Wallet, Infinity as InfinityIcon, ShoppingBag,
-  TrendingUp, Clock, UserRound, Landmark, Upload, Loader2, Check, Zap, CircleDollarSign,
+  TrendingUp, Clock, UserRound, Landmark, Upload, Loader2, Check, Zap, CircleDollarSign, Plus,
 } from 'lucide-react'
 
 /* ═══════════════ STAF ═══════════════ */
@@ -87,16 +87,27 @@ function MemberHome() {
 }
 
 function ActiveMemberView({ m, bookings }: { m: MemberDetail; bookings?: MyBooking[] }) {
+  const qc = useQueryClient()
   const active = m.packages.filter((p) => p.status === 'active')
   const next = bookings?.[0]
-  const perDatang = m.member_category === 'per_datang' && active.length === 0 && !m.has_unlimited
+  const perDatang = m.member_category === 'per_datang'
+  const tickets = m.active_sessions_remaining ?? 0
+  const buyTicket = useMutation({
+    mutationFn: async () => api.post('/members/me/dropin-ticket'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me-detail'] }),
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal membuat tiket'),
+  })
   return (
     <>
       {perDatang ? (
         <div className="rounded-xl2 bg-copper-600 text-white p-6">
-          <p className="text-white/70 text-sm inline-flex items-center gap-1"><Zap size={14} /> Member Per Datang</p>
-          <div className="font-display text-2xl font-semibold mt-1">Bayar tiap kali datang</div>
-          <p className="text-white/60 text-sm mt-2">Booking kelas dari menu Jadwal — tagihan dibuat otomatis tiap booking.</p>
+          <p className="text-white/70 text-sm inline-flex items-center gap-1"><Zap size={14} /> Tiket Drop-in</p>
+          <div className="font-display text-4xl font-semibold mt-1">{tickets} <span className="text-lg font-normal text-white/70">tiket siap</span></div>
+          <p className="text-white/60 text-sm mt-2">1 tiket = 1 sesi (bayar lunas di muka). Booking dari menu Jadwal; tiket berkurang saat kamu ikut kelas.</p>
+          <button onClick={() => buyTicket.mutate()} disabled={buyTicket.isPending}
+            className="mt-4 inline-flex items-center gap-1.5 bg-white text-copper-700 font-semibold rounded-full px-4 py-2 text-sm hover:bg-cream transition">
+            {buyTicket.isPending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Beli Tiket Drop-in
+          </button>
         </div>
       ) : (
         <div className="rounded-xl2 bg-copper-600 text-white p-6">

@@ -56,6 +56,19 @@ export default function MemberDetail() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['member', id] }),
   })
 
+  const [ticketOpen, setTicketOpen] = useState(false)
+  const [tk, setTk] = useState<{ method: PaymentMethod; mark_paid: boolean; price: string }>({ method: 'cash', mark_paid: true, price: '' })
+  const [ticketErr, setTicketErr] = useState('')
+  const addTicket = useMutation({
+    mutationFn: async () => {
+      const body: any = { method: tk.method, mark_paid: tk.mark_paid }
+      if (tk.price) body.price = Number(tk.price)
+      return api.post(`/members/${id}/dropin-ticket`, body)
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['member', id] }); setTicketOpen(false); setTk({ method: 'cash', mark_paid: true, price: '' }) },
+    onError: (e: any) => setTicketErr(e?.response?.data?.detail ?? 'Gagal menambah tiket'),
+  })
+
   const [editOpen, setEditOpen] = useState(false)
   const [editForm, setEditForm] = useState({ full_name: '', phone: '', member_category: '' as MemberCategory | '', date_of_birth: '', emergency_contact: '', notes: '' })
   const edit = useMutation({
@@ -143,7 +156,12 @@ export default function MemberDetail() {
           </div>
         </div>
         {m.role === 'member' && (
-          <button onClick={() => { setError(''); setOpen(true) }} className="btn-primary mt-4"><Plus size={16} /> Jual Paket</button>
+          <div className="flex gap-2 mt-4 flex-wrap">
+            <button onClick={() => { setError(''); setOpen(true) }} className="btn-primary"><Plus size={16} /> Jual Paket</button>
+            {m.member_category === 'per_datang' && (
+              <button onClick={() => { setTicketErr(''); setTicketOpen(true) }} className="btn-ghost border border-sand"><Plus size={16} /> Tambah Tiket Drop-in</button>
+            )}
+          </div>
         )}
       </div>
 
@@ -284,6 +302,31 @@ export default function MemberDetail() {
           <button type="submit" disabled={edit.isPending} className="btn-primary w-full">
             {edit.isPending && <Loader2 size={16} className="animate-spin" />} Simpan
           </button>
+        </form>
+      </Modal>
+
+      {/* Modal tambah tiket drop-in */}
+      <Modal open={ticketOpen} onClose={() => setTicketOpen(false)} title="Tambah Tiket Drop-in">
+        <form onSubmit={(e) => { e.preventDefault(); setTicketErr(''); addTicket.mutate() }} className="space-y-4">
+          <p className="text-sm text-ink/60">Tiket = 1 sesi. Member pakai saat booking; berkurang otomatis.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">Metode bayar</label>
+              <select className="input" value={tk.method} onChange={(e) => setTk({ ...tk, method: e.target.value as PaymentMethod })}>
+                <option value="cash">Tunai</option>
+                <option value="transfer">Transfer</option>
+                <option value="qris">QRIS</option>
+              </select>
+            </div>
+            <div><label className="label">Harga (Rp)</label>
+              <input className="input" type="number" min={0} value={tk.price} onChange={(e) => setTk({ ...tk, price: e.target.value })} placeholder="default studio" /></div>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={tk.mark_paid} onChange={(e) => setTk({ ...tk, mark_paid: e.target.checked })} />
+            Sudah lunas (tiket langsung aktif)
+          </label>
+          {!tk.mark_paid && <p className="text-[11px] text-ink/40">Belum lunas → tiket menunggu; aktif setelah pembayaran diverifikasi di menu Pembayaran.</p>}
+          {ticketErr && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{ticketErr}</div>}
+          <button className="btn-primary w-full" disabled={addTicket.isPending}>{addTicket.isPending && <Loader2 size={16} className="animate-spin" />} Simpan Tiket</button>
         </form>
       </Modal>
 

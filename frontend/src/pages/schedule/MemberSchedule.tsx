@@ -12,6 +12,12 @@ function endTime(start: string, mins: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+const openLabel = (iso?: string | null) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
 function groupByDate(sessions: ClassSession[]) {
   const map = new Map<string, ClassSession[]>()
   for (const s of sessions) {
@@ -89,8 +95,8 @@ export default function MemberSchedule() {
               <h2 className="font-display text-lg font-semibold mb-2 capitalize">{formatDayDate(day)}</h2>
               <div className="space-y-2">
                 {list.map((s) => {
-                  const full = s.booked_count >= s.capacity
                   const mine = s.my_booking_status
+                  const st = s.booking_state
                   return (
                     <div key={s.id} className="card flex items-center gap-4">
                       <div className="text-center shrink-0 w-16">
@@ -105,6 +111,11 @@ export default function MemberSchedule() {
                           <span className="inline-flex items-center gap-1"><Users size={12} />{s.booked_count}/{s.capacity}</span>
                           {tab === 'mine' && s.branch_name && <span className="inline-flex items-center gap-1 text-copper-600"><Building2 size={12} />{s.branch_name}</span>}
                         </div>
+                        {/* Status jendela booking */}
+                        {!mine && st === 'not_open' && <div className="text-[11px] text-ink/45 mt-1 inline-flex items-center gap-1"><Clock size={11} /> Dibuka {openLabel(s.booking_opens_at)}</div>}
+                        {!mine && st === 'open' && <div className="text-[11px] text-copper-600 mt-1">Sisa {s.slots_remaining} slot</div>}
+                        {!mine && st === 'full' && <div className="text-[11px] text-clay-dark mt-1">Penuh — bisa gabung waitlist</div>}
+                        {!mine && st === 'closed' && <div className="text-[11px] text-ink/40 mt-1">Booking ditutup</div>}
                       </div>
                       <div className="shrink-0">
                         {mine === 'booked' || mine === 'waitlist' ? (
@@ -113,14 +124,18 @@ export default function MemberSchedule() {
                             <button onClick={() => cancel.mutate(s.my_booking_id!)} disabled={cancel.isPending}
                               className="btn-ghost !px-3 !py-1.5 text-clay-dark">Batalkan</button>
                           </div>
-                        ) : full ? (
-                          <button onClick={() => book.mutate(s.id)} disabled={book.isPending}
-                            className="btn-ghost !px-3 !py-1.5 border border-sand">Gabung waitlist</button>
-                        ) : (
+                        ) : st === 'open' ? (
                           <button onClick={() => book.mutate(s.id)} disabled={book.isPending}
                             className="btn-primary !px-4 !py-1.5">
                             {book.isPending ? <Loader2 size={15} className="animate-spin" /> : 'Booking'}
                           </button>
+                        ) : st === 'full' ? (
+                          <button onClick={() => book.mutate(s.id)} disabled={book.isPending}
+                            className="btn-ghost !px-3 !py-1.5 border border-sand">Gabung waitlist</button>
+                        ) : st === 'not_open' ? (
+                          <button disabled className="btn-ghost !px-3 !py-1.5 border border-sand opacity-50 cursor-not-allowed">Belum dibuka</button>
+                        ) : (
+                          <span className="text-xs text-ink/40">{st === 'closed' ? 'Ditutup' : '—'}</span>
                         )}
                       </div>
                     </div>
