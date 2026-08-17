@@ -7,7 +7,7 @@ import { formatRupiah, formatDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   Plus, Loader2, Trash2, Wallet, Landmark, ChevronLeft, ChevronRight, Pencil, History, UserRound,
-  Printer, ArrowDownLeft, ArrowUpRight, Sheet, Tags, Power,
+  Printer, ArrowDownLeft, ArrowUpRight, Sheet, Tags, Power, Check, X,
 } from 'lucide-react'
 
 const fmtDateTime = (iso: string) =>
@@ -285,11 +285,13 @@ function CategoriesModal({ open, onClose }: { open: boolean; onClose: () => void
             {cats?.map((c) => (
               <div key={c.id} className={`flex items-center gap-2 py-2.5 ${!c.is_active ? 'opacity-50' : ''}`}>
                 {editing?.id === c.id ? (
-                  <>
+                  <form className="flex items-center gap-2 flex-1" onSubmit={(e) => { e.preventDefault(); if (editing.label.trim()) rename.mutate({ id: editing.id, label: editing.label.trim() }) }}>
                     <input className="input flex-1 !py-1.5" value={editing.label} autoFocus onChange={(e) => setEditing({ ...editing, label: e.target.value })} />
-                    <button onClick={() => rename.mutate(editing)} className="btn-ghost !px-2 !py-1.5 text-copper-700" disabled={rename.isPending}><Plus size={15} className="rotate-45" /></button>
-                    <button onClick={() => setEditing(null)} className="btn-ghost !px-2 !py-1.5 text-ink/50">Batal</button>
-                  </>
+                    <button type="submit" className="btn-primary !px-3 !py-1.5 shrink-0" disabled={rename.isPending || !editing.label.trim()}>
+                      {rename.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={15} />} Simpan
+                    </button>
+                    <button type="button" onClick={() => setEditing(null)} className="btn-ghost !px-2 !py-1.5 text-ink/50 shrink-0" title="Batal"><X size={15} /></button>
+                  </form>
                 ) : (
                   <>
                     <span className="flex-1 text-sm">{c.label} {c.is_builtin && <span className="text-[10px] text-ink/40 bg-sand rounded px-1.5 py-0.5 ml-1">bawaan</span>}{!c.is_active && <span className="text-[10px] text-clay ml-1">nonaktif</span>}</span>
