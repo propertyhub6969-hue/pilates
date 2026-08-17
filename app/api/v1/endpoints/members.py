@@ -217,6 +217,35 @@ async def update_user(
     return user
 
 
+@router.delete("/{user_id}")
+async def delete_user(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_staff),
+):
+    """Hapus member/instruktur. Bila punya riwayat pembayaran → dinonaktifkan
+    (data keuangan dijaga); bila belum ada riwayat → dihapus tuntas (cascade booking/paket).
+    Owner & diri sendiri tak bisa dihapus; admin hanya owner yang boleh."""
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(404, "User tidak ditemukan")
+    if user.role == UserRole.OWNER:
+        raise HTTPException(400, "Akun owner tidak bisa dihapus")
+    if user.id == actor.id:
+        raise HTTPException(400, "Tidak bisa menghapus akun sendiri")
+    if user.role == UserRole.ADMIN and actor.role != UserRole.OWNER:
+        raise HTTPException(403, "Hanya owner yang bisa menghapus admin")
+
+    pay_count = (
+        await db.execute(select(func.count()).select_from(Payment).where(Payment.member_id == user_id))
+    ).scalar_one()
+    if pay_count:
+        user.is_active = False
+        return {"status": "deactivated", "message": "Member punya riwayat pembayaran → dinonaktifkan (data keuangan tetap tersimpan)."}
+    await db.delete(user)
+    return {"status": "deleted", "message": "Member dihapus."}
+
+
 @router.post("/{user_id}/purchase", response_model=MemberDetail, status_code=201)
 async def sell_package(
     user_id: uuid.UUID,

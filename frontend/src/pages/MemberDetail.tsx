@@ -8,7 +8,7 @@ import { formatRupiah, formatDate, formatDateTime } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   ArrowLeft, Plus, Loader2, Snowflake, Infinity as InfinityIcon,
-  Wallet, ShoppingBag, Phone, Mail, Pencil,
+  Wallet, ShoppingBag, Phone, Mail, Pencil, Trash2, Power,
 } from 'lucide-react'
 
 const STATUS_STYLE: Record<string, string> = {
@@ -78,6 +78,20 @@ export default function MemberDetail() {
     setError(''); setEditOpen(true)
   }
 
+  const remove = useMutation({
+    mutationFn: async () => (await api.delete(`/members/${id}`)).data as { status: string; message: string },
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['users'] }); qc.invalidateQueries({ queryKey: ['member-counts'] })
+      if (res.status === 'deleted') { nav('/member') }
+      else { alert(res.message); qc.invalidateQueries({ queryKey: ['member', id] }) }
+    },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menghapus'),
+  })
+  const reactivate = useMutation({
+    mutationFn: async () => api.patch(`/members/${id}`, { is_active: true }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['member', id] }); qc.invalidateQueries({ queryKey: ['users'] }) },
+  })
+
   if (isLoading || !m) return <div className="text-ink/40 py-10 text-center">Memuat…</div>
 
   return (
@@ -94,6 +108,11 @@ export default function MemberDetail() {
               {m.member_category && <span className="text-xs bg-copper-50 text-copper-700 border border-copper-100 rounded-full px-2 py-0.5">{CATEGORY_LABEL[m.member_category]}</span>}
               {!m.is_active && <span className="text-xs text-clay">non-aktif</span>}
               <button onClick={() => openEdit(m)} className="btn-ghost !px-2 !py-1 text-ink/50" title="Edit member"><Pencil size={15} /></button>
+              {!m.is_active && (
+                <button onClick={() => reactivate.mutate()} disabled={reactivate.isPending} className="btn-ghost !px-2 !py-1 text-copper-700" title="Aktifkan kembali">
+                  {reactivate.isPending ? <Loader2 size={15} className="animate-spin" /> : <Power size={15} />}
+                </button>
+              )}
             </div>
             <div className="mt-2 text-sm text-ink/60 flex flex-wrap gap-x-4 gap-y-1">
               <span className="inline-flex items-center gap-1"><Mail size={14} />{m.email}</span>
@@ -162,6 +181,16 @@ export default function MemberDetail() {
           ))}
           {m.payments.length === 0 && <div className="text-ink/40 text-sm py-4 text-center">Belum ada pembayaran.</div>}
         </div>
+      </div>
+
+      {/* Hapus member */}
+      <div className="pt-2">
+        <button
+          onClick={() => { if (confirm(`Hapus ${m.full_name}? Jika sudah ada riwayat pembayaran, member akan dinonaktifkan (data keuangan tetap tersimpan).`)) remove.mutate() }}
+          disabled={remove.isPending}
+          className="btn-ghost text-clay-dark border border-clay/20 hover:bg-clay/5">
+          {remove.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} Hapus member
+        </button>
       </div>
 
       {/* Modal edit member */}
