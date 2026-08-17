@@ -1,6 +1,10 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { api, tokenStore } from '@/services/api'
 import type { User } from '@/types'
+
+const IDLE_LOGOUT_MS = 12 * 60 * 60 * 1000   // auto-logout jika 12 jam tidak digunakan
+const AUTO_REFRESH_MS = 15 * 60 * 1000        // segarkan semua data tiap 15 menit
 
 interface AuthState {
   user: User | null
@@ -18,6 +22,8 @@ const AuthContext = createContext<AuthState>({} as AuthState)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const lastActivity = useRef(Date.now())
 
   async function loadMe() {
     if (!tokenStore.access) { setLoading(false); return }
@@ -53,6 +59,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
     location.href = '/'
   }
+
+  // Auto-refresh berkala + auto-logout saat idle (hanya ketika sudah login)
+  useEffect(() => {
+    if (!user) return
+    const bump = () => { lastActivity.current = Date.now() }
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'mousemove']
+    events.forEach((e) => window.addEventListener(e, bump, { passive: true }))
+
+    const refresh = setInterval(() => { queryClient.invalidateQueries() }, AUTO_REFRESH_MS)
+    const idle = setInterval(() => {
+      if (Date.now() - lastActivity.current > IDLE_LOGOUT_MS) logout()
+    }, 60 * 1000)
+
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, bump))
+      clearInterval(refresh)
+      clearInterval(idle)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, logout }}>

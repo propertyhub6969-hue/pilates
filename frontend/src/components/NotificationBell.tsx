@@ -25,6 +25,34 @@ const TONE: Record<NotifItem['type'], string> = {
   member: 'bg-sand text-ink/60',
 }
 
+// Bunyi "ding" dua nada via Web Audio — tanpa file aset.
+let audioCtx: AudioContext | null = null
+function ensureAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    if (audioCtx.state === 'suspended') audioCtx.resume()
+  } catch { /* abaikan */ }
+}
+function playDing() {
+  ensureAudio()
+  if (!audioCtx) return
+  try {
+    const t = audioCtx.currentTime
+    const g = audioCtx.createGain()
+    g.connect(audioCtx.destination)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.22, t + 0.02)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4)
+    const o = audioCtx.createOscillator()
+    o.type = 'sine'
+    o.frequency.setValueAtTime(880, t)
+    o.frequency.setValueAtTime(1320, t + 0.1)
+    o.connect(g)
+    o.start(t)
+    o.stop(t + 0.42)
+  } catch { /* abaikan */ }
+}
+
 function timeAgo(iso: string): string {
   const then = new Date(iso).getTime()
   const s = Math.max(0, Math.floor((Date.now() - then) / 1000))
@@ -53,6 +81,22 @@ export default function NotificationBell() {
     () => data.filter((n) => new Date(n.time).getTime() > seen).length,
     [data, seen],
   )
+
+  // Buka kunci audio pada interaksi pertama (kebijakan autoplay browser)
+  useEffect(() => {
+    const unlock = () => { ensureAudio(); window.removeEventListener('pointerdown', unlock) }
+    window.addEventListener('pointerdown', unlock)
+    return () => window.removeEventListener('pointerdown', unlock)
+  }, [])
+
+  // Bunyikan "ding" saat ada notifikasi yang lebih baru dari sebelumnya
+  const lastMax = useRef<number | null>(null)
+  useEffect(() => {
+    if (!data.length) return
+    const maxTime = Math.max(...data.map((n) => new Date(n.time).getTime()))
+    if (lastMax.current === null) { lastMax.current = maxTime; return }  // muat pertama: jangan bunyi
+    if (maxTime > lastMax.current) { lastMax.current = maxTime; playDing() }
+  }, [data])
 
   const wrap = useRef<HTMLDivElement>(null)
   useEffect(() => {
