@@ -111,11 +111,30 @@ function useInstructors() {
 }
 
 // ─────────────── SESI ───────────────
+const plusDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
+
+type SchedView = 'upcoming' | 'today' | 'h1' | 'h2' | 'range'
+const VIEW_CHIPS: { k: SchedView; label: string }[] = [
+  { k: 'upcoming', label: 'Mendatang' },
+  { k: 'today', label: 'Hari ini' },
+  { k: 'h1', label: 'Besok · H-1' },
+  { k: 'h2', label: 'Lusa · H-2' },
+  { k: 'range', label: 'Rentang' },
+]
+
 function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const { activeId } = useBranch()
   const [openNew, setOpenNew] = useState(false)
   const [rosterFor, setRosterFor] = useState<ClassSession | null>(null)
-  const [range, setRange] = useState({ from: todayISO(), to: new Date(Date.now() + 21 * 864e5).toISOString().slice(0, 10) })
+  const [view, setView] = useState<SchedView>('upcoming')
+  const [custom, setCustom] = useState({ from: todayISO(), to: plusDays(21) })
+
+  // Tanggal lewat tidak ditampilkan: semua preset mulai dari hari ini.
+  const range = view === 'today' ? { from: todayISO(), to: todayISO() }
+    : view === 'h1' ? { from: plusDays(1), to: plusDays(1) }
+    : view === 'h2' ? { from: plusDays(2), to: plusDays(2) }
+    : view === 'range' ? { from: custom.from < todayISO() ? todayISO() : custom.from, to: custom.to }
+    : { from: todayISO(), to: plusDays(21) }
 
   const { data: sessions, isLoading } = useQuery({
     queryKey: ['staff-sessions', activeId, range.from, range.to],
@@ -132,17 +151,28 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 flex-wrap items-end justify-between">
-        <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setOpenNew(true)} className="btn-primary"><Plus size={16} /> Sesi</button>
-          <button onClick={() => generate.mutate()} disabled={generate.isPending} className="btn-ghost border border-sand">
-            {generate.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Generate dari template
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={() => setOpenNew(true)} className="btn-primary"><Plus size={16} /> Sesi</button>
+        <button onClick={() => generate.mutate()} disabled={generate.isPending} className="btn-ghost border border-sand">
+          {generate.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Generate dari template
+        </button>
+      </div>
+
+      {/* Filter tahap pipeline — tanggal lewat tidak ditampilkan */}
+      <div className="flex gap-2 flex-wrap items-center">
+        {VIEW_CHIPS.map((c) => (
+          <button key={c.k} onClick={() => setView(c.k)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition ${
+              view === c.k ? 'bg-copper-600 text-white' : 'bg-sand text-ink/60 hover:bg-copper-100'}`}>
+            {c.label}
           </button>
-        </div>
-        <div className="flex gap-2 items-end">
-          <div><label className="label !mb-1 text-xs">Dari</label><input type="date" className="input !py-1.5" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} /></div>
-          <div><label className="label !mb-1 text-xs">Sampai</label><input type="date" className="input !py-1.5" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} /></div>
-        </div>
+        ))}
+        {view === 'range' && (
+          <div className="flex gap-2 items-end ml-1">
+            <div><label className="label !mb-1 text-xs">Dari</label><input type="date" min={todayISO()} className="input !py-1.5" value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} /></div>
+            <div><label className="label !mb-1 text-xs">Sampai</label><input type="date" min={todayISO()} className="input !py-1.5" value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} /></div>
+          </div>
+        )}
       </div>
 
       <div className="card !p-0 overflow-hidden">
