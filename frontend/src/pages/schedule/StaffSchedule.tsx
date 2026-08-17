@@ -11,7 +11,8 @@ import {
   Pencil, Trash2, XCircle, CalendarClock, CheckCircle2, RotateCcw, ChevronRight,
 } from 'lucide-react'
 
-const todayISO = () => new Date().toISOString().slice(0, 10)
+// Tanggal "hari ini" menurut zona studio (WITA) — hindari bug UTC di dekat tengah malam.
+const todayISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date())
 
 const TABS = [
   { key: 'sesi', label: 'Sesi' },
@@ -111,7 +112,10 @@ function useInstructors() {
 }
 
 // ─────────────── SESI ───────────────
-const plusDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
+const plusDays = (n: number) => {
+  const [y, m, d] = todayISO().split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10)
+}
 
 type SchedView = 'upcoming' | 'today' | 'h1' | 'h2' | 'range'
 const VIEW_CHIPS: { k: SchedView; label: string }[] = [

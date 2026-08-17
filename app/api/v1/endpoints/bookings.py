@@ -102,7 +102,7 @@ async def my_bookings(db: AsyncSession = Depends(get_db), user: User = Depends(g
             .where(
                 Booking.member_id == user.id,
                 Booking.status.in_([BookingStatus.BOOKED, BookingStatus.WAITLIST]),
-                ClassSession.session_date >= date.today(),
+                ClassSession.session_date >= booking_svc.today_local(),
             )
             .order_by(ClassSession.session_date, ClassSession.start_time)
         )

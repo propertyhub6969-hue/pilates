@@ -16,7 +16,7 @@ from datetime import date, timedelta
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.services import broadcast as bc
-from app.services.booking import get_studio
+from app.services.booking import get_studio, today_local
 
 
 async def main(kind: str) -> None:
@@ -27,7 +27,7 @@ async def main(kind: str) -> None:
         if not studio.wa_broadcast_enabled:
             print("Broadcast WhatsApp DIMATIKAN di Pengaturan — no-op.")
             return
-        today = date.today()
+        today = today_local()
         if kind == "bulanan":
             td = today + timedelta(days=studio.bulanan_open_days_before or 2)
             res = await bc.announce_bulanan(db, td)

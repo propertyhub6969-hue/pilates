@@ -38,7 +38,8 @@ async def dashboard(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(require_staff),
 ):
-    today = date.today()
+    from app.services.booking import today_local
+    today = today_local()
     month_start = today.replace(day=1)
 
     members_active = (

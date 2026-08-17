@@ -32,6 +32,11 @@ def now_local() -> datetime:
     return datetime.now(TZ)
 
 
+def today_local() -> date:
+    """Tanggal 'hari ini' menurut zona studio (WITA) — bukan UTC container."""
+    return datetime.now(TZ).date()
+
+
 def session_start_dt(session: ClassSession) -> datetime:
     """Waktu mulai sesi sebagai datetime sadar-zona (zona studio)."""
     return datetime.combine(session.session_date, session.start_time, tzinfo=TZ)
@@ -305,7 +310,7 @@ async def generate_sessions(db: AsyncSession, weeks: int, branch_id=None) -> tup
         stmt = stmt.where(ClassTemplate.branch_id == branch_id)
     templates = (await db.execute(stmt)).scalars().all()
 
-    start = date.today()
+    start = today_local()
     end = start + timedelta(weeks=weeks)
     created = skipped = 0
 

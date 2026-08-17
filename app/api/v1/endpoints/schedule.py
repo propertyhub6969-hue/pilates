@@ -189,7 +189,7 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
         r.bulanan_count = bulanan.get(s.id, 0)
         r.is_underfilled = (
             s.status == ClassSessionStatus.SCHEDULED
-            and s.session_date >= date.today()
+            and s.session_date >= booking_svc.today_local()
             and r.bulanan_count < (studio.min_bulanan or 0)
         )
         if s.status != ClassSessionStatus.SCHEDULED:
@@ -215,7 +215,7 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
 
 @router.get("/sessions", response_model=list[SessionResponse])
 async def list_sessions(
-    date_from: date = Query(default_factory=date.today, alias="from"),
+    date_from: date = Query(default_factory=booking_svc.today_local, alias="from"),
     date_to: date | None = Query(default=None, alias="to"),
     branch_id: uuid.UUID | None = Query(None, description="Filter cabang"),
     mine: bool = Query(False, description="Member: hanya sesi yang saya booking"),
@@ -386,7 +386,7 @@ async def trigger_broadcast(
     Tanpa target_date: bulanan=H-2 (hari ini + hari-buka-bulanan), per-datang=H-1."""
     from app.services import broadcast as bc
     studio = await booking_svc.get_studio(db)
-    today = date.today()
+    today = booking_svc.today_local()
     if payload.kind == "bulanan":
         td = payload.target_date or (today + timedelta(days=studio.bulanan_open_days_before or 2))
         return await bc.announce_bulanan(db, td)
