@@ -15,6 +15,7 @@ interface AuthState {
     member_category?: string; package_id?: string; payment_method?: string
   }) => Promise<void>
   logout: () => void
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState>({} as AuthState)
@@ -60,6 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     location.href = '/'
   }
 
+  async function refreshUser() {
+    try {
+      const { data } = await api.get<User>('/auth/me')
+      setUser(data)
+    } catch { /* abaikan */ }
+  }
+
   // Auto-refresh berkala + auto-logout saat idle (hanya ketika sudah login)
   useEffect(() => {
     if (!user) return
@@ -81,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

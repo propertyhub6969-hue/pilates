@@ -1,6 +1,8 @@
+import os
 import uuid
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
@@ -106,3 +108,69 @@ async def change_password(
     user.hashed_password = get_password_hash(payload.new_password)
     await db.flush()
     return None
+
+
+# ─────────────── FOTO PROFIL ───────────────
+UPLOAD_DIR = "/app/uploads"
+AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
+IMG_ALLOWED = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+AVATAR_MAX = 5 * 1024 * 1024  # 5 MB
+
+
+@router.post("/me/avatar", response_model=UserResponse)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Unggah/ganti foto profil sendiri."""
+    ext = IMG_ALLOWED.get(file.content_type or "")
+    if not ext:
+        raise HTTPException(400, "Format tidak didukung. Unggah gambar JPG, PNG, atau WebP.")
+    data = await file.read()
+    if len(data) > AVATAR_MAX:
+        raise HTTPException(400, "Ukuran foto maksimal 5 MB")
+    os.makedirs(AVATAR_DIR, exist_ok=True)
+    # hapus file lama bila ekstensinya berbeda (hindari file yatim)
+    if user.avatar_path:
+        old = os.path.join(UPLOAD_DIR, user.avatar_path)
+        if os.path.exists(old) and not old.endswith(ext):
+            try:
+                os.remove(old)
+            except OSError:
+                pass
+    fname = f"{user.id}{ext}"
+    with open(os.path.join(AVATAR_DIR, fname), "wb") as fh:
+        fh.write(data)
+    user.avatar_path = f"avatars/{fname}"
+    await db.flush()
+    await db.refresh(user)
+    return user
+
+
+@router.delete("/me/avatar", response_model=UserResponse)
+async def delete_avatar(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """Hapus foto profil sendiri (kembali ke inisial)."""
+    if user.avatar_path:
+        full = os.path.join(UPLOAD_DIR, user.avatar_path)
+        if os.path.exists(full):
+            try:
+                os.remove(full)
+            except OSError:
+                pass
+        user.avatar_path = None
+        await db.flush()
+        await db.refresh(user)
+    return user
+
+
+@router.get("/users/{user_id}/avatar")
+async def get_avatar(user_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Sajikan foto profil (publik agar bisa dipakai langsung di tag <img>)."""
+    u = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not u or not u.avatar_path:
+        raise HTTPException(404, "Tidak ada foto")
+    full = os.path.join(UPLOAD_DIR, u.avatar_path)
+    if not os.path.exists(full):
+        raise HTTPException(404, "File foto hilang")
+    return FileResponse(full)

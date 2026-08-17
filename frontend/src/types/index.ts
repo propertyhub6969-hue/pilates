@@ -18,9 +18,11 @@ export interface User {
   role: UserRole
   member_category?: MemberCategory | null
   is_active: boolean
+  avatar_path?: string | null
   date_of_birth?: string | null
   join_date?: string | null
   created_at?: string
+  updated_at?: string | null
   // Ringkasan kuota (diisi di daftar member)
   active_sessions_remaining?: number | null
   has_unlimited?: boolean

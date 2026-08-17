@@ -40,9 +40,11 @@ class UserResponse(BaseModel):
     phone: Optional[str] = None
     role: UserRole
     is_active: bool
+    avatar_path: Optional[str] = None
     date_of_birth: Optional[date] = None
     join_date: Optional[date] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

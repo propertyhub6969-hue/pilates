@@ -5,6 +5,7 @@ import { useBranch } from '@/context/BranchContext'
 import { ROLE_LABEL, isStaff, type UserRole } from '@/types'
 import Brand from '@/components/Brand'
 import NotificationBell from '@/components/NotificationBell'
+import Avatar from '@/components/Avatar'
 import {
   LogOut, LayoutDashboard, CalendarDays, Users, Wallet, Package,
   ChevronDown, UserRound, Settings as SettingsIcon, Menu, X, Building2, Plus,
@@ -70,7 +71,7 @@ function UserMenu() {
   return (
     <div className="relative shrink-0">
       <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 rounded-full hover:bg-sand px-2 py-1.5 transition">
-        <span className="grid place-items-center w-8 h-8 rounded-full bg-copper-100 text-copper-700"><UserRound size={17} /></span>
+        <Avatar user={user} size={32} />
         <span className="text-sm font-semibold hidden sm:block max-w-[120px] truncate">{user?.full_name}</span>
         <ChevronDown size={15} className="text-ink/40 hidden sm:block" />
       </button>
