@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import type { FinancialAccount, ExpenseRow, ExpenseEditRow, ExpenseCategory, AccountType, Page } from '@/types'
+import type { FinancialAccount, ExpenseRow, ExpenseEditRow, LedgerResponse, ExpenseCategory, AccountType, Page } from '@/types'
 import { EXPENSE_CATEGORY_LABEL } from '@/types'
 import { formatRupiah, formatDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   Plus, Loader2, Trash2, Wallet, Landmark, ChevronLeft, ChevronRight, Pencil, History, UserRound,
+  BookOpen, Printer, ArrowDownLeft, ArrowUpRight,
 } from 'lucide-react'
 
 const fmtDateTime = (iso: string) =>
   new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
+const firstOfMonth = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10) }
 const PAGE_SIZE = 15
 const CATS: ExpenseCategory[] = ['sewa', 'gaji', 'utilitas', 'peralatan', 'perlengkapan', 'marketing', 'kebersihan', 'lainnya']
 
@@ -23,23 +25,29 @@ function useAccounts() {
   })
 }
 
+const TAB_LABEL: Record<'pengeluaran' | 'akun' | 'ledger', string> = {
+  pengeluaran: 'Pengeluaran', akun: 'Akun Kas & Bank', ledger: 'Buku Besar',
+}
+
 export default function Keuangan() {
-  const [tab, setTab] = useState<'pengeluaran' | 'akun'>('pengeluaran')
+  const [tab, setTab] = useState<'pengeluaran' | 'akun' | 'ledger'>('pengeluaran')
   return (
     <div>
       <h1 className="font-display text-2xl font-semibold mb-5">Keuangan</h1>
       <div className="sticky top-16 z-10 bg-cream border-b border-sand py-3 -mx-4 px-4 lg:-mx-8 lg:px-8">
-        <div className="flex gap-2">
-          {(['pengeluaran', 'akun'] as const).map((t) => (
+        <div className="flex gap-2 flex-wrap">
+          {(['pengeluaran', 'akun', 'ledger'] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
                 tab === t ? 'bg-copper-600 text-white' : 'bg-sand text-ink/60 hover:bg-copper-100'}`}>
-              {t === 'pengeluaran' ? 'Pengeluaran' : 'Akun Kas & Bank'}
+              {TAB_LABEL[t]}
             </button>
           ))}
         </div>
       </div>
-      <div className="mt-3">{tab === 'pengeluaran' ? <ExpensesTab /> : <AccountsTab />}</div>
+      <div className="mt-3">
+        {tab === 'pengeluaran' ? <ExpensesTab /> : tab === 'akun' ? <AccountsTab /> : <LedgerTab />}
+      </div>
     </div>
   )
 }
@@ -274,6 +282,119 @@ function AccountsTab() {
           <button className="btn-primary w-full" disabled={save.isPending}>{save.isPending && <Loader2 size={16} className="animate-spin" />} Simpan</button>
         </form>
       </Modal>
+    </div>
+  )
+}
+
+/* ─────────── BUKU BESAR ─────────── */
+function LedgerTab() {
+  const { data: accounts } = useAccounts()
+  const [accId, setAccId] = useState('')
+  const [range, setRange] = useState({ from: firstOfMonth(), to: todayISO() })
+
+  // pilih akun pertama otomatis begitu daftar akun tersedia
+  useEffect(() => {
+    if (!accId && accounts && accounts.length) setAccId(accounts.find((a) => a.is_active)?.id ?? accounts[0].id)
+  }, [accounts, accId])
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['ledger', accId, range],
+    enabled: !!accId,
+    queryFn: async () => (await api.get<LedgerResponse>(`/finance/accounts/${accId}/ledger`, { params: { from: range.from, to: range.to } })).data,
+    placeholderData: keepPreviousData,
+  })
+
+  function printLedger() {
+    if (!data) return
+    const rows = data.entries.map((e) => `<tr>
+      <td>${formatDate(e.date)}</td>
+      <td>${e.description}</td>
+      <td class="amt in">${e.kind === 'in' ? formatRupiah(e.amount) : ''}</td>
+      <td class="amt out">${e.kind === 'out' ? formatRupiah(e.amount) : ''}</td>
+      <td class="amt">${formatRupiah(e.balance)}</td></tr>`).join('')
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Buku Besar — ${data.account_name}</title>
+<style>*{box-sizing:border-box}body{font-family:'Segoe UI',Arial,sans-serif;color:#2A2724;margin:32px;font-size:13px}
+h1{font-size:18px;color:#8A5140;margin:0}.muted{color:#888;font-size:12px}
+table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:6px 8px;text-align:left;border-bottom:1px solid #eee}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#A9654E}
+td.amt{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}td.in{color:#5a7d5a}td.out{color:#A55B3B}
+.sum{margin-top:16px;display:flex;gap:24px;flex-wrap:wrap}.sum div{font-size:13px}.sum b{color:#8A5140}
+.start td{background:#FBF1EB;font-weight:600}@media print{body{margin:0;padding:20px}}</style></head><body>
+<h1>Buku Besar — ${data.account_name}</h1>
+<div class="muted">Periode ${formatDate(range.from)} – ${formatDate(range.to)}</div>
+<table><thead><tr><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Masuk</th><th style="text-align:right">Keluar</th><th style="text-align:right">Saldo</th></tr></thead>
+<tbody><tr class="start"><td>${formatDate(range.from)}</td><td>Saldo awal periode</td><td></td><td></td><td class="amt">${formatRupiah(data.starting_balance)}</td></tr>
+${rows}</tbody></table>
+<div class="sum"><div>Total masuk: <b>${formatRupiah(data.total_in)}</b></div><div>Total keluar: <b>${formatRupiah(data.total_out)}</b></div><div>Saldo akhir: <b>${formatRupiah(data.ending_balance)}</b></div></div>
+</body></html>`
+    const w = window.open('', '_blank', 'width=900,height=1000')
+    if (!w) { alert('Popup diblokir browser. Izinkan popup untuk mencetak.'); return }
+    w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 300)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 items-end flex-wrap">
+        <div>
+          <label className="label">Akun</label>
+          <select className="input" value={accId} onChange={(e) => setAccId(e.target.value)}>
+            {accounts?.map((a) => <option key={a.id} value={a.id}>{a.name}{a.is_active ? '' : ' (non-aktif)'}</option>)}
+          </select>
+        </div>
+        <div><label className="label">Dari</label><input type="date" className="input" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} /></div>
+        <div><label className="label">Sampai</label><input type="date" className="input" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} /></div>
+        <button onClick={printLedger} disabled={!data} className="btn-ghost border border-sand"><Printer size={16} /> Cetak</button>
+      </div>
+
+      {!accId ? <div className="text-ink/40 text-center py-10">Belum ada akun. Tambahkan kas/bank dulu.</div>
+        : isLoading || !data ? <div className="text-ink/40 text-center py-10">Memuat…</div> : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="card"><div className="text-xs text-ink/50">Saldo awal periode</div><div className="font-display text-lg font-semibold">{formatRupiah(data.starting_balance)}</div></div>
+            <div className="card"><div className="text-xs text-ink/50 flex items-center gap-1"><ArrowDownLeft size={13} className="text-copper-600" /> Masuk</div><div className="font-display text-lg font-semibold text-copper-700">{formatRupiah(data.total_in)}</div></div>
+            <div className="card"><div className="text-xs text-ink/50 flex items-center gap-1"><ArrowUpRight size={13} className="text-clay-dark" /> Keluar</div><div className="font-display text-lg font-semibold text-clay-dark">{formatRupiah(data.total_out)}</div></div>
+            <div className="card bg-copper-50 border-copper-100"><div className="text-xs text-ink/50">Saldo akhir</div><div className="font-display text-lg font-semibold text-copper-700">{formatRupiah(data.ending_balance)}</div></div>
+          </div>
+
+          <div className="card !p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-ink/45 text-xs uppercase tracking-wide border-b border-sand">
+                    <th className="font-semibold px-4 py-3">Tanggal</th>
+                    <th className="font-semibold px-4 py-3">Keterangan</th>
+                    <th className="font-semibold px-4 py-3 text-right">Masuk</th>
+                    <th className="font-semibold px-4 py-3 text-right">Keluar</th>
+                    <th className="font-semibold px-4 py-3 text-right">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-sand/60 bg-copper-50/40">
+                    <td className="px-4 py-2.5 text-ink/60 whitespace-nowrap">{formatDate(range.from)}</td>
+                    <td className="px-4 py-2.5 text-ink/60 italic" colSpan={3}>Saldo awal periode</td>
+                    <td className="px-4 py-2.5 text-right font-semibold whitespace-nowrap">{formatRupiah(data.starting_balance)}</td>
+                  </tr>
+                  {data.entries.length === 0 ? (
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-ink/40">Tidak ada transaksi di periode ini.</td></tr>
+                  ) : data.entries.map((e, i) => (
+                    <tr key={i} className="border-b border-sand/60 last:border-0 hover:bg-sand/40 transition">
+                      <td className="px-4 py-2.5 text-ink/60 whitespace-nowrap">{formatDate(e.date)}</td>
+                      <td className="px-4 py-2.5 text-ink/70">{e.description}</td>
+                      <td className="px-4 py-2.5 text-right whitespace-nowrap text-copper-700 font-medium">{e.kind === 'in' ? formatRupiah(e.amount) : ''}</td>
+                      <td className="px-4 py-2.5 text-right whitespace-nowrap text-clay-dark font-medium">{e.kind === 'out' ? formatRupiah(e.amount) : ''}</td>
+                      <td className="px-4 py-2.5 text-right whitespace-nowrap font-semibold">{formatRupiah(e.balance)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-sand text-sm">
+              <span className="text-ink/50 flex items-center gap-2">{data.entries.length} transaksi {isFetching && <Loader2 size={13} className="animate-spin text-ink/30" />}</span>
+              <span className="text-ink/60">Saldo akhir: <b className="text-copper-700">{formatRupiah(data.ending_balance)}</b></span>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

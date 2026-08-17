@@ -78,6 +78,27 @@ class ExpenseEditRow(BaseModel):
         from_attributes = True
 
 
+# ── Buku besar (mutasi akun) ──
+class LedgerEntry(BaseModel):
+    date: date
+    kind: str            # 'in' (masuk) | 'out' (keluar)
+    description: str
+    amount: float
+    balance: float       # saldo berjalan setelah transaksi ini
+
+
+class LedgerResponse(BaseModel):
+    account_id: uuid.UUID
+    account_name: str
+    account_type: AccountType
+    opening_balance: float       # saldo awal akun
+    starting_balance: float      # saldo sebelum periode (opening + mutasi sebelum 'from')
+    total_in: float
+    total_out: float
+    ending_balance: float
+    entries: List[LedgerEntry]
+
+
 # ── Laporan ──
 class CategoryAmount(BaseModel):
     category: ExpenseCategory

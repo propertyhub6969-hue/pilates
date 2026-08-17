@@ -14,7 +14,7 @@ from app.schemas.common import Page
 from app.schemas.finance import (
     AccountCreate, AccountUpdate, AccountResponse,
     ExpenseCreate, ExpenseUpdate, ExpenseRow, ExpenseEditRow,
-    FinanceReport, CategoryAmount,
+    FinanceReport, CategoryAmount, LedgerEntry, LedgerResponse,
 )
 from app.services.finance import account_balance
 
@@ -99,6 +99,83 @@ async def delete_account(account_id: uuid.UUID, db: AsyncSession = Depends(get_d
         raise HTTPException(404, "Akun tidak ditemukan")
     acc.is_active = False
     return None
+
+
+@router.get("/accounts/{account_id}/ledger", response_model=LedgerResponse)
+async def account_ledger(
+    account_id: uuid.UUID,
+    date_from: date | None = Query(None, alias="from"),
+    date_to: date | None = Query(None, alias="to"),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+):
+    """Buku besar akun: mutasi masuk (pembayaran lunas) & keluar (pengeluaran) + saldo berjalan.
+    Dihitung dari SELURUH riwayat sejak saldo awal agar rekonsiliasi dgn saldo akun."""
+    acc = (await db.execute(select(FinancialAccount).where(FinancialAccount.id == account_id))).scalar_one_or_none()
+    if not acc:
+        raise HTTPException(404, "Akun tidak ditemukan")
+
+    # Uang masuk = pembayaran LUNAS yang ter-atribusi ke akun ini
+    inc_rows = (
+        await db.execute(
+            select(
+                Payment.amount, func.coalesce(Payment.paid_at, Payment.created_at), Payment.note, User.full_name
+            ).outerjoin(User, Payment.member_id == User.id)
+            .where(Payment.account_id == account_id, Payment.status == PaymentStatus.PAID)
+        )
+    ).all()
+    # Uang keluar = pengeluaran dari akun ini
+    exp_rows = (
+        await db.execute(
+            select(Expense.amount, Expense.expense_date, Expense.category, Expense.description)
+            .where(Expense.account_id == account_id)
+        )
+    ).all()
+
+    events = []  # (sort_key_datetime, date, kind, description, amount)
+    for amount, ts, note, member_name in inc_rows:
+        d = ts.date()
+        label = note or "Pembayaran"
+        if member_name:
+            label = f"{label} — {member_name}"
+        events.append((ts.replace(tzinfo=None), d, "in", label, float(amount or 0)))
+    for amount, edate, category, description in exp_rows:
+        label = CATEGORY_LABEL.get(category.value, category.value)
+        if description:
+            label = f"{label} — {description}"
+        events.append((datetime(edate.year, edate.month, edate.day), edate, "out", label, float(amount or 0)))
+
+    events.sort(key=lambda e: e[0])
+
+    opening = float(acc.opening_balance or 0)
+    running = opening
+    starting_balance = opening
+    entries: list[LedgerEntry] = []
+    total_in = 0.0
+    total_out = 0.0
+    for _sk, d, kind, label, amount in events:
+        if kind == "in":
+            running += amount
+        else:
+            running -= amount
+        # sebelum periode → hanya update saldo awal periode, tidak ditampilkan
+        if date_from and d < date_from:
+            starting_balance = running
+            continue
+        if date_to and d > date_to:
+            continue
+        if kind == "in":
+            total_in += amount
+        else:
+            total_out += amount
+        entries.append(LedgerEntry(date=d, kind=kind, description=label, amount=amount, balance=running))
+
+    ending_balance = entries[-1].balance if entries else starting_balance
+    return LedgerResponse(
+        account_id=acc.id, account_name=acc.name, account_type=acc.type,
+        opening_balance=opening, starting_balance=starting_balance,
+        total_in=total_in, total_out=total_out, ending_balance=ending_balance,
+        entries=entries,
+    )
 
 
 # ─────────────── PENGELUARAN ───────────────

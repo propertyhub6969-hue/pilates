@@ -148,6 +148,26 @@ export interface ExpenseEditRow {
   created_at: string
 }
 
+export interface LedgerEntry {
+  date: string
+  kind: 'in' | 'out'
+  description: string
+  amount: number
+  balance: number
+}
+
+export interface LedgerResponse {
+  account_id: string
+  account_name: string
+  account_type: AccountType
+  opening_balance: number
+  starting_balance: number
+  total_in: number
+  total_out: number
+  ending_balance: number
+  entries: LedgerEntry[]
+}
+
 // ── Cabang ──
 export interface Branch {
   id: string
