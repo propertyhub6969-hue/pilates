@@ -2,17 +2,17 @@ import { useState } from 'react'
 import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useBranch } from '@/context/BranchContext'
-import { ROLE_LABEL, isStaff, type UserRole } from '@/types'
+import { ROLE_LABEL, isStaff, isOwner, type UserRole } from '@/types'
 import Brand from '@/components/Brand'
 import NotificationBell from '@/components/NotificationBell'
 import Avatar from '@/components/Avatar'
 import {
   LogOut, LayoutDashboard, CalendarDays, Users, Wallet, Package,
   ChevronDown, UserRound, Settings as SettingsIcon, Menu, X, Building2, Plus,
-  Coins, BarChart3,
+  Coins, BarChart3, ShieldCheck,
 } from 'lucide-react'
 
-interface NavItem { icon: any; label: string; short: string; to: string; roles: 'all' | 'staff' }
+interface NavItem { icon: any; label: string; short: string; to: string; roles: 'all' | 'staff' | 'owner' }
 
 const NAV: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', short: 'Home', to: '/', roles: 'all' },
@@ -21,9 +21,15 @@ const NAV: NavItem[] = [
   { icon: Package, label: 'Paket', short: 'Paket', to: '/paket', roles: 'staff' },
   { icon: Wallet, label: 'Pembayaran', short: 'Bayar', to: '/pembayaran', roles: 'staff' },
   { icon: Coins, label: 'Keuangan', short: 'Uang', to: '/keuangan', roles: 'staff' },
-  { icon: BarChart3, label: 'Laporan', short: 'Laporan', to: '/laporan', roles: 'staff' },
+  { icon: BarChart3, label: 'Laporan', short: 'Laporan', to: '/laporan', roles: 'owner' },
   { icon: Building2, label: 'Cabang', short: 'Cabang', to: '/cabang', roles: 'staff' },
+  { icon: ShieldCheck, label: 'Pengguna', short: 'User', to: '/pengguna', roles: 'owner' },
 ]
+
+// item nav yang boleh dilihat peran tertentu
+function navFor(role?: UserRole): NavItem[] {
+  return NAV.filter((n) => n.roles === 'all' || (n.roles === 'staff' && isStaff(role)) || (n.roles === 'owner' && isOwner(role)))
+}
 
 function BranchSwitcher() {
   const { branches, activeBranch, setActiveId } = useBranch()
@@ -105,6 +111,8 @@ function UserMenu() {
 function StaffShell() {
   const [drawer, setDrawer] = useState(false)
   const loc = useLocation()
+  const { user } = useAuth()
+  const items = navFor(user?.role)
 
   const SidebarBody = (
     <>
@@ -112,7 +120,7 @@ function StaffShell() {
         <Link to="/" onClick={() => setDrawer(false)}><Brand size="sm" imgClassName="!h-9" showName /></Link>
       </div>
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {NAV.map((n) => (
+        {items.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.to === '/'} onClick={() => setDrawer(false)}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${

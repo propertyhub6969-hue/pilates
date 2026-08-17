@@ -43,6 +43,7 @@ export const ROLE_LABEL: Record<UserRole, string> = {
 
 export const STAFF_ROLES: UserRole[] = ['owner', 'admin']
 export const isStaff = (r?: UserRole) => !!r && STAFF_ROLES.includes(r)
+export const isOwner = (r?: UserRole) => r === 'owner'
 
 export interface Page<T> { items: T[]; total: number }
 

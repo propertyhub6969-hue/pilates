@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { BranchProvider } from '@/context/BranchContext'
-import { isStaff } from '@/types'
+import { isStaff, isOwner } from '@/types'
 import { IS_OFFICE } from '@/utils/domain'
 import Landing from '@/pages/Landing'
 import Login from '@/pages/Login'
@@ -18,6 +18,7 @@ import Profile from '@/pages/Profile'
 import Branches from '@/pages/Branches'
 import Keuangan from '@/pages/Keuangan'
 import Laporan from '@/pages/Laporan'
+import Pengguna from '@/pages/Pengguna'
 import Layout from '@/components/Layout'
 
 function Splash() {
@@ -48,6 +49,7 @@ export default function App() {
 
   // Sudah login — aplikasi (dashboard sadar-peran)
   const staff = isStaff(user.role)
+  const owner = isOwner(user.role)
   return (
     <BranchProvider>
       <Routes>
@@ -61,7 +63,8 @@ export default function App() {
           {staff && <Route path="pembayaran" element={<Payments />} />}
           {staff && <Route path="cabang" element={<Branches />} />}
           {staff && <Route path="keuangan" element={<Keuangan />} />}
-          {staff && <Route path="laporan" element={<Laporan />} />}
+          {owner && <Route path="laporan" element={<Laporan />} />}
+          {owner && <Route path="pengguna" element={<Pengguna />} />}
           {staff && <Route path="pengaturan" element={<Settings />} />}
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -14,7 +14,7 @@ import {
 
 /* ═══════════════ STAF ═══════════════ */
 interface DashboardSummary {
-  members_active: number; revenue_month: number; payments_pending: number; attendance_rate_30d: number
+  members_active: number; revenue_month: number | null; payments_pending: number; attendance_rate_30d: number
   today_sessions: { id: string; title: string; start_time: string; booked_count: number; capacity: number; status: string }[]
 }
 function StaffHome() {
@@ -23,9 +23,11 @@ function StaffHome() {
     queryKey: ['dashboard', activeId],
     queryFn: async () => (await api.get<DashboardSummary>('/reports/dashboard', { params: activeId ? { branch_id: activeId } : {} })).data,
   })
+  // Pendapatan hanya tampil bila server mengirimnya (owner). Non-owner: null → sembunyikan.
+  const showRevenue = data ? data.revenue_month != null : true
   const kpis = [
     { label: 'Member aktif', value: data?.members_active ?? '…', icon: Users, to: '/member' },
-    { label: 'Pendapatan bulan ini', value: data ? formatRupiah(data.revenue_month) : '…', icon: TrendingUp, to: '/laporan', accent: true },
+    ...(showRevenue ? [{ label: 'Pendapatan bulan ini', value: data ? formatRupiah(data.revenue_month ?? 0) : '…', icon: TrendingUp, to: '/laporan', accent: true }] : []),
     { label: 'Pembayaran menunggu', value: data?.payments_pending ?? '…', icon: Wallet, to: '/pembayaran' },
     { label: 'Kehadiran (30 hari)', value: data ? `${Math.round(data.attendance_rate_30d * 100)}%` : '…', icon: CalendarDays, to: '/jadwal' },
   ]

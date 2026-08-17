@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import Optional
 from app.core.database import get_db
-from app.api.deps import require_staff, get_current_user
+from app.api.deps import require_staff, require_owner, get_current_user
 from app.models.user import User
 from app.models.finance import (
     FinancialAccount, AccountType, Expense, ExpenseEdit, ExpenseCategoryDef, CATEGORY_LABEL,
@@ -234,7 +234,7 @@ async def account_ledger(
     account_id: uuid.UUID,
     date_from: date | None = Query(None, alias="from"),
     date_to: date | None = Query(None, alias="to"),
-    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_owner),
 ):
     return await _build_ledger(db, account_id, date_from, date_to)
 
@@ -244,7 +244,7 @@ async def account_ledger_xlsx(
     account_id: uuid.UUID,
     date_from: date | None = Query(None, alias="from"),
     date_to: date | None = Query(None, alias="to"),
-    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_owner),
 ):
     """Ekspor buku besar akun ke Excel (.xlsx)."""
     import io
@@ -617,7 +617,7 @@ async def _compute_report(db: AsyncSession, date_from: date, date_to: date) -> F
 async def finance_report(
     date_from: date = Query(..., alias="from"),
     date_to: date = Query(..., alias="to"),
-    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_owner),
 ):
     return await _compute_report(db, date_from, date_to)
 
@@ -626,7 +626,7 @@ async def finance_report(
 async def report_xlsx(
     date_from: date = Query(..., alias="from"),
     date_to: date = Query(..., alias="to"),
-    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_owner),
 ):
     """Ekspor Laba/Rugi ke Excel."""
     data = await _compute_report(db, date_from, date_to)

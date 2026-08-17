@@ -156,6 +156,18 @@ async def member_counts(db: AsyncSession = Depends(get_db), _: User = Depends(re
     return out
 
 
+@router.get("/staff", response_model=list[UserBrief])
+async def list_staff(db: AsyncSession = Depends(get_db), _: User = Depends(require_owner)):
+    """Daftar pengguna sistem (owner/admin/instruktur) — hanya owner."""
+    rows = (
+        await db.execute(
+            select(User).where(User.role.in_([UserRole.OWNER, UserRole.ADMIN, UserRole.INSTRUCTOR]))
+            .order_by(User.role, User.full_name)
+        )
+    ).scalars().all()
+    return rows
+
+
 @router.get("/me", response_model=MemberDetail)
 async def my_detail(
     db: AsyncSession = Depends(get_db),

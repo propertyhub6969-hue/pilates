@@ -26,7 +26,7 @@ class TodaySession(BaseModel):
 
 class DashboardSummary(BaseModel):
     members_active: int
-    revenue_month: float
+    revenue_month: Optional[float] = None  # None utk non-owner (report hanya owner)
     payments_pending: int
     attendance_rate_30d: float
     today_sessions: List[TodaySession]
@@ -36,7 +36,7 @@ class DashboardSummary(BaseModel):
 async def dashboard(
     branch_id: uuid.UUID | None = Query(None, description="Filter kelas hari ini per cabang"),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_staff),
+    actor: User = Depends(require_staff),
 ):
     today = date.today()
     month_start = today.replace(day=1)
@@ -99,9 +99,13 @@ async def dashboard(
         for s in sessions
     ]
 
+    # Angka pendapatan hanya untuk owner ("report hanya owner")
+    from app.models.user import UserRole
+    revenue_visible = float(revenue_month or 0) if actor.role == UserRole.OWNER else None
+
     return DashboardSummary(
         members_active=members_active,
-        revenue_month=float(revenue_month or 0),
+        revenue_month=revenue_visible,
         payments_pending=payments_pending,
         attendance_rate_30d=rate,
         today_sessions=today_sessions,

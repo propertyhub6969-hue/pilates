@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import type { FinancialAccount, ExpenseRow, ExpenseEditRow, ExpenseCategoryRow, LedgerResponse, ExpenseCategory, AccountType, Page } from '@/types'
-import { EXPENSE_CATEGORY_LABEL } from '@/types'
+import { EXPENSE_CATEGORY_LABEL, isOwner } from '@/types'
+import { useAuth } from '@/context/AuthContext'
 import { formatRupiah, formatDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
@@ -41,13 +42,16 @@ const TAB_LABEL: Record<'pengeluaran' | 'akun' | 'ledger', string> = {
 }
 
 export default function Keuangan() {
+  const { user } = useAuth()
+  const owner = isOwner(user?.role)
   const [tab, setTab] = useState<'pengeluaran' | 'akun' | 'ledger'>('pengeluaran')
+  const tabs = owner ? (['pengeluaran', 'akun', 'ledger'] as const) : (['pengeluaran', 'akun'] as const)
   return (
     <div>
       <h1 className="font-display text-2xl font-semibold mb-5">Keuangan</h1>
       <div className="sticky top-16 z-10 bg-cream border-b border-sand py-3 -mx-4 px-4 lg:-mx-8 lg:px-8">
         <div className="flex gap-2 flex-wrap">
-          {(['pengeluaran', 'akun', 'ledger'] as const).map((t) => (
+          {tabs.map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
                 tab === t ? 'bg-copper-600 text-white' : 'bg-sand text-ink/60 hover:bg-copper-100'}`}>
