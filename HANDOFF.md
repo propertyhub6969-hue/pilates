@@ -93,6 +93,8 @@ docker compose -f docker-compose.prod.yml logs -f backend
 
 **Lupa password (WA OTP)** (`models/password_reset.PasswordResetOTP`, tabel `password_reset_otps`): kode 6 digit **sha256**, TTL 10 mnt, maks 5 percobaan, sekali pakai. `POST /auth/forgot-password` (cari user by nomor/email → `_find_user_by_identifier` pakai `normalize_phone`; respons **generik** anti-enumerasi; log hasil kirim WA) & `POST /auth/reset-password`. Admin cadangan: `POST /members/{id}/set-password` (tombol 🔑 di detail member). FE: halaman `/lupa-password` 2 langkah + link di Login. ★ **OTP dikirim ke nomor yang terdaftar di AKUN yang di-reset** (bukan ke HP admin) — utk uji, reset akun yang nomornya bisa kamu buka.
 
+**Peran & akses (RBAC sederhana)**: peran tetap `owner/admin/instructor/member` (`require_staff`=owner+admin, `require_owner`=owner). ★ **Admin bisa ENTRY keuangan** (Pengeluaran + Akun Kas/Bank) tapi **Laporan, Buku Besar, & KPI Pendapatan = OWNER saja** — guard `require_owner` di `/finance/report(.xlsx)` & `/finance/accounts/{id}/ledger(.xlsx)`; `/reports/dashboard` set `revenue_month=null` utk non-owner. FE: `isOwner()` + `navFor(role)` di `Layout` (nav sadar-peran: item `roles:'owner'`), Keuangan sembunyikan tab Buku Besar dari admin, Dashboard sembunyikan KPI Pendapatan, route `/laporan` & `/pengguna` owner-only. Tab "Akun" (dgn saldo) masih terlihat admin (perlu utk pilih akun saat entry). **Pengguna Sistem** (`/pengguna`, owner-only, `GET /members/staff`): buat/edit **Admin & Instruktur** (nama/email-unik/WA/peran), reset password, aktif/nonaktif. `UserUpdate` + `email`&`role` (pengaman: owner/diri-sendiri tak bisa ganti peran, tak bisa jadi owner via `_can_manage_role`). Instruktur juga masih dikelola via tab di halaman Member.
+
 ## 5. Reminder WhatsApp
 
 - Dua jenis: **h1** (H-1, semua kelas besok) & **h2** (±2 jam sebelum kelas mulai; `REMINDER_HOURS_BEFORE`).
@@ -123,6 +125,7 @@ docker compose -f docker-compose.prod.yml logs -f backend
 - **OTP lupa-password** dikirim ke nomor di **akun yang di-reset**, bukan HP admin (bukan bug — uji pakai akun bernomor yang bisa kamu buka). Gateway balas "terkirim" walau nomor bukan WA asli.
 - Tes HTTP dari host `localhost:8000` kena proxy Coolify ("Not found") — uji dari dalam container: `docker exec pilates_backend python3 -c "..."`.
 - `get_db` **commit on success** (rollback on error); endpoint cukup `db.flush()`.
+- `from x import Y` **lokal di dalam fungsi** yang sudah memakai `Y` (impor modul-level) → `UnboundLocalError`: Python menandai `Y` lokal utk SELURUH fungsi. Jangan re-import di dalam fungsi bila sudah ada di atas.
 
 ## 8. Belum Dikerjakan / Ide Lanjut
 
