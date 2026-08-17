@@ -20,6 +20,13 @@ class UserCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class DropinTicketCreate(BaseModel):
+    """Admin catat tiket drop-in (1 sesi) untuk member per-datang."""
+    method: PaymentMethod = PaymentMethod.CASH
+    mark_paid: bool = True
+    price: Optional[float] = Field(default=None, ge=0)  # None → pakai drop_in_price studio
+
+
 class UserUpdate(BaseModel):
     full_name: Optional[str] = Field(default=None, min_length=2, max_length=200)
     email: Optional[EmailStr] = None

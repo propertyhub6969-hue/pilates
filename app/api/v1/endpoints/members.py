@@ -12,7 +12,7 @@ from app.models.payment import Payment, PaymentStatus, PaymentMethod
 from app.schemas.common import Page
 from app.schemas.member import (
     UserCreate, UserUpdate, UserBrief, MemberDetail,
-    MemberPackageResponse, PaymentResponse, PurchaseCreate, EnrollRequest,
+    MemberPackageResponse, PaymentResponse, PurchaseCreate, EnrollRequest, DropinTicketCreate,
 )
 from app.schemas.auth import SetPassword
 from app.services.quota import refresh_status, is_usable
@@ -197,17 +197,40 @@ async def enroll_me(
             note="Aktivasi keanggotaan (menunggu pembayaran)",
         )
     elif payload.member_category == MemberCategory.PER_DATANG:
-        # Per datang: buat tagihan drop-in pertama (menunggu pembayaran).
-        # Booking pertama nanti memakai tagihan ini (lihat services/booking._ensure_dropin_payment).
-        from app.models.studio import StudioSettings
-        studio = (await db.execute(select(StudioSettings))).scalars().first()
-        price = float(studio.drop_in_price or 0) if studio else 0
-        if price > 0:
-            db.add(Payment(
-                member_id=user.id, amount=price, method=PaymentMethod.TRANSFER,
-                status=PaymentStatus.PENDING, note="Drop-in (per datang) — aktivasi",
-            ))
-            await db.flush()
+        # Per datang: buat TIKET drop-in pertama (paket 1 sesi FROZEN + tagihan PENDING).
+        # Aktif setelah bukti transfer diverifikasi admin; dipakai saat booking.
+        from app.services.purchase import create_dropin_ticket
+        await create_dropin_ticket(db, member_id=user.id, method=PaymentMethod.TRANSFER, mark_paid=False)
+    return await _load_detail(db, user)
+
+
+@router.post("/me/dropin-ticket", response_model=MemberDetail)
+async def buy_dropin_ticket(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """Member per-datang beli tiket drop-in 1 sesi (self-serve): tiket FROZEN + tagihan PENDING,
+    aktif setelah bukti transfer diverifikasi admin."""
+    if user.role != UserRole.MEMBER:
+        raise HTTPException(403, "Hanya untuk member")
+    from app.services.purchase import create_dropin_ticket
+    await create_dropin_ticket(db, member_id=user.id, method=PaymentMethod.TRANSFER, mark_paid=False)
+    return await _load_detail(db, user)
+
+
+@router.post("/{user_id}/dropin-ticket", response_model=MemberDetail)
+async def admin_add_dropin_ticket(
+    user_id: uuid.UUID,
+    payload: DropinTicketCreate,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Admin/owner catat tiket drop-in untuk member (mis. bayar tunai/transfer langsung)."""
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(404, "User tidak ditemukan")
+    from app.services.purchase import create_dropin_ticket
+    await create_dropin_ticket(
+        db, member_id=user.id, method=payload.method,
+        mark_paid=payload.mark_paid, price=payload.price, recorded_by=staff.id,
+    )
     return await _load_detail(db, user)
 
 

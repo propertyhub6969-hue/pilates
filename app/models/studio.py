@@ -26,5 +26,19 @@ class StudioSettings(BaseModel):
     # Harga sekali datang (drop-in) untuk member kategori "per datang" tanpa paket.
     drop_in_price: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)
 
+    # ── Jendela booking berjenjang (semua waktu zona studio / WITA) ──
+    # Bulanan/Private booking dibuka H-<days> pukul <time>. Default: H-2 20:00.
+    bulanan_open_days_before: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
+    bulanan_open_time: Mapped[str] = mapped_column(String(5), default="20:00", nullable=False)
+    # Per-datang booking dibuka H-<days> pukul <time>. Default: H-1 20:00.
+    dropin_open_days_before: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    dropin_open_time: Mapped[str] = mapped_column(String(5), default="20:00", nullable=False)
+    # Booking ditutup H-<days> pukul <time>. Default: H-0 00:00 (= akhir H-1 / tengah malam hari-H).
+    booking_close_days_before: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    booking_close_time: Mapped[str] = mapped_column(String(5), default="00:00", nullable=False)
+    # Kapasitas & target minimal per sesi kelas grup.
+    default_capacity: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
+    min_bulanan: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+
     # Nomor WhatsApp admin yang menerima notifikasi (mis. bukti transfer masuk).
     admin_whatsapp: Mapped[str] = mapped_column(String(30), nullable=True)

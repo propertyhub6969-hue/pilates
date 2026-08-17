@@ -27,7 +27,7 @@ class ClassTemplate(BaseModel):
     day_of_week: Mapped[int] = mapped_column(Integer, nullable=False)  # 0=Senin ... 6=Minggu
     start_time: Mapped[time] = mapped_column(Time, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, default=55, nullable=False)
-    capacity: Mapped[int] = mapped_column(Integer, default=8, nullable=False)
+    capacity: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
     room: Mapped[str] = mapped_column(String(80), nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -63,7 +63,7 @@ class ClassSession(BaseModel):
     session_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     start_time: Mapped[time] = mapped_column(Time, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, default=55, nullable=False)
-    capacity: Mapped[int] = mapped_column(Integer, default=8, nullable=False)
+    capacity: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
     room: Mapped[str] = mapped_column(String(80), nullable=True)
 
     status: Mapped[ClassSessionStatus] = mapped_column(

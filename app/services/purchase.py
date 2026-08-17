@@ -64,3 +64,56 @@ async def create_purchase(
     db.add(payment)
     await db.flush()
     return mp, payment
+
+
+async def create_dropin_ticket(
+    db: AsyncSession,
+    member_id,
+    method: PaymentMethod = PaymentMethod.CASH,
+    mark_paid: bool = True,
+    price: float | None = None,
+    recorded_by=None,
+) -> tuple[MemberPackage, Payment]:
+    """Tiket drop-in = paket 1 sesi prepaid untuk member per-datang.
+    mark_paid=True (admin catat lunas) → tiket langsung AKTIF.
+    mark_paid=False (self-serve, tunggu verifikasi bukti) → tiket FROZEN sampai pembayaran diverifikasi."""
+    from app.models.studio import StudioSettings
+    if price is None:
+        studio = (await db.execute(select(StudioSettings))).scalars().first()
+        price = float(studio.drop_in_price or 0) if studio else 0
+
+    now = datetime.now(timezone.utc)
+    mp = MemberPackage(
+        member_id=member_id,
+        package_id=None,
+        package_name="Tiket Drop-in (1 sesi)",
+        is_unlimited=False,
+        sessions_total=1,
+        sessions_remaining=1,
+        price_paid=price,
+        purchased_at=now,
+        expires_at=None,
+        status=MemberPackageStatus.ACTIVE if mark_paid else MemberPackageStatus.FROZEN,
+    )
+    db.add(mp)
+    await db.flush()
+
+    account_id = None
+    if mark_paid:
+        from app.services.finance import resolve_income_account
+        account_id = await resolve_income_account(db, method)
+
+    payment = Payment(
+        member_id=member_id,
+        member_package_id=mp.id,
+        amount=price,
+        method=method,
+        status=PaymentStatus.PAID if mark_paid else PaymentStatus.PENDING,
+        paid_at=now if mark_paid else None,
+        note="Tiket Drop-in (1 sesi)",
+        recorded_by_id=recorded_by,
+        account_id=account_id,
+    )
+    db.add(payment)
+    await db.flush()
+    return mp, payment

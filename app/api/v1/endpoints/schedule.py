@@ -154,17 +154,42 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
         ).scalars().all()
         mine = {b.session_id: b for b in mrows}
 
+    # Jendela booking utk kategori pemanggil (member) — non-member pakai jendela "member"
+    studio = await booking_svc.get_studio(db)
+    now = booking_svc.now_local()
+    viewer_cat = viewer.member_category if viewer.role == UserRole.MEMBER else None
+
     out = []
     for s in rows:
         r = SessionResponse.model_validate(s)
         r.instructor_name = names.get(s.instructor_id)
         r.branch_name = branch_names.get(s.branch_id)
-        r.booked_count = booked.get(s.id, 0)
+        bc = booked.get(s.id, 0)
+        r.booked_count = bc
         r.waitlist_count = waits.get(s.id, 0)
+        r.slots_remaining = max(0, s.capacity - bc)
         b = mine.get(s.id)
         if b:
             r.my_booking_status = b.status
             r.my_booking_id = b.id
+
+        if s.status != ClassSessionStatus.SCHEDULED:
+            r.booking_state = "cancelled"
+            r.can_book = False
+        else:
+            opens = booking_svc.booking_open_dt(studio, s, viewer_cat)
+            closes = booking_svc.booking_close_dt(studio, s)
+            r.booking_opens_at = opens
+            r.booking_closes_at = closes
+            if now >= closes:
+                r.booking_state = "closed"
+            elif now < opens:
+                r.booking_state = "not_open"
+            elif r.slots_remaining <= 0:
+                r.booking_state = "full"
+            else:
+                r.booking_state = "open"
+            r.can_book = r.booking_state in ("open", "full")
         out.append(r)
     return out
 

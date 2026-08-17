@@ -47,7 +47,8 @@ async def create_booking(payload: BookRequest, db: AsyncSession = Depends(get_db
     if not session:
         raise HTTPException(404, "Sesi tidak ditemukan")
 
-    await booking_svc.book_session(db, session, member_id)
+    # Staf yang memesan atas nama member melewati aturan jendela waktu.
+    await booking_svc.book_session(db, session, member_id, bypass_window=user.is_staff())
     await db.refresh(session)
     return (await _serialize_sessions(db, [session], user))[0]
 

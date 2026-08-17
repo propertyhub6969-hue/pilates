@@ -15,7 +15,7 @@ class TemplateBase(BaseModel):
     day_of_week: int = Field(ge=0, le=6, description="0=Senin … 6=Minggu")
     start_time: time
     duration_minutes: int = Field(default=55, ge=15, le=240)
-    capacity: int = Field(default=8, ge=1, le=100)
+    capacity: int = Field(default=14, ge=1, le=100)
     room: Optional[str] = None
     is_active: bool = True
 
@@ -63,7 +63,7 @@ class SessionCreate(BaseModel):
     session_date: date
     start_time: time
     duration_minutes: int = Field(default=55, ge=15, le=240)
-    capacity: int = Field(default=8, ge=1, le=100)
+    capacity: int = Field(default=14, ge=1, le=100)
     room: Optional[str] = None
     notes: Optional[str] = None
 
@@ -99,6 +99,12 @@ class SessionResponse(BaseModel):
     # Konteks utk pemanggil (member): status booking dia di sesi ini
     my_booking_status: Optional[BookingStatus] = None
     my_booking_id: Optional[uuid.UUID] = None
+    # Status jendela booking utk pemanggil
+    slots_remaining: int = 0
+    booking_state: str = "open"          # not_open | open | full | closed | cancelled
+    booking_opens_at: Optional[datetime] = None
+    booking_closes_at: Optional[datetime] = None
+    can_book: bool = False
 
     class Config:
         from_attributes = True
