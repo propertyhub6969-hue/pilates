@@ -4,7 +4,7 @@ import { api } from '@/services/api'
 import type { FinancialAccount, ExpenseCategory } from '@/types'
 import { EXPENSE_CATEGORY_LABEL } from '@/types'
 import { formatRupiah, formatDate } from '@/utils/format'
-import { TrendingUp, TrendingDown, Wallet, Landmark, Scale, Printer } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, Landmark, Scale, Printer, Sheet, Loader2 } from 'lucide-react'
 
 interface Report {
   date_from: string; date_to: string
@@ -31,6 +31,18 @@ export default function Laporan() {
 
   const cats = [...(data?.expense_by_category ?? [])].sort((a, b) => b.amount - a.amount)
   const maxCat = Math.max(1, ...cats.map((c) => c.amount))
+
+  const [downloading, setDownloading] = useState(false)
+  async function downloadExcel() {
+    setDownloading(true)
+    try {
+      const res = await api.get('/finance/report.xlsx', { params: { from: range.from, to: range.to }, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data as Blob)
+      const a = document.createElement('a'); a.href = url; a.download = `LabaRugi_${range.from}_${range.to}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    } catch { alert('Gagal mengunduh Excel.') }
+    finally { setDownloading(false) }
+  }
 
   function printReport() {
     if (!data) return
@@ -90,9 +102,14 @@ export default function Laporan() {
           <h1 className="font-display text-2xl font-semibold">Laporan Keuangan</h1>
           <p className="text-ink/50 text-sm">Ringkasan pemasukan, pengeluaran, dan saldo studio.</p>
         </div>
-        <button onClick={printReport} disabled={!data} className="btn-ghost border border-sand shrink-0">
-          <Printer size={16} /> Cetak
-        </button>
+        <div className="flex gap-2 shrink-0">
+          <button onClick={downloadExcel} disabled={!data || downloading} className="btn-ghost border border-sand">
+            {downloading ? <Loader2 size={16} className="animate-spin" /> : <Sheet size={16} />} Excel
+          </button>
+          <button onClick={printReport} disabled={!data} className="btn-ghost border border-sand">
+            <Printer size={16} /> Cetak
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2 items-end flex-wrap">

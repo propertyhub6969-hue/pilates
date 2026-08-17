@@ -29,6 +29,42 @@ def _fmt_date(d) -> str:
     return f"{d.day:02d}/{d.month:02d}/{d.year}" if d else "—"
 
 
+# ── util Excel ──
+_COPPER = "8A5140"
+
+
+def _new_workbook(sheet_title: str):
+    """Buat workbook + gaya standar (title/head/bold/normal/muted/money/fill)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_title
+    styles = {
+        "title": Font(bold=True, size=14, color=_COPPER),
+        "head": Font(bold=True, color=_COPPER),
+        "bold": Font(bold=True),
+        "normal": Font(),
+        "muted": Font(size=10, color="888888"),
+        "money": "#,##0",
+        "fill": PatternFill("solid", fgColor="F0E0D6"),
+    }
+    return wb, ws, styles
+
+
+def _xlsx_response(wb, fname: str):
+    import io
+    from fastapi.responses import StreamingResponse
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
 class TransferAccount(BaseModel):
     name: str
     bank_name: Optional[str] = None
@@ -313,6 +349,56 @@ async def list_expenses(
     return Page(items=items, total=total)
 
 
+@router.get("/expenses.xlsx")
+async def expenses_xlsx(
+    date_from: date | None = Query(None, alias="from"),
+    date_to: date | None = Query(None, alias="to"),
+    category: ExpenseCategory | None = Query(None),
+    account_id: uuid.UUID | None = Query(None),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+):
+    """Ekspor daftar pengeluaran (sesuai filter) ke Excel."""
+    stmt = select(Expense, FinancialAccount.name).outerjoin(FinancialAccount, Expense.account_id == FinancialAccount.id)
+    conds = []
+    if date_from:
+        conds.append(Expense.expense_date >= date_from)
+    if date_to:
+        conds.append(Expense.expense_date <= date_to)
+    if category:
+        conds.append(Expense.category == category)
+    if account_id:
+        conds.append(Expense.account_id == account_id)
+    for c in conds:
+        stmt = stmt.where(c)
+    rows = (await db.execute(stmt.order_by(Expense.expense_date.desc(), Expense.created_at.desc()))).all()
+
+    wb, ws, S = _new_workbook("Pengeluaran")
+    ws.merge_cells("A1:E1"); ws["A1"].value = "Daftar Pengeluaran"; ws["A1"].font = S["title"]
+    prd = f"Periode {date_from.strftime('%d/%m/%Y') if date_from else 'awal'} – {date_to.strftime('%d/%m/%Y') if date_to else 'kini'}"
+    ws.merge_cells("A2:E2"); ws["A2"].value = prd; ws["A2"].font = S["muted"]
+
+    hr = 4
+    for i, h in enumerate(["Tanggal", "Kategori", "Keterangan", "Akun", "Jumlah"], start=1):
+        cell = ws.cell(row=hr, column=i, value=h)
+        cell.font = S["head"]; cell.fill = S["fill"]
+    r = hr + 1
+    total = 0.0
+    for exp, acc_name in rows:
+        ws.cell(row=r, column=1, value=exp.expense_date.strftime("%d/%m/%Y"))
+        ws.cell(row=r, column=2, value=CATEGORY_LABEL.get(exp.category.value, exp.category.value))
+        ws.cell(row=r, column=3, value=exp.description or "")
+        ws.cell(row=r, column=4, value=acc_name or "")
+        amt = ws.cell(row=r, column=5, value=float(exp.amount or 0)); amt.number_format = S["money"]
+        total += float(exp.amount or 0)
+        r += 1
+    ws.cell(row=r, column=4, value="Total").font = S["bold"]
+    tc = ws.cell(row=r, column=5, value=total); tc.number_format = S["money"]; tc.font = S["bold"]
+
+    for col, w in zip("ABCDE", [14, 22, 40, 22, 18]):
+        ws.column_dimensions[col].width = w
+    return _xlsx_response(wb, f"Pengeluaran_{(date_from or date.today()).strftime('%Y%m%d')}.xlsx")
+
+
 @router.post("/expenses", response_model=ExpenseRow, status_code=201)
 async def create_expense(payload: ExpenseCreate, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)):
     acc = (await db.execute(select(FinancialAccount).where(FinancialAccount.id == payload.account_id))).scalar_one_or_none()
@@ -401,12 +487,7 @@ async def delete_expense(expense_id: uuid.UUID, db: AsyncSession = Depends(get_d
 
 
 # ─────────────── LAPORAN KEUANGAN ───────────────
-@router.get("/report", response_model=FinanceReport)
-async def finance_report(
-    date_from: date = Query(..., alias="from"),
-    date_to: date = Query(..., alias="to"),
-    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
-):
+async def _compute_report(db: AsyncSession, date_from: date, date_to: date) -> FinanceReport:
     # Income = pembayaran LUNAS pada rentang (pakai created_at tanggalnya)
     income = (
         await db.execute(
@@ -438,3 +519,58 @@ async def finance_report(
         income=float(income or 0), expense=float(expense or 0), net=float(income or 0) - float(expense or 0),
         expense_by_category=by_cat, accounts=acc_out,
     )
+
+
+@router.get("/report", response_model=FinanceReport)
+async def finance_report(
+    date_from: date = Query(..., alias="from"),
+    date_to: date = Query(..., alias="to"),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+):
+    return await _compute_report(db, date_from, date_to)
+
+
+@router.get("/report.xlsx")
+async def report_xlsx(
+    date_from: date = Query(..., alias="from"),
+    date_to: date = Query(..., alias="to"),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+):
+    """Ekspor Laba/Rugi ke Excel."""
+    data = await _compute_report(db, date_from, date_to)
+    wb, ws, S = _new_workbook("Laba Rugi")
+    ws.merge_cells("A1:B1"); ws["A1"].value = "Laporan Laba / Rugi"; ws["A1"].font = S["title"]
+    ws.merge_cells("A2:B2"); ws["A2"].value = f"Periode {date_from.strftime('%d/%m/%Y')} – {date_to.strftime('%d/%m/%Y')}"; ws["A2"].font = S["muted"]
+
+    r = 4
+    def section(title):
+        nonlocal r
+        ws.cell(row=r, column=1, value=title).font = S["head"]; r += 1
+    def line(label, amount, bold=False):
+        nonlocal r
+        ws.cell(row=r, column=1, value=label).font = S["bold"] if bold else S["normal"]
+        c = ws.cell(row=r, column=2, value=float(amount)); c.number_format = S["money"]; c.font = S["bold"] if bold else S["normal"]
+        r += 1
+
+    section("PENDAPATAN")
+    line("Pendapatan member & kelas", data.income)
+    line("Total Pendapatan", data.income, bold=True)
+    r += 1
+    section("PENGELUARAN OPERASIONAL")
+    if data.expense_by_category:
+        for ca in sorted(data.expense_by_category, key=lambda x: x.amount, reverse=True):
+            line(CATEGORY_LABEL.get(ca.category.value, ca.category.value), ca.amount)
+    else:
+        ws.cell(row=r, column=1, value="Tidak ada pengeluaran").font = S["muted"]; r += 1
+    line("Total Pengeluaran", data.expense, bold=True)
+    r += 1
+    line("LABA BERSIH" if data.net >= 0 else "RUGI BERSIH", data.net, bold=True)
+    r += 2
+    section("SALDO AKUN (saat cetak)")
+    for a in data.accounts:
+        line(f"{a.name}{f' ({a.bank_name})' if a.bank_name else ''}", a.balance)
+    line("Total Saldo", sum(a.balance for a in data.accounts), bold=True)
+
+    ws.column_dimensions["A"].width = 40
+    ws.column_dimensions["B"].width = 20
+    return _xlsx_response(wb, f"LabaRugi_{date_from.strftime('%Y%m%d')}-{date_to.strftime('%Y%m%d')}.xlsx")

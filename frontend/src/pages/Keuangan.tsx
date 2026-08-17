@@ -93,6 +93,18 @@ function ExpensesTab() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); qc.invalidateQueries({ queryKey: ['fin-accounts'] }) },
   })
 
+  const [downloading, setDownloading] = useState(false)
+  async function downloadExcel() {
+    setDownloading(true)
+    try {
+      const res = await api.get('/finance/expenses.xlsx', { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data as Blob)
+      const a = document.createElement('a'); a.href = url; a.download = `Pengeluaran_${todayISO()}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    } catch { alert('Gagal mengunduh Excel.') }
+    finally { setDownloading(false) }
+  }
+
   function openNew() {
     setError('')
     setF({ expense_date: todayISO(), category: 'sewa', amount: '', account_id: accounts?.[0]?.id ?? '', description: '' })
@@ -109,7 +121,12 @@ function ExpensesTab() {
 
   return (
     <div className="space-y-4">
-      <button onClick={openNew} className="btn-primary"><Plus size={16} /> Catat Pengeluaran</button>
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={openNew} className="btn-primary"><Plus size={16} /> Catat Pengeluaran</button>
+        <button onClick={downloadExcel} disabled={downloading || (data?.total ?? 0) === 0} className="btn-ghost border border-sand">
+          {downloading ? <Loader2 size={16} className="animate-spin" /> : <Sheet size={16} />} Excel
+        </button>
+      </div>
 
       <div className="card !p-0 overflow-hidden">
         <div className="overflow-x-auto">
