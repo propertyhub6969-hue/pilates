@@ -7,7 +7,7 @@ import { formatRupiah, formatDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   Plus, Loader2, Trash2, Wallet, Landmark, ChevronLeft, ChevronRight, Pencil, History, UserRound,
-  BookOpen, Printer, ArrowDownLeft, ArrowUpRight,
+  Printer, ArrowDownLeft, ArrowUpRight, Sheet,
 } from 'lucide-react'
 
 const fmtDateTime = (iso: string) =>
@@ -304,6 +304,22 @@ function LedgerTab() {
     placeholderData: keepPreviousData,
   })
 
+  const [downloading, setDownloading] = useState(false)
+  async function downloadExcel() {
+    if (!accId) return
+    setDownloading(true)
+    try {
+      const res = await api.get(`/finance/accounts/${accId}/ledger.xlsx`, { params: { from: range.from, to: range.to }, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data as Blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `BukuBesar_${(data?.account_name ?? 'akun').replace(/\s+/g, '_')}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove()
+      URL.revokeObjectURL(url)
+    } catch { alert('Gagal mengunduh Excel.') }
+    finally { setDownloading(false) }
+  }
+
   function printLedger() {
     if (!data) return
     const rows = data.entries.map((e) => `<tr>
@@ -343,6 +359,9 @@ ${rows}</tbody></table>
         </div>
         <div><label className="label">Dari</label><input type="date" className="input" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} /></div>
         <div><label className="label">Sampai</label><input type="date" className="input" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} /></div>
+        <button onClick={downloadExcel} disabled={!data || downloading} className="btn-ghost border border-sand">
+          {downloading ? <Loader2 size={16} className="animate-spin" /> : <Sheet size={16} />} Excel
+        </button>
         <button onClick={printLedger} disabled={!data} className="btn-ghost border border-sand"><Printer size={16} /> Cetak</button>
       </div>
 

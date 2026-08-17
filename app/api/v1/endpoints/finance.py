@@ -101,13 +101,7 @@ async def delete_account(account_id: uuid.UUID, db: AsyncSession = Depends(get_d
     return None
 
 
-@router.get("/accounts/{account_id}/ledger", response_model=LedgerResponse)
-async def account_ledger(
-    account_id: uuid.UUID,
-    date_from: date | None = Query(None, alias="from"),
-    date_to: date | None = Query(None, alias="to"),
-    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
-):
+async def _build_ledger(db: AsyncSession, account_id: uuid.UUID, date_from, date_to) -> LedgerResponse:
     """Buku besar akun: mutasi masuk (pembayaran lunas) & keluar (pengeluaran) + saldo berjalan.
     Dihitung dari SELURUH riwayat sejak saldo awal agar rekonsiliasi dgn saldo akun."""
     acc = (await db.execute(select(FinancialAccount).where(FinancialAccount.id == account_id))).scalar_one_or_none()
@@ -175,6 +169,105 @@ async def account_ledger(
         opening_balance=opening, starting_balance=starting_balance,
         total_in=total_in, total_out=total_out, ending_balance=ending_balance,
         entries=entries,
+    )
+
+
+@router.get("/accounts/{account_id}/ledger", response_model=LedgerResponse)
+async def account_ledger(
+    account_id: uuid.UUID,
+    date_from: date | None = Query(None, alias="from"),
+    date_to: date | None = Query(None, alias="to"),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+):
+    return await _build_ledger(db, account_id, date_from, date_to)
+
+
+@router.get("/accounts/{account_id}/ledger.xlsx")
+async def account_ledger_xlsx(
+    account_id: uuid.UUID,
+    date_from: date | None = Query(None, alias="from"),
+    date_to: date | None = Query(None, alias="to"),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+):
+    """Ekspor buku besar akun ke Excel (.xlsx)."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from fastapi.responses import StreamingResponse
+
+    data = await _build_ledger(db, account_id, date_from, date_to)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Buku Besar"
+
+    copper = "8A5140"
+    head_fill = PatternFill("solid", fgColor="F0E0D6")
+    money = "#,##0"
+    thin = Side(style="thin", color="E5D5CB")
+    border = Border(bottom=thin)
+
+    ws.merge_cells("A1:E1")
+    c = ws["A1"]; c.value = f"Buku Besar — {data.account_name}"
+    c.font = Font(bold=True, size=14, color=copper)
+    ws.merge_cells("A2:E2")
+    periode = f"Periode {date_from.strftime('%d/%m/%Y') if date_from else 'awal'} – {date_to.strftime('%d/%m/%Y') if date_to else 'kini'}"
+    ws["A2"].value = periode
+    ws["A2"].font = Font(size=10, color="888888")
+
+    headers = ["Tanggal", "Keterangan", "Masuk", "Keluar", "Saldo"]
+    hr = 4
+    for i, h in enumerate(headers, start=1):
+        cell = ws.cell(row=hr, column=i, value=h)
+        cell.font = Font(bold=True, color=copper)
+        cell.fill = head_fill
+        cell.alignment = Alignment(horizontal="right" if i >= 3 else "left")
+
+    r = hr + 1
+    # baris saldo awal periode
+    ws.cell(row=r, column=1, value=(date_from.strftime("%d/%m/%Y") if date_from else ""))
+    ws.cell(row=r, column=2, value="Saldo awal periode").font = Font(italic=True)
+    sc = ws.cell(row=r, column=5, value=float(data.starting_balance)); sc.number_format = money
+    for col in range(1, 6):
+        ws.cell(row=r, column=col).fill = head_fill
+    r += 1
+
+    for e in data.entries:
+        ws.cell(row=r, column=1, value=e.date.strftime("%d/%m/%Y"))
+        ws.cell(row=r, column=2, value=e.description)
+        if e.kind == "in":
+            ic = ws.cell(row=r, column=3, value=float(e.amount)); ic.number_format = money
+        else:
+            oc = ws.cell(row=r, column=4, value=float(e.amount)); oc.number_format = money
+        bc = ws.cell(row=r, column=5, value=float(e.balance)); bc.number_format = money
+        for col in range(1, 6):
+            ws.cell(row=r, column=col).border = border
+        r += 1
+
+    # ringkasan
+    r += 1
+    ws.cell(row=r, column=2, value="Total Masuk").font = Font(bold=True)
+    tc = ws.cell(row=r, column=3, value=float(data.total_in)); tc.number_format = money; tc.font = Font(bold=True)
+    r += 1
+    ws.cell(row=r, column=2, value="Total Keluar").font = Font(bold=True)
+    oc = ws.cell(row=r, column=4, value=float(data.total_out)); oc.number_format = money; oc.font = Font(bold=True)
+    r += 1
+    ws.cell(row=r, column=2, value="Saldo Akhir").font = Font(bold=True, color=copper)
+    ec = ws.cell(row=r, column=5, value=float(data.ending_balance)); ec.number_format = money; ec.font = Font(bold=True, color=copper)
+
+    widths = [14, 46, 16, 16, 18]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[chr(64 + i)].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    safe = "".join(ch for ch in data.account_name if ch.isalnum() or ch in " -_").strip().replace(" ", "_")
+    fname = f"BukuBesar_{safe or 'akun'}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
 
 
