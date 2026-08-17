@@ -77,6 +77,16 @@ docker compose -f docker-compose.prod.yml logs -f backend
 
 **Keuangan** (`models/finance.py`): `FinancialAccount` (kas/bank + saldo awal) & `Expense` (pengeluaran operasional per kategori). Endpoint `/finance/accounts|expenses|report`. Saldo akun = saldo awal + income LUNAS ter-atribusi + − pengeluaran. Income lunas otomatis masuk akun via **metode** (cash→akun kas, transfer/qris→bank) — `Payment.account_id` diisi saat lunas (`services/finance.resolve_income_account`). Menu FE: **Keuangan** (Pengeluaran + Akun) & **Laporan** (income/expense/laba-rugi + per-kategori + saldo akun).
 
+**Riwayat edit pengeluaran** (`models/finance.ExpenseEdit`, tabel `expense_edits`): tiap `PATCH /finance/expenses/{id}` mencatat editor (nama+id, denormalisasi), waktu, & ringkasan **sebelum→sesudah** per field. `GET /finance/expenses/{id}/history`; `ExpenseRow.edit_count` → badge. UI Keuangan: tombol **Ubah** + **Riwayat** (timeline) per baris.
+
+**Foto profil** (`users.avatar_path`): `POST/DELETE /auth/me/avatar` (unggah/hapus sendiri) & `GET /auth/users/{id}/avatar` (**publik** utk tag `<img>`). File di volume `pilates_uploads/avatars`. Komponen FE `Avatar` (foto / fallback inisial) di Profil & header; cache-bust pakai `updated_at`. `AuthContext.refreshUser()` sinkron header.
+
+**Notif in-app (lonceng)**: `GET /notifications` (staf) agregasi = bukti-transfer perlu-verifikasi + pembayaran menunggu + booking 24 jam + member baru 48 jam. FE `NotificationBell` di topbar: badge unread via localStorage last-seen, polling 60 dtk, **bunyi "ding"** (Web Audio) saat ada item lebih baru.
+
+**Auto-refresh & idle-logout** (`context/AuthContext`, aktif saat login): invalidate semua React-Query tiap **15 menit**; **auto-logout** bila **12 jam** tanpa aktivitas (mouse/keyboard/scroll/touch).
+
+**Lupa password (WA OTP)** (`models/password_reset.PasswordResetOTP`, tabel `password_reset_otps`): kode 6 digit **sha256**, TTL 10 mnt, maks 5 percobaan, sekali pakai. `POST /auth/forgot-password` (cari user by nomor/email → `_find_user_by_identifier` pakai `normalize_phone`; respons **generik** anti-enumerasi; log hasil kirim WA) & `POST /auth/reset-password`. Admin cadangan: `POST /members/{id}/set-password` (tombol 🔑 di detail member). FE: halaman `/lupa-password` 2 langkah + link di Login. ★ **OTP dikirim ke nomor yang terdaftar di AKUN yang di-reset** (bukan ke HP admin) — utk uji, reset akun yang nomornya bisa kamu buka.
+
 ## 5. Reminder WhatsApp
 
 - Dua jenis: **h1** (H-1, semua kelas besok) & **h2** (±2 jam sebelum kelas mulai; `REMINDER_HOURS_BEFORE`).
@@ -89,6 +99,7 @@ docker compose -f docker-compose.prod.yml logs -f backend
 - **gowa multi-akun**: buat device via `POST /devices` (bukan /api/devices), semua op pakai header `X-Device-Id`, kirim `POST /send/message`. Adapter (`services/whatsapp.py`) **auto-deteksi** device yang `logged_in` (`WA_DEVICE_ID=auto`), jadi tahan re-scan.
 - **Ganti nomor WA studio:** buka wa.reformeryourbody.com (login basic-auth) → Devices → buat/pilih device → scan QR nomor baru. Auto-deteksi otomatis ikut.
 - Zona = **WITA** (Asia/Makassar); label pesan via `settings.TZ_LABEL`. Reminder skip member tanpa nomor HP. Saat ini pakai nomor pribadi Rizal — sebaiknya nomor khusus studio.
+- **Notif bukti bayar ke admin** (saat member upload bukti): kirim ke `StudioSettings.admin_whatsapp` (fallback owner). ★ Bila admin_whatsapp = nomor gateway (nomor SAMA) → WA anggap **pesan-ke-diri-sendiri**, tak ada notif/bunyi. Nomor gateway **harus beda** dari admin (pakai nomor studio khusus). Kirim ke member (reminder/OTP) tak kena masalah ini karena beda nomor.
 
 ## 6. Environment (`.env`)
 
@@ -103,6 +114,9 @@ docker compose -f docker-compose.prod.yml logs -f backend
 - `psql -c "stmt1; stmt2;"` = satu transaksi; 1 error → semua rollback.
 - Sticky header butuh konten cukup panjang utk terlihat (bukan bug).
 - Coolify Traefik: label container inert; routing via **file dynamic**, cert via **DNS-01 Hostinger**.
+- **OTP lupa-password** dikirim ke nomor di **akun yang di-reset**, bukan HP admin (bukan bug — uji pakai akun bernomor yang bisa kamu buka). Gateway balas "terkirim" walau nomor bukan WA asli.
+- Tes HTTP dari host `localhost:8000` kena proxy Coolify ("Not found") — uji dari dalam container: `docker exec pilates_backend python3 -c "..."`.
+- `get_db` **commit on success** (rollback on error); endpoint cukup `db.flush()`.
 
 ## 8. Belum Dikerjakan / Ide Lanjut
 
@@ -114,7 +128,7 @@ docker compose -f docker-compose.prod.yml logs -f backend
 ## 9. Git
 
 - Remote: `github.com/propertyhub6969-hue/pilates`, branch `main`, helper `store` aktif.
-- **BELUM di-push** — token GitHub tersimpan invalid/expired. Untuk push:
+- **Push SUDAH jalan** (token valid tersimpan) — commit & push tiap tugas beres. Bila token expired lagi:
   ```bash
   echo "https://propertyhub6969-hue:GHP_TOKEN_BARU@github.com" > /root/.git-credentials
   cd /opt/pilates && git push -u origin main
