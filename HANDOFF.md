@@ -32,7 +32,7 @@ Aplikasi manajemen **studio pilates "Reformer Your Body"** (Coach Ade). Single-s
 │  ├─ schemas/          # pydantic
 │  ├─ services/         # booking, reminders, whatsapp, purchase, quota
 │  └─ api/v1/endpoints/ # auth, members, packages, payments, schedule, bookings,
-│                       #   reports, studio, branches, public
+│                       #   reports, studio, branches, finance, public
 ├─ alembic/versions/    # migrasi (urut sampai a6b7c8d9e0f1)
 ├─ frontend/src/        # pages, components, context (Auth, Branch), utils
 ├─ scripts/             # seed_admin.py, send_reminders.py, cron_reminders.sh
@@ -74,6 +74,8 @@ docker compose -f docker-compose.prod.yml logs -f backend
 **Drop-in (per datang)**: member kategori `per_datang` boleh booking **tanpa paket** → dibuat **tagihan PENDING** senilai `StudioSettings.drop_in_price`. Batal → tagihan pending dihapus / lunas → refund.
 
 **Member & paket dibagi seluruh studio** (satu keanggotaan, booking di cabang mana saja). Cuma jadwal yang per-cabang.
+
+**Keuangan** (`models/finance.py`): `FinancialAccount` (kas/bank + saldo awal) & `Expense` (pengeluaran operasional per kategori). Endpoint `/finance/accounts|expenses|report`. Saldo akun = saldo awal + income LUNAS ter-atribusi + − pengeluaran. Income lunas otomatis masuk akun via **metode** (cash→akun kas, transfer/qris→bank) — `Payment.account_id` diisi saat lunas (`services/finance.resolve_income_account`). Menu FE: **Keuangan** (Pengeluaran + Akun) & **Laporan** (income/expense/laba-rugi + per-kategori + saldo akun).
 
 ## 5. Reminder WhatsApp
 
