@@ -17,7 +17,10 @@ async def create_purchase(
     price_paid: float | None = None,
     recorded_by=None,
     note: str | None = None,
+    activate: bool = True,
 ) -> tuple[MemberPackage, Payment]:
+    """activate=False → paket FROZEN (belum bisa dipakai) sampai pembayaran diverifikasi
+    (dipakai untuk self-enroll member: bayar dulu, aktif setelah admin konfirmasi)."""
     pkg = (await db.execute(select(Package).where(Package.id == package_id))).scalar_one_or_none()
     if not pkg or not pkg.is_active:
         raise HTTPException(404, "Paket tidak ditemukan / tidak aktif")
@@ -37,7 +40,7 @@ async def create_purchase(
         price_paid=price,
         purchased_at=now,
         expires_at=expires_at,
-        status=MemberPackageStatus.ACTIVE,
+        status=MemberPackageStatus.ACTIVE if activate else MemberPackageStatus.FROZEN,
     )
     db.add(mp)
     await db.flush()

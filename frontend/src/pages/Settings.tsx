@@ -12,6 +12,7 @@ interface StudioSettings {
   cancellation_window_hours: number
   booking_lead_close_hours: number
   drop_in_price: number
+  admin_whatsapp?: string | null
 }
 
 export default function Settings() {
@@ -31,6 +32,7 @@ export default function Settings() {
       cancellation_window_hours: Number(f.cancellation_window_hours),
       booking_lead_close_hours: Number(f.booking_lead_close_hours),
       drop_in_price: Number(f.drop_in_price ?? 0),
+      admin_whatsapp: f.admin_whatsapp || null,
     })).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['studio-settings'] })
@@ -59,6 +61,9 @@ export default function Settings() {
             <textarea className="input" rows={2} value={f.address ?? ''} onChange={(e) => setF({ ...f, address: e.target.value })} /></div>
           <div><label className="label">Telepon / WhatsApp</label>
             <input className="input" value={f.phone ?? ''} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="0812-…" /></div>
+          <div><label className="label">No. WhatsApp Admin <span className="text-copper-600">· terima notifikasi</span></label>
+            <input className="input" value={f.admin_whatsapp ?? ''} onChange={(e) => setF({ ...f, admin_whatsapp: e.target.value })} placeholder="08123456789" />
+            <p className="text-[11px] text-ink/40 mt-1">Nomor ini dapat notif WhatsApp saat member mengirim bukti transfer.</p></div>
         </div>
 
         <div className="card space-y-4">

@@ -9,7 +9,8 @@ from app.core.database import get_db
 from app.api.deps import require_staff, get_current_user
 from app.models.user import User
 from app.models.payment import Payment, PaymentStatus
-from app.models.package import MemberPackage
+from app.models.package import MemberPackage, MemberPackageStatus
+from app.services.quota import refresh_status
 from app.schemas.common import Page
 from app.schemas.payment import PaymentRow, PaymentStatusUpdate
 
@@ -70,6 +71,12 @@ async def update_payment_status(
         if pay.account_id is None:  # atribusikan ke akun kas/bank sesuai metode
             from app.services.finance import resolve_income_account
             pay.account_id = await resolve_income_account(db, pay.method)
+        # Aktifkan paket yang menunggu pembayaran (self-enroll FROZEN → ACTIVE)
+        if pay.member_package_id:
+            mp = (await db.execute(select(MemberPackage).where(MemberPackage.id == pay.member_package_id))).scalar_one_or_none()
+            if mp and mp.status == MemberPackageStatus.FROZEN:
+                mp.status = MemberPackageStatus.ACTIVE
+                refresh_status(mp)
     await db.flush()
     await db.refresh(pay)
     row = PaymentRow.model_validate(pay)
@@ -104,7 +111,37 @@ async def upload_proof(
         f.write(data)
     pay.proof_path = f"proofs/{fname}"
     await db.flush()
+
+    # Notifikasi WhatsApp ke admin (best-effort — jangan gagalkan upload bila WA error)
+    try:
+        await _notify_admin_proof(db, pay, user)
+    except Exception:  # noqa: BLE001
+        pass
     return {"ok": True, "has_proof": True}
+
+
+async def _notify_admin_proof(db: AsyncSession, pay: Payment, member: User) -> None:
+    from app.models.studio import StudioSettings
+    from app.models.user import UserRole
+    from app.services.whatsapp import send_whatsapp
+    studio = (await db.execute(select(StudioSettings))).scalars().first()
+    target = studio.admin_whatsapp if studio else None
+    if not target:  # fallback: nomor owner
+        target = (
+            await db.execute(select(User.phone).where(User.role == UserRole.OWNER, User.phone.isnot(None)).limit(1))
+        ).scalar_one_or_none()
+    if not target:
+        return
+    amount = f"Rp{int(float(pay.amount)):,}".replace(",", ".")
+    msg = (
+        "🔔 *Bukti transfer baru*\n\n"
+        f"Member: {member.full_name}\n"
+        f"Jumlah: {amount}\n"
+        f"{pay.note or ''}\n\n"
+        "Cek & verifikasi di back office:\n"
+        "office.reformeryourbody.com/pembayaran"
+    )
+    await send_whatsapp(target, msg)
 
 
 @router.get("/{payment_id}/proof")

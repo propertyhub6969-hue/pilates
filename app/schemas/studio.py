@@ -13,6 +13,7 @@ class StudioSettingsResponse(BaseModel):
     cancellation_window_hours: int
     booking_lead_close_hours: int
     drop_in_price: float = 0
+    admin_whatsapp: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -27,6 +28,7 @@ class StudioSettingsUpdate(BaseModel):
     cancellation_window_hours: Optional[int] = Field(default=None, ge=0, le=168)
     booking_lead_close_hours: Optional[int] = Field(default=None, ge=0, le=168)
     drop_in_price: Optional[float] = Field(default=None, ge=0)
+    admin_whatsapp: Optional[str] = Field(default=None, max_length=30)
 
 
 class ChangePassword(BaseModel):

@@ -69,6 +69,8 @@ class PaymentResponse(BaseModel):
     status: PaymentStatus
     paid_at: Optional[datetime] = None
     note: Optional[str] = None
+    member_package_id: Optional[uuid.UUID] = None
+    has_proof: bool = False
     created_at: datetime
 
     class Config:
@@ -92,6 +94,12 @@ class MemberDetail(UserBrief):
 
 
 # ── Jual paket ke member ──
+class EnrollRequest(BaseModel):
+    """Self-enroll member dari dashboard: pilih kategori + (opsional) paket."""
+    member_category: MemberCategory
+    package_id: Optional[uuid.UUID] = None
+
+
 class PurchaseCreate(BaseModel):
     package_id: uuid.UUID
     price_paid: Optional[float] = Field(default=None, ge=0)  # default: harga katalog

@@ -8,11 +8,11 @@ from app.core.security import get_password_hash
 from app.api.deps import get_current_user, require_staff, require_owner
 from app.models.user import User, UserRole, MemberCategory
 from app.models.package import Package, MemberPackage, MemberPackageStatus
-from app.models.payment import Payment, PaymentStatus
+from app.models.payment import Payment, PaymentStatus, PaymentMethod
 from app.schemas.common import Page
 from app.schemas.member import (
     UserCreate, UserUpdate, UserBrief, MemberDetail,
-    MemberPackageResponse, PaymentResponse, PurchaseCreate,
+    MemberPackageResponse, PaymentResponse, PurchaseCreate, EnrollRequest,
 )
 from app.services.quota import refresh_status, is_usable
 
@@ -123,7 +123,12 @@ async def _load_detail(db: AsyncSession, user: User) -> MemberDetail:
 
     detail = MemberDetail.model_validate(user)
     detail.packages = [MemberPackageResponse.model_validate(mp) for mp in packages]
-    detail.payments = [PaymentResponse.model_validate(p) for p in payments]
+    pay_list = []
+    for p in payments:
+        pr = PaymentResponse.model_validate(p)
+        pr.has_proof = bool(p.proof_path)
+        pay_list.append(pr)
+    detail.payments = pay_list
     detail.active_sessions_remaining = remaining
     detail.has_unlimited = has_unlimited
     return detail
@@ -156,6 +161,28 @@ async def my_detail(
     user: User = Depends(get_current_user),
 ):
     """Detail milik sendiri (paket & saldo kuota) — dipakai member dari HP."""
+    return await _load_detail(db, user)
+
+
+@router.post("/me/enroll", response_model=MemberDetail)
+async def enroll_me(
+    payload: EnrollRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Aktivasi keanggotaan mandiri dari dashboard member: set kategori + (opsional) beli paket.
+    Paket dibuat FROZEN + tagihan PENDING → aktif setelah admin verifikasi pembayaran."""
+    if user.role != UserRole.MEMBER:
+        raise HTTPException(403, "Hanya untuk member")
+    user.member_category = payload.member_category
+    await db.flush()
+    if payload.package_id is not None:
+        from app.services.purchase import create_purchase
+        await create_purchase(
+            db, member_id=user.id, package_id=payload.package_id,
+            method=PaymentMethod.TRANSFER, mark_paid=False, activate=False,
+            note="Aktivasi keanggotaan (menunggu pembayaran)",
+        )
     return await _load_detail(db, user)
 
 

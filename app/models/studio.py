@@ -25,3 +25,6 @@ class StudioSettings(BaseModel):
 
     # Harga sekali datang (drop-in) untuk member kategori "per datang" tanpa paket.
     drop_in_price: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+
+    # Nomor WhatsApp admin yang menerima notifikasi (mis. bukti transfer masuk).
+    admin_whatsapp: Mapped[str] = mapped_column(String(30), nullable=True)

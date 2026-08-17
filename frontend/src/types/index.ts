@@ -79,6 +79,8 @@ export interface PaymentBrief {
   status: PaymentStatus
   paid_at?: string | null
   note?: string | null
+  member_package_id?: string | null
+  has_proof?: boolean
   created_at: string
 }
 

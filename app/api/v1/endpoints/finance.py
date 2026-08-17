@@ -3,10 +3,12 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
+from typing import Optional
 from app.core.database import get_db
-from app.api.deps import require_staff
+from app.api.deps import require_staff, get_current_user
 from app.models.user import User
-from app.models.finance import FinancialAccount, Expense, ExpenseCategory
+from app.models.finance import FinancialAccount, AccountType, Expense, ExpenseCategory
 from app.models.payment import Payment, PaymentStatus
 from app.schemas.common import Page
 from app.schemas.finance import (
@@ -17,6 +19,28 @@ from app.schemas.finance import (
 from app.services.finance import account_balance
 
 router = APIRouter()
+
+
+class TransferAccount(BaseModel):
+    name: str
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/transfer-info", response_model=list[TransferAccount])
+async def transfer_info(db: AsyncSession = Depends(get_db), _: User = Depends(get_current_user)):
+    """Rekening bank aktif untuk instruksi transfer (dilihat member saat bayar)."""
+    rows = (
+        await db.execute(
+            select(FinancialAccount).where(
+                FinancialAccount.is_active.is_(True), FinancialAccount.type == AccountType.BANK
+            ).order_by(FinancialAccount.created_at)
+        )
+    ).scalars().all()
+    return rows
 
 
 # ─────────────── AKUN KAS/BANK ───────────────
