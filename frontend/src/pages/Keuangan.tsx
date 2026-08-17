@@ -69,17 +69,18 @@ function ExpensesTab() {
   const { data: accounts } = useAccounts()
   const { data: categories } = useCategories()
   const [page, setPage] = useState(1)
+  const [range, setRange] = useState({ from: firstOfMonth(), to: todayISO() })
   const [open, setOpen] = useState(false)
   const [catOpen, setCatOpen] = useState(false)
   const [error, setError] = useState('')
   const [histId, setHistId] = useState<string | null>(null)
   const [f, setF] = useState<{ id?: string; expense_date: string; category: ExpenseCategory; amount: string; account_id: string; description: string }>({ expense_date: todayISO(), category: '', amount: '', account_id: '', description: '' })
 
-  useEffect(() => { setPage(1) }, [])
+  useEffect(() => { setPage(1) }, [range.from, range.to])
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['expenses', page],
-    queryFn: async () => (await api.get<Page<ExpenseRow>>('/finance/expenses', { params: { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE } })).data,
+    queryKey: ['expenses', page, range],
+    queryFn: async () => (await api.get<Page<ExpenseRow>>('/finance/expenses', { params: { from: range.from, to: range.to, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE } })).data,
     placeholderData: keepPreviousData,
   })
 
@@ -110,7 +111,7 @@ function ExpensesTab() {
   async function downloadExcel() {
     setDownloading(true)
     try {
-      const res = await api.get('/finance/expenses.xlsx', { responseType: 'blob' })
+      const res = await api.get('/finance/expenses.xlsx', { params: { from: range.from, to: range.to }, responseType: 'blob' })
       const url = URL.createObjectURL(res.data as Blob)
       const a = document.createElement('a'); a.href = url; a.download = `Pengeluaran_${todayISO()}.xlsx`
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
@@ -140,6 +141,11 @@ function ExpensesTab() {
         <button onClick={downloadExcel} disabled={downloading || (data?.total ?? 0) === 0} className="btn-ghost border border-sand">
           {downloading ? <Loader2 size={16} className="animate-spin" /> : <Sheet size={16} />} Excel
         </button>
+      </div>
+
+      <div className="flex gap-2 items-end flex-wrap">
+        <div><label className="label">Dari</label><input type="date" className="input" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} /></div>
+        <div><label className="label">Sampai</label><input type="date" className="input" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} /></div>
       </div>
 
       <div className="card !p-0 overflow-hidden">
