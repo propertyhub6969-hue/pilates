@@ -100,7 +100,6 @@ async def dashboard(
     ]
 
     # Angka pendapatan hanya untuk owner ("report hanya owner")
-    from app.models.user import UserRole
     revenue_visible = float(revenue_month or 0) if actor.role == UserRole.OWNER else None
 
     return DashboardSummary(

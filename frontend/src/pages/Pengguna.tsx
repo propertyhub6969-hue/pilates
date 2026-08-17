@@ -6,7 +6,7 @@ import { ROLE_LABEL } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 import Modal from '@/components/Modal'
 import Avatar from '@/components/Avatar'
-import { Plus, Loader2, KeyRound, Power, Check, ShieldCheck, Mail, Phone } from 'lucide-react'
+import { Plus, Loader2, KeyRound, Power, Check, ShieldCheck, Mail, Phone, Pencil } from 'lucide-react'
 
 type NewRole = 'admin' | 'instructor'
 
@@ -35,6 +35,23 @@ export default function Pengguna() {
     mutationFn: async (u: User) => api.patch(`/members/${u.id}`, { is_active: !u.is_active }),
     onSuccess: invalidate,
   })
+
+  // edit pengguna
+  const [editUser, setEditUser] = useState<User | null>(null)
+  const [ef, setEf] = useState({ full_name: '', email: '', phone: '', role: 'admin' as NewRole })
+  const [eErr, setEErr] = useState('')
+  const edit = useMutation({
+    mutationFn: async () => api.patch(`/members/${editUser!.id}`, {
+      full_name: ef.full_name, email: ef.email, phone: ef.phone || null, role: ef.role,
+    }),
+    onSuccess: () => { setEditUser(null); setEErr(''); invalidate() },
+    onError: (e: any) => setEErr(e?.response?.data?.detail ?? 'Gagal menyimpan'),
+  })
+  function openEdit(u: User) {
+    setEditUser(u)
+    setEf({ full_name: u.full_name, email: u.email, phone: u.phone ?? '', role: (u.role as NewRole) })
+    setEErr('')
+  }
 
   // reset password
   const [pwFor, setPwFor] = useState<User | null>(null)
@@ -80,7 +97,8 @@ export default function Pengguna() {
                     {u.phone && <span className="inline-flex items-center gap-1"><Phone size={12} /> {u.phone}</span>}
                   </div>
                   {!isOwnerRow && (
-                    <div className="flex items-center gap-1 mt-2">
+                    <div className="flex items-center gap-1 mt-2 flex-wrap">
+                      <button onClick={() => openEdit(u)} className="btn-ghost !px-2 !py-1 text-xs text-ink/60 border border-sand"><Pencil size={13} /> Edit</button>
                       <button onClick={() => openReset(u)} className="btn-ghost !px-2 !py-1 text-xs text-ink/60 border border-sand"><KeyRound size={13} /> Reset password</button>
                       {!isSelf && (
                         <button onClick={() => toggle.mutate(u)} disabled={toggle.isPending} className={`btn-ghost !px-2 !py-1 text-xs border border-sand ${u.is_active ? 'text-clay-dark' : 'text-copper-700'}`}>
@@ -143,6 +161,25 @@ export default function Pengguna() {
             <button className="btn-primary w-full" disabled={setPw.isPending || pwVal.length < 6}>{setPw.isPending && <Loader2 size={16} className="animate-spin" />} Setel Password</button>
           </form>
         )}
+      </Modal>
+
+      {/* Edit pengguna */}
+      <Modal open={!!editUser} onClose={() => setEditUser(null)} title="Edit Pengguna">
+        <form onSubmit={(e) => { e.preventDefault(); setEErr(''); edit.mutate() }} className="space-y-4">
+          <div><label className="label">Nama lengkap</label><input className="input" required value={ef.full_name} onChange={(e) => setEf({ ...ef, full_name: e.target.value })} /></div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div><label className="label">Email (untuk login)</label><input type="email" className="input" required value={ef.email} onChange={(e) => setEf({ ...ef, email: e.target.value })} /></div>
+            <div><label className="label">No. WhatsApp</label><input className="input" value={ef.phone} onChange={(e) => setEf({ ...ef, phone: e.target.value })} placeholder="08…" /></div>
+          </div>
+          <div><label className="label">Peran</label>
+            <select className="input" value={ef.role} onChange={(e) => setEf({ ...ef, role: e.target.value as NewRole })}>
+              <option value="admin">Admin (operasional + entry keuangan)</option>
+              <option value="instructor">Instruktur (jadwal & absensi kelasnya)</option>
+            </select>
+          </div>
+          {eErr && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{eErr}</div>}
+          <button className="btn-primary w-full" disabled={edit.isPending || ef.full_name.trim().length < 2}>{edit.isPending && <Loader2 size={16} className="animate-spin" />} Simpan</button>
+        </form>
       </Modal>
     </div>
   )

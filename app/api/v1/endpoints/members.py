@@ -235,7 +235,28 @@ async def update_user(
         raise HTTPException(404, "User tidak ditemukan")
     if user.role == UserRole.OWNER and actor.role != UserRole.OWNER:
         raise HTTPException(403, "Tidak bisa mengubah akun owner")
-    for k, v in payload.model_dump(exclude_unset=True).items():
+
+    data = payload.model_dump(exclude_unset=True)
+
+    # Ganti email (harus unik)
+    if "email" in data and data["email"]:
+        new_email = data.pop("email").lower()
+        if new_email != user.email:
+            clash = (await db.execute(select(User.id).where(User.email == new_email, User.id != user.id))).scalar_one_or_none()
+            if clash:
+                raise HTTPException(400, "Email sudah dipakai akun lain")
+            user.email = new_email
+
+    # Ganti peran (dengan pengaman)
+    if "role" in data and data["role"] is not None:
+        new_role = data.pop("role")
+        if new_role != user.role:
+            if user.role == UserRole.OWNER or user.id == actor.id:
+                raise HTTPException(400, "Peran akun ini tidak bisa diubah")
+            _can_manage_role(actor, new_role)  # blokir set OWNER; admin tak bisa buat admin
+            user.role = new_role
+
+    for k, v in data.items():
         setattr(user, k, v)
     await db.flush()
     await db.refresh(user)

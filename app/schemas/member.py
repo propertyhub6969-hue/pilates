@@ -22,7 +22,9 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = Field(default=None, min_length=2, max_length=200)
+    email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    role: Optional[UserRole] = None
     member_category: Optional[MemberCategory] = None
     date_of_birth: Optional[date] = None
     emergency_contact: Optional[str] = None
