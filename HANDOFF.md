@@ -111,7 +111,7 @@ Menu **Laporan Member** (staf) — TAB + tabel paginasi:
 - **Ringkasan**: KPI (aktif/non-aktif/baru bln ini/perlu-perpanjang) + per kategori.
 - **Perlu Perpanjang**: `GET /reports/members?within_days` (staf) — coverage paket aktif habis ≤ now+within_days, urut kedaluwarsa + follow-up WA. Retensi/churn.
 - **Pendapatan** (OWNER saja): `GET /reports/member-revenue` (`require_owner`) — total LUNAS + jml transaksi + terakhir bayar per member, urut total desc.
-- Sisi **member**: seksi **Riwayat Kehadiran** di dashboard (`GET /bookings/me/history`).
+- Sisi **member**: **menu Riwayat** tersendiri (`/riwayat`, nav `roles:'member'`; ringkasan Hadir/Tidak-hadir + daftar). `GET /bookings/me/history` = sesi lampau ATAU sudah ditandai hadir/tidak-hadir. Nav item `roles:'member'` tampil di MemberShell saja.
 
 **Keuangan** (`models/finance.py`): `FinancialAccount` (kas/bank + saldo awal) & `Expense` (pengeluaran operasional per kategori). Endpoint `/finance/accounts|expenses|report`. Saldo akun = saldo awal + income LUNAS ter-atribusi + − pengeluaran. Income lunas otomatis masuk akun via **metode** (cash→akun kas, transfer/qris→bank) — `Payment.account_id` diisi saat lunas (`services/finance.resolve_income_account`). Menu FE: **Keuangan** (Pengeluaran + Akun + **Buku Besar**) & **Laporan** (income/expense/laba-rugi + per-kategori + saldo akun). Tab Pengeluaran & Laporan punya **filter tanggal Dari/Sampai** (default awal bulan→hari ini).
 
