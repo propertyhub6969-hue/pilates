@@ -277,8 +277,36 @@ async def update_session(session_id: uuid.UUID, payload: SessionUpdate, db: Asyn
     return (await _serialize_sessions(db, [s], staff))[0]
 
 
+async def _notify_cancel(db: AsyncSession, session: ClassSession, recipients: list) -> int:
+    """Kirim WA ke peserta bahwa sesi DIBATALKAN. recipients = list[(nama, phone)]. Best-effort."""
+    from app.services.whatsapp import send_whatsapp
+    from app.models.studio import StudioSettings
+    studio = (await db.execute(select(StudioSettings))).scalars().first()
+    sname = studio.name if studio else "Reformer Your Body"
+    when = f"{session.session_date.strftime('%d/%m/%Y')} {session.start_time.strftime('%H:%M')}"
+    sent = 0
+    for name, phone in recipients:
+        msg = (
+            f"Halo {name}, mohon maaf kelas *{session.title}* pada {when} WITA "
+            f"*DIBATALKAN*.\n"
+            f"Kuota/tiketmu dikembalikan otomatis. Silakan pilih jadwal lain di aplikasi. "
+            f"Terima kasih atas pengertiannya 🙏\n{sname}"
+        )
+        try:
+            ok, _ = await send_whatsapp(phone, msg)
+            if ok:
+                sent += 1
+        except Exception:  # noqa: BLE001
+            pass
+    return sent
+
+
 @router.post("/sessions/{session_id}/cancel", response_model=SessionResponse)
-async def cancel_session(session_id: uuid.UUID, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)):
+async def cancel_session(
+    session_id: uuid.UUID,
+    notify: bool = Query(False, description="Kirim WA pemberitahuan ke peserta"),
+    db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff),
+):
     """Batalkan sesi (mis. instruktur berhalangan). Kuota SEMUA peserta booked dikembalikan."""
     s = (await db.execute(select(ClassSession).where(ClassSession.id == session_id))).scalar_one_or_none()
     if not s:
@@ -289,6 +317,18 @@ async def cancel_session(session_id: uuid.UUID, db: AsyncSession = Depends(get_d
             Booking.status != BookingStatus.CANCELLED,
         ))
     ).scalars().all()
+    # Kumpulkan penerima WA SEBELUM dibatalkan (nama + nomor)
+    recipients = []
+    if notify:
+        recipients = (
+            await db.execute(
+                select(User.full_name, User.phone)
+                .join(Booking, Booking.member_id == User.id)
+                .where(Booking.session_id == session_id,
+                       Booking.status.in_([BookingStatus.BOOKED, BookingStatus.WAITLIST]),
+                       User.phone.isnot(None))
+            )
+        ).all()
     for b in bookings:
         # Kuota yang SUDAH dikonsumsi (hadir / no-show hangus, ditandai member_package_id) dikembalikan.
         if b.member_package_id:
@@ -301,6 +341,11 @@ async def cancel_session(session_id: uuid.UUID, db: AsyncSession = Depends(get_d
         b.member_package_id = None
     s.status = ClassSessionStatus.CANCELLED
     await db.flush()
+    if notify and recipients:
+        try:
+            await _notify_cancel(db, s, recipients)
+        except Exception:  # noqa: BLE001
+            pass
     await db.refresh(s)
     return (await _serialize_sessions(db, [s], staff))[0]
 

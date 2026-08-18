@@ -8,7 +8,7 @@ import { formatTime, formatDayDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   Plus, RefreshCw, Users, UserRound, MapPin, Loader2, CalendarDays,
-  Pencil, Trash2, XCircle, CalendarClock, CheckCircle2, RotateCcw, ChevronRight, ArrowRight,
+  Pencil, Trash2, XCircle, CheckCircle2, RotateCcw, ChevronRight, ArrowRight,
 } from 'lucide-react'
 
 // Tanggal "hari ini" menurut zona studio (WITA) — hindari bug UTC di dekat tengah malam.
@@ -305,20 +305,20 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
       api.patch(`/bookings/${v.bid}/attendance`, { status: v.status, forfeit: v.forfeit ?? true }),
     onSuccess: inval,
   })
-  const cancelSession = useMutation({
-    mutationFn: async () => api.post(`/schedule/sessions/${session.id}/cancel`),
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelNotify, setCancelNotify] = useState(true)
+  const cancelSessionNotify = useMutation({
+    mutationFn: async () => api.post(`/schedule/sessions/${session.id}/cancel`, null, { params: { notify: cancelNotify } }),
     onSuccess: () => { inval(); onClose() },
-  })
-
-  const [reOpen, setReOpen] = useState(false)
-  const [re, setRe] = useState({ session_date: session.session_date, start_time: formatTime(session.start_time), notify: true })
-  const reschedule = useMutation({
-    mutationFn: async () => api.post(`/schedule/sessions/${session.id}/reschedule`, re),
-    onSuccess: () => { inval(); setReOpen(false); onClose() },
-    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menjadwalkan ulang'),
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal membatalkan sesi'),
   })
 
   const shown = (roster ?? []).filter((r) => r.status !== 'cancelled')
+  // Hanya tampilkan member yang bisa ditambah: punya kuota/unlimited & belum ada di sesi ini
+  const rosterIds = new Set(shown.map((r) => r.member_id))
+  const addable = (members ?? []).filter(
+    (m) => (m.has_unlimited || (m.active_sessions_remaining ?? 0) > 0) && !rosterIds.has(m.id)
+  )
 
   return (
     <Modal open onClose={onClose} title={`${session.title} · ${formatTime(session.start_time)}`} maxWidth="max-w-lg">
@@ -328,8 +328,8 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
         {session.status !== 'cancelled' && (
           <div className="flex gap-2">
             <select className="input flex-1" value={addId} onChange={(e) => setAddId(e.target.value)}>
-              <option value="">+ Tambah member ke sesi…</option>
-              {members?.map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+              <option value="">{addable.length ? '+ Tambah member ke sesi…' : 'Tak ada member ber-kuota'}</option>
+              {addable.map((m) => <option key={m.id} value={m.id}>{m.full_name}{m.has_unlimited ? ' · ∞' : ` · sisa ${m.active_sessions_remaining ?? 0}`}</option>)}
             </select>
             <button className="btn-primary" disabled={!addId || addMember.isPending} onClick={() => addMember.mutate()}>Tambah</button>
           </div>
@@ -376,31 +376,26 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
           </div>
         )}
 
-        {session.status !== 'cancelled' && !reOpen && (
-          <div className="flex gap-2">
-            <button onClick={() => setReOpen(true)} className="btn-ghost flex-1 border border-sand"><CalendarClock size={16} /> Jadwalkan Ulang</button>
-            <button onClick={() => { if (confirm('Batalkan sesi ini? Kuota semua peserta dikembalikan.')) cancelSession.mutate() }}
-              className="btn-ghost flex-1 text-clay-dark border border-clay/20"><XCircle size={16} /> Batalkan sesi</button>
-          </div>
+        {session.status !== 'cancelled' && !cancelOpen && (
+          <button onClick={() => setCancelOpen(true)} className="btn-ghost w-full text-clay-dark border border-clay/20"><XCircle size={16} /> Batalkan sesi</button>
         )}
 
-        {session.status !== 'cancelled' && reOpen && (
-          <form onSubmit={(e) => { e.preventDefault(); reschedule.mutate() }} className="rounded-xl border border-sand p-3 space-y-3">
-            <div className="text-sm font-semibold">Jadwalkan Ulang</div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="label">Tanggal baru</label><input className="input" type="date" required value={re.session_date} onChange={(e) => setRe({ ...re, session_date: e.target.value })} /></div>
-              <div><label className="label">Jam mulai</label><input className="input" type="time" required value={re.start_time} onChange={(e) => setRe({ ...re, start_time: e.target.value })} /></div>
-            </div>
+        {session.status !== 'cancelled' && cancelOpen && (
+          <div className="rounded-xl border border-clay/20 bg-clay/5 p-3 space-y-3">
+            <div className="text-sm font-semibold text-clay-dark">Batalkan sesi ini?</div>
+            <p className="text-[11px] text-ink/50">Kuota/tiket semua peserta dikembalikan otomatis.</p>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={re.notify} onChange={(e) => setRe({ ...re, notify: e.target.checked })} />
+              <input type="checkbox" checked={cancelNotify} onChange={(e) => setCancelNotify(e.target.checked)} />
               Beri tahu peserta via WhatsApp
             </label>
-            <p className="text-[11px] text-ink/40">Booking peserta otomatis ikut pindah ke waktu baru.</p>
             <div className="flex gap-2">
-              <button className="btn-primary flex-1" disabled={reschedule.isPending}>{reschedule.isPending && <Loader2 size={15} className="animate-spin" />} Simpan & pindahkan</button>
-              <button type="button" onClick={() => setReOpen(false)} className="btn-ghost border border-sand">Batal</button>
+              <button onClick={() => cancelSessionNotify.mutate()} disabled={cancelSessionNotify.isPending}
+                className="btn-primary flex-1 !bg-clay-dark hover:!bg-clay-dark/90">
+                {cancelSessionNotify.isPending && <Loader2 size={15} className="animate-spin" />} Ya, batalkan
+              </button>
+              <button type="button" onClick={() => setCancelOpen(false)} className="btn-ghost border border-sand">Tidak</button>
             </div>
-          </form>
+          </div>
         )}
       </div>
     </Modal>
