@@ -358,6 +358,7 @@ export default function MemberDetail() {
 /* ─────────── Kartu paket (accordion penggunaan sesi) ─────────── */
 function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }) {
   const [open, setOpen] = useState(false)
+  const [limit, setLimit] = useState(5)
   const used = p.is_unlimited ? null : (p.sessions_total ?? 0) - (p.sessions_remaining ?? 0)
   const { data: usage, isLoading } = useQuery({
     queryKey: ['pkg-usage', p.id],
@@ -398,15 +399,22 @@ function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }
           {isLoading ? <div className="text-ink/40 text-sm py-2 text-center">Memuat…</div>
             : (usage?.length ?? 0) === 0 ? <div className="text-ink/40 text-sm py-2 text-center">Belum ada sesi terpakai dari paket ini.</div>
             : (
-              <ol className="space-y-1.5">
-                {usage!.map((u, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm">
-                    <span className="font-display font-semibold text-copper-700 w-12 shrink-0">{formatTime(u.start_time)}</span>
-                    <span className="flex-1 min-w-0"><span className="truncate">{u.title}</span> <span className="text-ink/45 text-xs">· {formatDate(u.session_date)}</span></span>
-                    <span className={`text-[10px] rounded-full px-2 py-0.5 shrink-0 ${u.status === 'attended' ? 'bg-copper-100 text-copper-700' : u.status === 'no_show' ? 'bg-clay/10 text-clay-dark' : 'bg-sand text-ink/50'}`}>{BOOKING_STATUS_LABEL[u.status]}</span>
-                  </li>
-                ))}
-              </ol>
+              <>
+                <ol className="space-y-1.5">
+                  {usage!.slice(0, limit).map((u, i) => (
+                    <li key={i} className="flex items-center gap-2 text-sm">
+                      <span className="font-display font-semibold text-copper-700 w-12 shrink-0">{formatTime(u.start_time)}</span>
+                      <span className="flex-1 min-w-0"><span className="truncate">{u.title}</span> <span className="text-ink/45 text-xs">· {formatDate(u.session_date)}</span></span>
+                      <span className={`text-[10px] rounded-full px-2 py-0.5 shrink-0 ${u.status === 'attended' ? 'bg-copper-100 text-copper-700' : u.status === 'no_show' ? 'bg-clay/10 text-clay-dark' : 'bg-sand text-ink/50'}`}>{BOOKING_STATUS_LABEL[u.status]}</span>
+                    </li>
+                  ))}
+                </ol>
+                {usage!.length > limit && (
+                  <button onClick={() => setLimit((n) => n + 5)} className="w-full text-center text-xs text-copper-700 font-medium py-2 hover:underline">
+                    Muat lebih ({usage!.length - limit} lagi)
+                  </button>
+                )}
+              </>
             )}
         </div>
       )}

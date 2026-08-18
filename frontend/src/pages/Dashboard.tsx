@@ -82,7 +82,7 @@ function MemberHome() {
       {!enrolled && pending.length === 0 && <EnrollCard qc={qc} />}
       {pending.length > 0 && <PendingSection payments={pending} m={m} qc={qc} />}
       {enrolled && <ActiveMemberView m={m} bookings={bookings} />}
-      {m.payments.length > 0 && <PaymentHistory payments={m.payments} />}
+      {m.payments.length > 0 && <PaymentHistory payments={m.payments} packages={m.packages} />}
     </div>
   )
 }
@@ -288,16 +288,20 @@ function StatusPill({ s }: { s: PaymentStatus }) {
   return <span className={`text-[10px] rounded-full px-2 py-0.5 ${cls}`}>{PAY_STATUS_LABEL[s]}</span>
 }
 
-function PaymentHistory({ payments }: { payments: MemberDetail['payments'] }) {
+function PaymentHistory({ payments, packages }: { payments: MemberDetail['payments']; packages: MemberDetail['packages'] }) {
+  const [limit, setLimit] = useState(5)
   const sorted = [...payments].sort((a, b) => b.created_at.localeCompare(a.created_at))
+  const shown = sorted.slice(0, limit)
+  const labelFor = (p: MemberDetail['payments'][number]) =>
+    packages.find((pk) => pk.id === p.member_package_id)?.package_name ?? p.note ?? 'Pembayaran'
   return (
     <div>
       <h2 className="font-display text-lg font-semibold mb-2 flex items-center gap-2"><Receipt size={18} /> Riwayat Pembayaran</h2>
       <div className="card !p-0 overflow-hidden divide-y divide-sand">
-        {sorted.map((p) => (
+        {shown.map((p) => (
           <div key={p.id} className="flex items-center gap-3 px-4 py-3">
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm truncate">{p.note ?? 'Pembayaran'}</div>
+              <div className="font-semibold text-sm truncate">{labelFor(p)}</div>
               <div className="text-[11px] text-ink/45">{formatDateTime(p.created_at)} · {METHOD_LABEL[p.method]}</div>
             </div>
             <div className="text-right shrink-0">
@@ -306,6 +310,11 @@ function PaymentHistory({ payments }: { payments: MemberDetail['payments'] }) {
             </div>
           </div>
         ))}
+        {sorted.length > limit && (
+          <button onClick={() => setLimit((n) => n + 5)} className="w-full text-center text-sm text-copper-700 font-medium py-2.5 hover:bg-sand/40">
+            Muat lebih ({sorted.length - limit} lagi)
+          </button>
+        )}
       </div>
     </div>
   )
