@@ -2,6 +2,7 @@ import uuid
 from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
+from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import Optional
@@ -10,6 +11,7 @@ from app.api.deps import require_staff, require_owner, get_current_user
 from app.models.user import User
 from app.models.finance import (
     FinancialAccount, AccountType, Expense, ExpenseEdit, ExpenseCategoryDef, CATEGORY_LABEL,
+    AccountTransfer,
 )
 from app.models.payment import Payment, PaymentStatus
 from app.schemas.common import Page
@@ -18,6 +20,7 @@ from app.schemas.finance import (
     ExpenseCreate, ExpenseUpdate, ExpenseRow, ExpenseEditRow,
     ExpenseCategoryRow, ExpenseCategoryCreate, ExpenseCategoryUpdate,
     FinanceReport, CategoryAmount, LedgerEntry, LedgerResponse,
+    TransferCreate, TransferRow,
 )
 from app.services.finance import account_balance
 
@@ -157,6 +160,68 @@ async def delete_account(account_id: uuid.UUID, db: AsyncSession = Depends(get_d
     return None
 
 
+# ── Transfer antar akun ──
+async def _transfer_rows(db: AsyncSession, date_from=None, date_to=None) -> list[TransferRow]:
+    FromAcc = aliased(FinancialAccount)
+    ToAcc = aliased(FinancialAccount)
+    stmt = (
+        select(AccountTransfer, FromAcc.name, ToAcc.name)
+        .outerjoin(FromAcc, AccountTransfer.from_account_id == FromAcc.id)
+        .outerjoin(ToAcc, AccountTransfer.to_account_id == ToAcc.id)
+        .order_by(AccountTransfer.transfer_date.desc(), AccountTransfer.created_at.desc())
+    )
+    if date_from is not None:
+        stmt = stmt.where(AccountTransfer.transfer_date >= date_from)
+    if date_to is not None:
+        stmt = stmt.where(AccountTransfer.transfer_date <= date_to)
+    rows = (await db.execute(stmt)).all()
+    return [
+        TransferRow(
+            id=t.id, transfer_date=t.transfer_date, amount=float(t.amount or 0),
+            from_account_id=t.from_account_id, to_account_id=t.to_account_id,
+            from_account_name=fn, to_account_name=tn, description=t.description, created_at=t.created_at,
+        )
+        for t, fn, tn in rows
+    ]
+
+
+@router.get("/transfers", response_model=list[TransferRow])
+async def list_transfers(
+    date_from: date | None = Query(None, alias="from"),
+    date_to: date | None = Query(None, alias="to"),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+):
+    return await _transfer_rows(db, date_from, date_to)
+
+
+@router.post("/transfers", response_model=TransferRow, status_code=201)
+async def create_transfer(payload: TransferCreate, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)):
+    if payload.from_account_id == payload.to_account_id:
+        raise HTTPException(400, "Akun asal dan tujuan tidak boleh sama")
+    ids = {payload.from_account_id, payload.to_account_id}
+    accs = (await db.execute(select(FinancialAccount).where(FinancialAccount.id.in_(ids)))).scalars().all()
+    if len(accs) != 2:
+        raise HTTPException(400, "Akun asal/tujuan tidak ditemukan")
+    t = AccountTransfer(
+        transfer_date=payload.transfer_date, from_account_id=payload.from_account_id,
+        to_account_id=payload.to_account_id, amount=payload.amount,
+        description=payload.description, recorded_by_id=staff.id,
+    )
+    db.add(t)
+    await db.flush()
+    rows = await _transfer_rows(db)
+    return next(r for r in rows if r.id == t.id)
+
+
+@router.delete("/transfers/{transfer_id}", status_code=204)
+async def delete_transfer(transfer_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    t = (await db.execute(select(AccountTransfer).where(AccountTransfer.id == transfer_id))).scalar_one_or_none()
+    if not t:
+        raise HTTPException(404, "Transfer tidak ditemukan")
+    await db.delete(t)
+    return None
+
+
 async def _build_ledger(db: AsyncSession, account_id: uuid.UUID, date_from, date_to) -> LedgerResponse:
     """Buku besar akun: mutasi masuk (pembayaran lunas) & keluar (pengeluaran) + saldo berjalan.
     Dihitung dari SELURUH riwayat sejak saldo awal agar rekonsiliasi dgn saldo akun."""
@@ -181,6 +246,24 @@ async def _build_ledger(db: AsyncSession, account_id: uuid.UUID, date_from, date
         )
     ).all()
 
+    # Transfer masuk (akun ini = tujuan) & keluar (akun ini = asal)
+    FromAcc = aliased(FinancialAccount)
+    ToAcc = aliased(FinancialAccount)
+    tr_in_rows = (
+        await db.execute(
+            select(AccountTransfer.amount, AccountTransfer.transfer_date, AccountTransfer.description, FromAcc.name)
+            .outerjoin(FromAcc, AccountTransfer.from_account_id == FromAcc.id)
+            .where(AccountTransfer.to_account_id == account_id)
+        )
+    ).all()
+    tr_out_rows = (
+        await db.execute(
+            select(AccountTransfer.amount, AccountTransfer.transfer_date, AccountTransfer.description, ToAcc.name)
+            .outerjoin(ToAcc, AccountTransfer.to_account_id == ToAcc.id)
+            .where(AccountTransfer.from_account_id == account_id)
+        )
+    ).all()
+
     cat_labels = await _category_labels(db)
     events = []  # (sort_key_datetime, date, kind, description, amount)
     for amount, ts, note, member_name in inc_rows:
@@ -194,6 +277,16 @@ async def _build_ledger(db: AsyncSession, account_id: uuid.UUID, date_from, date
         if description:
             label = f"{label} — {description}"
         events.append((datetime(edate.year, edate.month, edate.day), edate, "out", label, float(amount or 0)))
+    for amount, tdate, description, from_name in tr_in_rows:
+        label = f"Transfer dari {from_name or '—'}"
+        if description:
+            label = f"{label} — {description}"
+        events.append((datetime(tdate.year, tdate.month, tdate.day), tdate, "in", label, float(amount or 0)))
+    for amount, tdate, description, to_name in tr_out_rows:
+        label = f"Transfer ke {to_name or '—'}"
+        if description:
+            label = f"{label} — {description}"
+        events.append((datetime(tdate.year, tdate.month, tdate.day), tdate, "out", label, float(amount or 0)))
 
     events.sort(key=lambda e: e[0])
 
@@ -606,11 +699,12 @@ async def _compute_report(db: AsyncSession, date_from: date, date_to: date) -> F
         await db.execute(select(FinancialAccount).where(FinancialAccount.is_active.is_(True)).order_by(FinancialAccount.type, FinancialAccount.created_at))
     ).scalars().all()
     acc_out = [await _account_out(db, a) for a in accounts]
+    transfers = await _transfer_rows(db, date_from, date_to)
 
     return FinanceReport(
         date_from=date_from, date_to=date_to,
         income=float(income or 0), expense=float(expense or 0), net=float(income or 0) - float(expense or 0),
-        expense_by_category=by_cat, accounts=acc_out,
+        expense_by_category=by_cat, accounts=acc_out, transfers=transfers,
     )
 
 
@@ -663,6 +757,15 @@ async def report_xlsx(
     for a in data.accounts:
         line(f"{a.name}{f' ({a.bank_name})' if a.bank_name else ''}", a.balance)
     line("Total Saldo", sum(a.balance for a in data.accounts), bold=True)
+
+    if data.transfers:
+        r += 2
+        section("TRANSFER ANTAR KAS (tidak memengaruhi laba/rugi)")
+        for t in data.transfers:
+            label = f"{t.transfer_date.strftime('%d/%m/%Y')}  {t.from_account_name or '—'} → {t.to_account_name or '—'}"
+            if t.description:
+                label += f" ({t.description})"
+            line(label, t.amount)
 
     ws.column_dimensions["A"].width = 40
     ws.column_dimensions["B"].width = 20

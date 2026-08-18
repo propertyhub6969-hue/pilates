@@ -191,6 +191,18 @@ export interface LedgerResponse {
   entries: LedgerEntry[]
 }
 
+export interface TransferRow {
+  id: string
+  transfer_date: string
+  from_account_id?: string | null
+  to_account_id?: string | null
+  from_account_name?: string | null
+  to_account_name?: string | null
+  amount: number
+  description?: string | null
+  created_at: string
+}
+
 // ── Cabang ──
 export interface Branch {
   id: string

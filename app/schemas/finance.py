@@ -128,6 +128,30 @@ class CategoryAmount(BaseModel):
     amount: float
 
 
+# ── Transfer antar akun ──
+class TransferCreate(BaseModel):
+    transfer_date: date
+    from_account_id: uuid.UUID
+    to_account_id: uuid.UUID
+    amount: float = Field(gt=0)
+    description: Optional[str] = None
+
+
+class TransferRow(BaseModel):
+    id: uuid.UUID
+    transfer_date: date
+    from_account_id: Optional[uuid.UUID] = None
+    to_account_id: Optional[uuid.UUID] = None
+    from_account_name: Optional[str] = None
+    to_account_name: Optional[str] = None
+    amount: float
+    description: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class FinanceReport(BaseModel):
     date_from: date
     date_to: date
@@ -136,3 +160,4 @@ class FinanceReport(BaseModel):
     net: float
     expense_by_category: List[CategoryAmount]
     accounts: List[AccountResponse]
+    transfers: List[TransferRow] = []

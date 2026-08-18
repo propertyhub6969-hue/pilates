@@ -2,7 +2,7 @@
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.finance import FinancialAccount, AccountType, Expense
+from app.models.finance import FinancialAccount, AccountType, Expense, AccountTransfer
 from app.models.payment import Payment, PaymentMethod, PaymentStatus
 
 
@@ -41,4 +41,18 @@ async def account_balance(db: AsyncSession, account: FinancialAccount) -> float:
             select(func.coalesce(func.sum(Expense.amount), 0)).where(Expense.account_id == account.id)
         )
     ).scalar_one()
-    return float(account.opening_balance or 0) + float(income or 0) - float(expense or 0)
+    # Transfer antar akun: keluar dari akun asal, masuk ke akun tujuan
+    transfer_out = (
+        await db.execute(
+            select(func.coalesce(func.sum(AccountTransfer.amount), 0)).where(AccountTransfer.from_account_id == account.id)
+        )
+    ).scalar_one()
+    transfer_in = (
+        await db.execute(
+            select(func.coalesce(func.sum(AccountTransfer.amount), 0)).where(AccountTransfer.to_account_id == account.id)
+        )
+    ).scalar_one()
+    return (
+        float(account.opening_balance or 0) + float(income or 0) - float(expense or 0)
+        + float(transfer_in or 0) - float(transfer_out or 0)
+    )

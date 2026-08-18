@@ -11,6 +11,7 @@ interface Report {
   income: number; expense: number; net: number
   expense_by_category: { category: ExpenseCategory; label?: string | null; amount: number }[]
   accounts: FinancialAccount[]
+  transfers: { id: string; transfer_date: string; from_account_name?: string | null; to_account_name?: string | null; amount: number; description?: string | null }[]
 }
 
 // Tanggal zona studio (WITA), tahan bug UTC di dekat tengah malam.
@@ -177,6 +178,32 @@ export default function Laporan() {
               {data.accounts.length === 0 && <div className="text-ink/40 text-sm col-span-full text-center py-4">Belum ada akun kas/bank.</div>}
             </div>
           </div>
+
+          {/* Transfer antar kas (tidak memengaruhi laba/rugi) */}
+          {data.transfers.length > 0 && (
+            <div>
+              <h2 className="font-display text-lg font-semibold mb-1">Transfer Antar Kas</h2>
+              <p className="text-xs text-ink/45 mb-2">Perpindahan saldo antar akun — tidak dihitung sebagai pemasukan/pengeluaran.</p>
+              <div className="card !p-0 overflow-hidden">
+                <table className="w-full text-sm">
+                  <tbody>
+                    {data.transfers.map((t) => (
+                      <tr key={t.id} className="border-b border-sand/60 last:border-0">
+                        <td className="px-4 py-2.5 text-ink/60 whitespace-nowrap">{formatDate(t.transfer_date)}</td>
+                        <td className="px-4 py-2.5">
+                          <span className="text-copper-700">{t.from_account_name || '—'}</span>
+                          <span className="text-ink/40 mx-1.5">→</span>
+                          <span className="text-emerald-700">{t.to_account_name || '—'}</span>
+                          {t.description && <span className="text-ink/45"> · {t.description}</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-semibold whitespace-nowrap">{formatRupiah(t.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

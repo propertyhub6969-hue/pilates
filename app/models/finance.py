@@ -70,6 +70,25 @@ class Expense(BaseModel):
     )
 
 
+class AccountTransfer(BaseModel):
+    """Pemindahan uang antar akun (kas↔bank). Bukan pendapatan/pengeluaran —
+    hanya menggeser saldo: keluar dari akun asal, masuk ke akun tujuan."""
+    __tablename__ = "account_transfers"
+
+    transfer_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    from_account_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("financial_accounts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    to_account_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("financial_accounts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=True)
+    recorded_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
 class ExpenseEdit(BaseModel):
     """Riwayat perubahan sebuah pengeluaran — siapa mengubah apa & kapan."""
     __tablename__ = "expense_edits"

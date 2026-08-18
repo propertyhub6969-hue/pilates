@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import type { FinancialAccount, ExpenseRow, ExpenseEditRow, ExpenseCategoryRow, LedgerResponse, ExpenseCategory, AccountType, Page } from '@/types'
+import type { FinancialAccount, ExpenseRow, ExpenseEditRow, ExpenseCategoryRow, LedgerResponse, ExpenseCategory, AccountType, Page, TransferRow } from '@/types'
 import { EXPENSE_CATEGORY_LABEL, isOwner } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 import { formatRupiah, formatDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   Plus, Loader2, Trash2, Wallet, Landmark, ChevronLeft, ChevronRight, Pencil, History, UserRound,
-  Printer, ArrowDownLeft, ArrowUpRight, Sheet, Tags, Power, Check, X,
+  Printer, ArrowDownLeft, ArrowUpRight, Sheet, Tags, Power, Check, X, ArrowLeftRight,
 } from 'lucide-react'
 
 const fmtDateTime = (iso: string) =>
@@ -38,15 +38,15 @@ function catLabel(cats: ExpenseCategoryRow[] | undefined, key: string): string {
   return cats?.find((c) => c.key === key)?.label ?? EXPENSE_CATEGORY_LABEL[key] ?? key
 }
 
-const TAB_LABEL: Record<'pengeluaran' | 'akun' | 'ledger', string> = {
-  pengeluaran: 'Pengeluaran', akun: 'Akun Kas & Bank', ledger: 'Buku Besar',
+const TAB_LABEL: Record<'pengeluaran' | 'transfer' | 'akun' | 'ledger', string> = {
+  pengeluaran: 'Pengeluaran', transfer: 'Transfer', akun: 'Akun Kas & Bank', ledger: 'Buku Besar',
 }
 
 export default function Keuangan() {
   const { user } = useAuth()
   const owner = isOwner(user?.role)
-  const [tab, setTab] = useState<'pengeluaran' | 'akun' | 'ledger'>('pengeluaran')
-  const tabs = owner ? (['pengeluaran', 'akun', 'ledger'] as const) : (['pengeluaran', 'akun'] as const)
+  const [tab, setTab] = useState<'pengeluaran' | 'transfer' | 'akun' | 'ledger'>('pengeluaran')
+  const tabs = owner ? (['pengeluaran', 'transfer', 'akun', 'ledger'] as const) : (['pengeluaran', 'transfer', 'akun'] as const)
   return (
     <div>
       <h1 className="font-display text-2xl font-semibold mb-5">Keuangan</h1>
@@ -62,7 +62,7 @@ export default function Keuangan() {
         </div>
       </div>
       <div className="mt-3">
-        {tab === 'pengeluaran' ? <ExpensesTab /> : tab === 'akun' ? <AccountsTab /> : <LedgerTab />}
+        {tab === 'pengeluaran' ? <ExpensesTab /> : tab === 'transfer' ? <TransferTab /> : tab === 'akun' ? <AccountsTab /> : <LedgerTab />}
       </div>
     </div>
   )
@@ -326,6 +326,136 @@ function CategoriesModal({ open, onClose }: { open: boolean; onClose: () => void
 }
 
 /* ─────────── AKUN ─────────── */
+function TransferTab() {
+  const qc = useQueryClient()
+  const { data: accounts } = useAccounts()
+  const activeAccts = accounts?.filter((a) => a.is_active) ?? []
+  const [range, setRange] = useState({ from: firstOfMonth(), to: todayISO() })
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState('')
+  const [f, setF] = useState({ transfer_date: todayISO(), from_account_id: '', to_account_id: '', amount: '', description: '' })
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['transfers', range],
+    queryFn: async () => (await api.get<TransferRow[]>('/finance/transfers', { params: { from: range.from, to: range.to } })).data,
+    placeholderData: keepPreviousData,
+  })
+
+  const save = useMutation({
+    mutationFn: async () => api.post('/finance/transfers', {
+      transfer_date: f.transfer_date,
+      from_account_id: f.from_account_id,
+      to_account_id: f.to_account_id,
+      amount: Number(f.amount),
+      description: f.description || null,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transfers'] })
+      qc.invalidateQueries({ queryKey: ['fin-accounts'] })
+      qc.invalidateQueries({ queryKey: ['ledger'] })
+      setOpen(false)
+    },
+    onError: (e: any) => setError(e?.response?.data?.detail ?? 'Gagal menyimpan transfer'),
+  })
+
+  const del = useMutation({
+    mutationFn: async (id: string) => api.delete(`/finance/transfers/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transfers'] })
+      qc.invalidateQueries({ queryKey: ['fin-accounts'] })
+      qc.invalidateQueries({ queryKey: ['ledger'] })
+    },
+  })
+
+  function openNew() {
+    setError('')
+    setF({ transfer_date: todayISO(), from_account_id: activeAccts[0]?.id ?? '', to_account_id: activeAccts[1]?.id ?? '', amount: '', description: '' })
+    setOpen(true)
+  }
+
+  const sameAcct = !!f.from_account_id && f.from_account_id === f.to_account_id
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 flex-wrap items-center">
+        <button onClick={openNew} className="btn-primary"><Plus size={16} /> Catat Transfer</button>
+        <p className="text-xs text-ink/45 max-w-md">Pindah uang antar kas/bank. Bukan pemasukan/pengeluaran — tidak memengaruhi laba/rugi, hanya menggeser saldo.</p>
+      </div>
+
+      <div className="flex gap-2 items-end flex-wrap">
+        <div><label className="label">Dari</label><input type="date" className="input" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} /></div>
+        <div><label className="label">Sampai</label><input type="date" className="input" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} /></div>
+      </div>
+
+      <div className="card !p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-ink/45 text-xs uppercase tracking-wide border-b border-sand">
+                <th className="font-semibold px-4 py-3">Tanggal</th>
+                <th className="font-semibold px-4 py-3">Dari</th>
+                <th className="font-semibold px-4 py-3">Ke</th>
+                <th className="font-semibold px-4 py-3 hidden md:table-cell">Keterangan</th>
+                <th className="font-semibold px-4 py-3 text-right">Jumlah</th>
+                <th className="font-semibold px-4 py-3 text-right w-16">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? <tr><td colSpan={6} className="px-4 py-10 text-center text-ink/40">Memuat…</td></tr>
+                : (data?.length ?? 0) === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-ink/40">Belum ada transfer pada rentang ini.</td></tr>
+                : data!.map((t) => (
+                  <tr key={t.id} className="border-b border-sand/60 last:border-0 hover:bg-sand/40 transition">
+                    <td className="px-4 py-3 text-ink/60 whitespace-nowrap">{formatDate(t.transfer_date)}</td>
+                    <td className="px-4 py-3"><span className="inline-flex items-center gap-1 text-copper-700"><ArrowUpRight size={13} />{t.from_account_name || '—'}</span></td>
+                    <td className="px-4 py-3"><span className="inline-flex items-center gap-1 text-emerald-700"><ArrowDownLeft size={13} />{t.to_account_name || '—'}</span></td>
+                    <td className="px-4 py-3 text-ink/60 hidden md:table-cell">{t.description || '—'}</td>
+                    <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">{formatRupiah(t.amount)}</td>
+                    <td className="px-2">
+                      <div className="flex items-center justify-end">
+                        <button title="Hapus" onClick={() => { if (confirm('Hapus transfer ini? Saldo kedua akun akan dikembalikan.')) del.mutate(t.id) }} className="btn-ghost !px-2 !py-1.5 text-clay-dark"><Trash2 size={15} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between px-4 py-3 border-t border-sand text-sm">
+          <div className="text-ink/50 flex items-center gap-2">{data?.length ?? 0} transfer {isFetching && <Loader2 size={13} className="animate-spin text-ink/30" />}</div>
+          <div className="text-ink/60 font-medium">Total: {formatRupiah((data ?? []).reduce((s, t) => s + t.amount, 0))}</div>
+        </div>
+      </div>
+
+      <Modal open={open} onClose={() => setOpen(false)} title="Catat Transfer Antar Kas">
+        <form onSubmit={(e) => { e.preventDefault(); setError(''); if (!sameAcct) save.mutate() }} className="space-y-4">
+          <div><label className="label">Tanggal</label><input type="date" className="input" required value={f.transfer_date} onChange={(e) => setF({ ...f, transfer_date: e.target.value })} /></div>
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-end">
+            <div><label className="label">Dari akun</label>
+              <select className="input" required value={f.from_account_id} onChange={(e) => setF({ ...f, from_account_id: e.target.value })}>
+                <option value="" disabled>Pilih…</option>
+                {activeAccts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <ArrowLeftRight size={18} className="text-copper-500 mb-2.5" />
+            <div><label className="label">Ke akun</label>
+              <select className="input" required value={f.to_account_id} onChange={(e) => setF({ ...f, to_account_id: e.target.value })}>
+                <option value="" disabled>Pilih…</option>
+                {activeAccts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          </div>
+          {sameAcct && <p className="text-[11px] text-clay-dark -mt-2">Akun asal dan tujuan tidak boleh sama.</p>}
+          <div><label className="label">Jumlah (Rp)</label><input type="number" min={1} className="input" required value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} placeholder="1000000" /></div>
+          <div><label className="label">Keterangan</label><textarea className="input" rows={2} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="mis. setor tunai ke bank" /></div>
+          {activeAccts.length < 2 && <p className="text-[11px] text-clay-dark">Butuh minimal 2 akun aktif. Buat dulu di tab "Akun".</p>}
+          {error && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{error}</div>}
+          <button className="btn-primary w-full" disabled={save.isPending || sameAcct || activeAccts.length < 2 || !f.from_account_id || !f.to_account_id}>{save.isPending && <Loader2 size={16} className="animate-spin" />} Simpan</button>
+        </form>
+      </Modal>
+    </div>
+  )
+}
+
 function AccountsTab() {
   const qc = useQueryClient()
   const { data: accounts, isLoading } = useAccounts()
