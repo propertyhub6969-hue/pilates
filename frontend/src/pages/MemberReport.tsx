@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '@/services/api'
-import { waLink, formatDate } from '@/utils/format'
-import { CATEGORY_LABEL } from '@/types'
+import { useAuth } from '@/context/AuthContext'
+import { waLink, formatDate, formatRupiah } from '@/utils/format'
+import { CATEGORY_LABEL, isOwner } from '@/types'
 import type { MemberCategory } from '@/types'
-import { Users, UserCheck, UserPlus, AlarmClock, MessageCircle, ChevronRight } from 'lucide-react'
+import { Users, UserCheck, UserPlus, AlarmClock, MessageCircle, ChevronRight, CircleDollarSign } from 'lucide-react'
 
 interface NeedRenewal {
   member_id: string
@@ -24,12 +25,22 @@ interface Report {
   need_renewal: NeedRenewal[]
 }
 
+interface Revenue { member_id: string; full_name: string; category?: MemberCategory | null; total_paid: number; payment_count: number; last_paid_at?: string | null }
+
 export default function MemberReport() {
+  const { user } = useAuth()
+  const owner = isOwner(user?.role)
   const [within, setWithin] = useState(14)
   const { data, isLoading } = useQuery({
     queryKey: ['member-report', within],
     queryFn: async () => (await api.get<Report>('/reports/members', { params: { within_days: within } })).data,
   })
+  const { data: revenue } = useQuery({
+    queryKey: ['member-revenue'],
+    enabled: owner,
+    queryFn: async () => (await api.get<Revenue[]>('/reports/member-revenue')).data,
+  })
+  const totalRevenue = (revenue ?? []).reduce((s, r) => s + r.total_paid, 0)
 
   const kpis = data ? [
     { label: 'Member aktif', value: data.active_total, icon: UserCheck, accent: true },
@@ -126,6 +137,44 @@ export default function MemberReport() {
               </div>
             </div>
           </div>
+
+          {/* Pendapatan per member — OWNER saja */}
+          {owner && (
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                <h2 className="font-display text-lg font-semibold flex items-center gap-2"><CircleDollarSign size={18} className="text-copper-600" /> Pendapatan per Member</h2>
+                <span className="text-sm text-ink/50">Total: <b className="text-copper-700">{formatRupiah(totalRevenue)}</b></span>
+              </div>
+              <div className="card !p-0 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-ink/45 text-xs uppercase tracking-wide border-b border-sand">
+                        <th className="font-semibold px-4 py-3">Member</th>
+                        <th className="font-semibold px-4 py-3 hidden sm:table-cell">Kategori</th>
+                        <th className="font-semibold px-4 py-3 text-center">Transaksi</th>
+                        <th className="font-semibold px-4 py-3 hidden md:table-cell">Terakhir bayar</th>
+                        <th className="font-semibold px-4 py-3 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(revenue?.length ?? 0) === 0 ? (
+                        <tr><td colSpan={5} className="px-4 py-10 text-center text-ink/40">Belum ada pembayaran lunas.</td></tr>
+                      ) : revenue!.map((r) => (
+                        <tr key={r.member_id} className="border-b border-sand/60 last:border-0 hover:bg-sand/40 transition">
+                          <td className="px-4 py-3 font-semibold text-ink">{r.full_name}</td>
+                          <td className="px-4 py-3 text-ink/60 hidden sm:table-cell">{r.category ? CATEGORY_LABEL[r.category] : '—'}</td>
+                          <td className="px-4 py-3 text-center text-ink/60">{r.payment_count}</td>
+                          <td className="px-4 py-3 text-ink/60 hidden md:table-cell whitespace-nowrap">{r.last_paid_at ? formatDate(r.last_paid_at) : '—'}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-copper-700 whitespace-nowrap">{formatRupiah(r.total_paid)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

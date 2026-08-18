@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
-from app.api.deps import require_staff
+from app.api.deps import require_staff, require_owner
 from app.models.user import User, UserRole, MemberCategory
 from app.models.schedule import ClassSession, ClassSessionStatus
 from app.models.booking import Booking, BookingStatus
@@ -266,3 +266,34 @@ async def member_report(
         active_total=active_total, inactive_total=inactive_total,
         by_category=by_cat, new_this_month=new_this_month, need_renewal=need,
     )
+
+
+class MemberRevenueRow(BaseModel):
+    member_id: uuid.UUID
+    full_name: str
+    category: Optional[MemberCategory] = None
+    total_paid: float
+    payment_count: int
+    last_paid_at: Optional[datetime] = None
+
+
+@router.get("/member-revenue", response_model=List[MemberRevenueRow])
+async def member_revenue(db: AsyncSession = Depends(get_db), _: User = Depends(require_owner)):
+    """Pendapatan per member (jumlah pembayaran LUNAS) — OWNER saja."""
+    rows = (await db.execute(
+        select(
+            User.id, User.full_name, User.member_category,
+            func.coalesce(func.sum(Payment.amount), 0),
+            func.count(Payment.id),
+            func.max(Payment.paid_at),
+        )
+        .join(Payment, Payment.member_id == User.id)
+        .where(User.role == UserRole.MEMBER, Payment.status == PaymentStatus.PAID)
+        .group_by(User.id, User.full_name, User.member_category)
+        .order_by(func.coalesce(func.sum(Payment.amount), 0).desc())
+    )).all()
+    return [
+        MemberRevenueRow(member_id=uid, full_name=name, category=cat,
+                         total_paid=float(total or 0), payment_count=cnt, last_paid_at=last)
+        for uid, name, cat, total, cnt, last in rows
+    ]
