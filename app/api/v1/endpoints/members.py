@@ -58,7 +58,7 @@ async def list_users(
         await db.execute(stmt.order_by(User.full_name.asc()).limit(limit).offset(offset))
     ).scalars().all()
 
-    # Ringkasan kuota utk member yang tampil di halaman ini
+    # Ringkasan kuota + status sesi + kedaluwarsa utk member yang tampil di halaman ini
     member_ids = [u.id for u in rows if u.role == UserRole.MEMBER]
     quota: dict = {}
     if member_ids:
@@ -68,17 +68,38 @@ async def list_users(
         by_member: dict = {}
         for mp in mps:
             by_member.setdefault(mp.member_id, []).append(mp)
+        now = datetime.now(timezone.utc)
+        far = datetime.max.replace(tzinfo=timezone.utc)
         for mid, pkgs in by_member.items():
             usable = [mp for mp in pkgs if is_usable(mp)]
             has_unl = any(mp.is_unlimited for mp in usable)
             remaining = None if has_unl else sum((mp.sessions_remaining or 0) for mp in usable)
-            quota[mid] = (remaining, has_unl)
+            # paket "utama": usable yang paling cepat kedaluwarsa; kalau tak ada, paket terbaru
+            if usable:
+                primary = min(usable, key=lambda mp: (mp.expires_at or far))
+                if not primary.is_unlimited and 0 < (primary.sessions_remaining or 0) <= 2:
+                    status = "almost_out"
+                else:
+                    status = "active"
+            elif pkgs:
+                primary = max(pkgs, key=lambda mp: mp.purchased_at)
+                if primary.status == MemberPackageStatus.EXPIRED or (primary.expires_at and primary.expires_at < now):
+                    status = "expired"
+                elif not primary.is_unlimited and (primary.sessions_remaining or 0) <= 0:
+                    status = "used_up"
+                else:
+                    status = primary.status.value
+            else:
+                primary, status = None, "none"
+            quota[mid] = (remaining, has_unl, status, primary.expires_at if primary else None)
 
     items = []
     for u in rows:
         brief = UserBrief.model_validate(u)
         if u.id in quota:
-            brief.active_sessions_remaining, brief.has_unlimited = quota[u.id]
+            brief.active_sessions_remaining, brief.has_unlimited, brief.session_status, brief.package_expires_at = quota[u.id]
+        elif u.role == UserRole.MEMBER:
+            brief.session_status = "none"
         items.append(brief)
     return Page(items=items, total=total)
 

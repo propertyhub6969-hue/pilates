@@ -60,6 +60,8 @@ class UserBrief(BaseModel):
     # Ringkasan kuota (diisi utk role member)
     active_sessions_remaining: Optional[int] = None
     has_unlimited: bool = False
+    session_status: Optional[str] = None       # active | almost_out | used_up | expired | frozen | cancelled | none
+    package_expires_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
-import { waLink } from '@/utils/format'
+import { waLink, formatDate } from '@/utils/format'
 import type { Page, User, MemberCategory } from '@/types'
-import { CATEGORY_SHORT } from '@/types'
+import { CATEGORY_SHORT, SESSION_STATUS_LABEL, sessionStatusStyle } from '@/types'
 import Modal from '@/components/Modal'
 import { Plus, Search, ChevronRight, Loader2, UserRound, ChevronLeft, MessageCircle, Infinity as InfinityIcon } from 'lucide-react'
 
@@ -72,7 +72,7 @@ export default function Members() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const fromN = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
   const toN = Math.min(page * PAGE_SIZE, total)
-  const cols = isMemberTab ? 7 : 5
+  const cols = isMemberTab ? 8 : 5
 
   return (
     <div>
@@ -119,7 +119,8 @@ export default function Members() {
                 <th className="font-semibold px-4 py-3 hidden md:table-cell">No. WhatsApp</th>
                 {isMemberTab && <th className="font-semibold px-4 py-3">Kategori</th>}
                 {isMemberTab && <th className="font-semibold px-4 py-3">Sisa Sesi</th>}
-                <th className="font-semibold px-4 py-3">Status</th>
+                {isMemberTab && <th className="font-semibold px-4 py-3 hidden sm:table-cell">Status Sesi</th>}
+                <th className="font-semibold px-4 py-3">Akun</th>
                 <th className="w-8"></th>
               </tr>
             </thead>
@@ -162,6 +163,14 @@ export default function Members() {
                         {u.has_unlimited
                           ? <span className="inline-flex items-center gap-1 text-copper-700 font-semibold"><InfinityIcon size={15} /></span>
                           : <span className="font-semibold">{u.active_sessions_remaining ?? 0}</span>}
+                        {u.package_expires_at && <div className="text-[11px] text-ink/40 whitespace-nowrap">s/d {formatDate(u.package_expires_at)}</div>}
+                      </td>
+                    )}
+                    {isMemberTab && (
+                      <td className="px-4 py-3 hidden sm:table-cell">
+                        {u.session_status
+                          ? <span className={`text-xs rounded-full px-2 py-0.5 whitespace-nowrap ${sessionStatusStyle(u.session_status)}`}>{SESSION_STATUS_LABEL[u.session_status] ?? u.session_status}</span>
+                          : <span className="text-ink/30 text-xs">—</span>}
                       </td>
                     )}
                     <td className="px-4 py-3">

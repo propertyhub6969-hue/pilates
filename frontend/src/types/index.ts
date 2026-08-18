@@ -26,6 +26,8 @@ export interface User {
   // Ringkasan kuota (diisi di daftar member)
   active_sessions_remaining?: number | null
   has_unlimited?: boolean
+  session_status?: string | null
+  package_expires_at?: string | null
 }
 
 export interface TokenPair {
@@ -291,6 +293,19 @@ export const packageStatusStyle = (p: PkgLike): string => {
 }
 export const PAY_STATUS_LABEL: Record<PaymentStatus, string> = {
   paid: 'Lunas', pending: 'Menunggu', refunded: 'Refund',
+}
+export const SESSION_STATUS_LABEL: Record<string, string> = {
+  active: 'Aktif', almost_out: 'Sesi hampir habis', used_up: 'Sesi habis',
+  expired: 'Paket expired', frozen: 'Dibekukan', cancelled: 'Dibatalkan', none: 'Belum ada paket',
+}
+export const sessionStatusStyle = (s?: string | null): string => {
+  switch (s) {
+    case 'active': return 'bg-copper-100 text-copper-700'
+    case 'almost_out': return 'bg-clay/15 text-clay-dark'
+    case 'frozen': return 'bg-clay/10 text-clay'
+    case 'used_up': case 'expired': return 'bg-sand text-ink/50'
+    default: return 'bg-sand text-ink/40'
+  }
 }
 export const METHOD_LABEL: Record<PaymentMethod, string> = {
   cash: 'Tunai', transfer: 'Transfer', qris: 'QRIS', card: 'Kartu', other: 'Lainnya',
