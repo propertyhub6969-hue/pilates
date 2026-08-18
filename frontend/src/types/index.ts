@@ -191,6 +191,33 @@ export interface LedgerResponse {
   entries: LedgerEntry[]
 }
 
+export interface Employee {
+  id: string
+  name: string
+  position?: string | null
+  phone?: string | null
+  base_salary: number
+  join_date?: string | null
+  is_active: boolean
+  user_id?: string | null
+  note?: string | null
+}
+
+export type PayrollStatus = 'draft' | 'paid'
+export interface PayrollRow {
+  id: string
+  employee_id: string
+  employee_name: string
+  period: string
+  amount: number
+  status: PayrollStatus
+  paid_date?: string | null
+  account_id?: string | null
+  account_name?: string | null
+  note?: string | null
+  created_at: string
+}
+
 export interface TransferRow {
   id: string
   transfer_date: string

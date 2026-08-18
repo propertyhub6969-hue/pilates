@@ -9,7 +9,7 @@ import Avatar from '@/components/Avatar'
 import {
   LogOut, LayoutDashboard, CalendarDays, Users, Wallet, Package,
   ChevronDown, UserRound, Settings as SettingsIcon, Menu, X, Building2, Plus,
-  Coins, BarChart3, ShieldCheck, UsersRound, History,
+  Coins, BarChart3, ShieldCheck, UsersRound, History, Briefcase, Contact, Banknote,
 } from 'lucide-react'
 
 type Role = 'all' | 'staff' | 'owner' | 'member'
@@ -39,6 +39,10 @@ const STAFF_NAV: NavEntry[] = [
     { icon: Wallet, label: 'Pembayaran', short: 'Bayar', to: '/pembayaran', roles: 'staff' },
     { icon: Coins, label: 'Kas & Pengeluaran', short: 'Uang', to: '/keuangan', roles: 'staff' },
     { icon: BarChart3, label: 'Laporan Keuangan', short: 'Laporan', to: '/laporan', roles: 'owner' },
+  ] },
+  { icon: Briefcase, label: 'Karyawan', roles: 'owner', children: [
+    { icon: Contact, label: 'Data Karyawan', short: 'Karyawan', to: '/karyawan', roles: 'owner' },
+    { icon: Banknote, label: 'Payroll', short: 'Payroll', to: '/payroll', roles: 'owner' },
   ] },
   { icon: SettingsIcon, label: 'Pengaturan', roles: 'staff', children: [
     { icon: Building2, label: 'Cabang', short: 'Cabang', to: '/cabang', roles: 'staff' },
