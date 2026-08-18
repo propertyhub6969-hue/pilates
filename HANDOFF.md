@@ -90,7 +90,20 @@ Detail lengkap keputusan di memori `reformer-jadwal-redesign-plan.md`.
 
 **Broadcast jadwal WA (Fase 2) — ✅ AKTIF & TERUJI (18 Agu 2026):** `wa_broadcast_enabled=true`, grup = **"Reformer"** (`120363410919667002@g.us`), cron jalan. Tes 18 Agu: grup (6 kelas) & per-datang (personal) sama-sama terkirim. `services/broadcast.py` — `announce_bulanan` (1 pesan ke **grup** WA saat H-2) & `notify_dropin` (personal sebut-nama ke per-datang bertiket, jeda acak 3-7s, saat H-1). WA adapter: `send_whatsapp_group(jid,msg)` + `list_wa_groups()`. `StudioSettings.wa_broadcast_enabled` + `wa_group_bulanan` (JID) + `booking_url`. Endpoint `GET /studio/wa-groups` (owner) + `POST /schedule/broadcast` (uji manual). Cron `scripts/send_broadcasts.py` via `cron_broadcasts.sh` @ **12:00 UTC (=20:00 WITA)** utk bulanan+dropin — **NO-OP sampai `wa_broadcast_enabled`=on**. Setting FE: kartu Broadcast WA (toggle + Muat/pilih grup + link + tombol Uji). ★ Aktivasi: Pengaturan → Muat grup → pilih grup member → centang → Simpan → Uji. Log `/var/log/pilates-broadcasts.log`. ★ Kirim grup = risiko banned rendah (1 pesan); per-datang personal & kecil = aman. Nomor gateway = nomor studio khusus (beda dari admin).
 
-**Filter jadwal staf:** tab pipeline **Mendatang / Hari ini / Besok·H-1 / Lusa·H-2 / Rentang** — tanggal lewat TAK ditampilkan (riwayat di tab Kehadiran).
+**Filter jadwal staf:** tab pipeline **Mendatang / Hari ini / Besok·H-1 / Lusa·H-2 / Rentang** — tanggal lewat TAK ditampilkan (riwayat di tab Kehadiran). **Jadwal member** (tab Semua kelas): filter tanggal (from/to) + dropdown instruktur (client-side). ★ Member **TIDAK bisa batalkan booking sepihak** — `cancel_booking` require staf; pembatalan via roster admin.
+
+### Paket Bulanan & Reminder Kedaluwarsa (LIVE 18 Agu 2026)
+
+**Paket bulanan** (`Package.monthly_expiry`, centang di katalog; eksklusif dgn "Masa berlaku (hari)"): kedaluwarsa **akhir bulan** pembayaran; perpanjang sebelum habis → sisa sesi **diakumulasi** & berlaku s/d akhir bulan berikutnya (paket lama CANCELLED); telat → **hangus**. Logika `services/purchase.apply_monthly_expiry` (dipanggil saat paket AKTIF: create_purchase mark_paid ATAU payments verify FROZEN→ACTIVE). Semua tanggal WITA (`purchase.TZ`). **Reminder WA** `reminders.run_expiry_reminders(days_before)`: **H-1** semua paket bermasa-berlaku + **H-7** paket panjang (≥`LONG_PACKAGE_DAYS`=60 hari); `send_reminders --kind expiry|expiry7`; cron 02:00 UTC; idempoten `expiry_reminded_at`/`expiry_reminded_7d_at`.
+
+### Lifecycle Pembayaran & Member (LIVE 18 Agu 2026)
+
+- **Batal tagihan**: `DELETE /payments/{id}` (member: tagihan PENDING sendiri → tiket/paket FROZEN ikut terhapus; staf: apa pun). Tombol "Batalkan tagihan" di dashboard member; **Hapus** (Trash) di tabel Pembayaran admin.
+- **Riwayat Pembayaran** di dashboard member (nama paket + pagination).
+- **Nomor kuitansi** `Payment.receipt_no` (sequence Postgres, format `KW-<tahun>-<5digit>`) + tombol **Cetak Kuitansi** (Printer) di tabel Pembayaran (kop studio, terbilang, ttd).
+- **Status sesi**: `packageStatusLabel/Style`+`isPackageAlmostOut` (≤2→"Sesi hampir habis"); used_up="Sesi habis", expired="Paket expired". Di detail member, dashboard member, & daftar member (`UserBrief.session_status`+`package_expires_at`).
+- **Non-aktifkan → Per-Datang** (tombol di detail member) ubah kategori → tab Per-Datang (non-destruktif).
+- **Accordion pemakaian sesi** per paket: `GET /members/packages/{mp_id}/usage`.
 
 **Keuangan** (`models/finance.py`): `FinancialAccount` (kas/bank + saldo awal) & `Expense` (pengeluaran operasional per kategori). Endpoint `/finance/accounts|expenses|report`. Saldo akun = saldo awal + income LUNAS ter-atribusi + − pengeluaran. Income lunas otomatis masuk akun via **metode** (cash→akun kas, transfer/qris→bank) — `Payment.account_id` diisi saat lunas (`services/finance.resolve_income_account`). Menu FE: **Keuangan** (Pengeluaran + Akun + **Buku Besar**) & **Laporan** (income/expense/laba-rugi + per-kategori + saldo akun). Tab Pengeluaran & Laporan punya **filter tanggal Dari/Sampai** (default awal bulan→hari ini).
 
