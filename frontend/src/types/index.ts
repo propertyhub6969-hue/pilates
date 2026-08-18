@@ -272,8 +272,22 @@ export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
 }
 
 export const STATUS_LABEL: Record<MemberPackageStatus, string> = {
-  active: 'Aktif', used_up: 'Kuota habis', expired: 'Kedaluwarsa',
+  active: 'Aktif', used_up: 'Sesi habis', expired: 'Paket expired',
   frozen: 'Dibekukan', cancelled: 'Dibatalkan',
+}
+
+export const LOW_SESSIONS = 2  // ambang "sesi hampir habis"
+type PkgLike = { status: MemberPackageStatus; is_unlimited: boolean; sessions_remaining?: number | null }
+export const isPackageAlmostOut = (p: PkgLike) =>
+  p.status === 'active' && !p.is_unlimited && (p.sessions_remaining ?? 0) > 0 && (p.sessions_remaining ?? 0) <= LOW_SESSIONS
+export const packageStatusLabel = (p: PkgLike) => (isPackageAlmostOut(p) ? 'Sesi hampir habis' : STATUS_LABEL[p.status])
+export const packageStatusStyle = (p: PkgLike): string => {
+  if (isPackageAlmostOut(p)) return 'bg-clay/15 text-clay-dark'
+  const map: Record<MemberPackageStatus, string> = {
+    active: 'bg-copper-100 text-copper-700', used_up: 'bg-sand text-ink/50',
+    expired: 'bg-sand text-ink/50', frozen: 'bg-clay/10 text-clay', cancelled: 'bg-sand text-ink/40',
+  }
+  return map[p.status]
 }
 export const PAY_STATUS_LABEL: Record<PaymentStatus, string> = {
   paid: 'Lunas', pending: 'Menunggu', refunded: 'Refund',

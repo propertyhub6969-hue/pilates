@@ -3,21 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
 import type { MemberDetail as TDetail, Package, Page, PaymentMethod, MemberCategory, MemberPackage, PackageUsage } from '@/types'
-import { STATUS_LABEL, PAY_STATUS_LABEL, METHOD_LABEL, ROLE_LABEL, CATEGORY_LABEL, BOOKING_STATUS_LABEL } from '@/types'
+import { PAY_STATUS_LABEL, METHOD_LABEL, ROLE_LABEL, CATEGORY_LABEL, BOOKING_STATUS_LABEL, packageStatusLabel, packageStatusStyle } from '@/types'
 import { formatRupiah, formatDate, formatDateTime, formatTime } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   ArrowLeft, Plus, Loader2, Snowflake, Infinity as InfinityIcon,
-  Wallet, ShoppingBag, Phone, Mail, Pencil, Trash2, Power, KeyRound, Check, ChevronDown,
+  Wallet, ShoppingBag, Phone, Mail, Pencil, Trash2, Power, KeyRound, Check, ChevronDown, UserRoundX,
 } from 'lucide-react'
 
-const STATUS_STYLE: Record<string, string> = {
-  active: 'bg-copper-100 text-copper-700',
-  used_up: 'bg-sand text-ink/50',
-  expired: 'bg-sand text-ink/50',
-  frozen: 'bg-clay/10 text-clay-dark',
-  cancelled: 'bg-sand text-ink/40',
-}
 
 export default function MemberDetail() {
   const { id = '' } = useParams()
@@ -104,6 +97,14 @@ export default function MemberDetail() {
     mutationFn: async () => api.patch(`/members/${id}`, { is_active: true }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['member', id] }); qc.invalidateQueries({ queryKey: ['users'] }) },
   })
+  const toPerDatang = useMutation({
+    mutationFn: async () => api.patch(`/members/${id}`, { member_category: 'per_datang' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['member', id] }); qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['member-counts'] })
+    },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal memindahkan'),
+  })
 
   const [pwOpen, setPwOpen] = useState(false)
   const [pwValue, setPwValue] = useState('')
@@ -160,6 +161,12 @@ export default function MemberDetail() {
             <button onClick={() => { setError(''); setOpen(true) }} className="btn-primary"><Plus size={16} /> Jual Paket</button>
             {m.member_category === 'per_datang' && (
               <button onClick={() => { setTicketErr(''); setTicketOpen(true) }} className="btn-ghost border border-sand"><Plus size={16} /> Tambah Tiket Drop-in</button>
+            )}
+            {m.member_category !== 'per_datang' && (
+              <button onClick={() => { if (confirm('Non-aktifkan keanggotaan bulanan & pindahkan member ini ke daftar Per-Datang?')) toPerDatang.mutate() }}
+                disabled={toPerDatang.isPending} className="btn-ghost border border-sand text-clay-dark">
+                {toPerDatang.isPending ? <Loader2 size={16} className="animate-spin" /> : <UserRoundX size={16} />} Non-aktifkan → Per-Datang
+              </button>
             )}
           </div>
         )}
@@ -381,7 +388,7 @@ function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }
           <div className="text-sm font-semibold">
             {p.is_unlimited ? <InfinityIcon size={16} className="inline" /> : `${p.sessions_remaining}/${p.sessions_total}`}
           </div>
-          <span className={`text-[11px] rounded-full px-2 py-0.5 ${STATUS_STYLE[p.status]}`}>{STATUS_LABEL[p.status]}</span>
+          <span className={`text-[11px] rounded-full px-2 py-0.5 ${packageStatusStyle(p)}`}>{packageStatusLabel(p)}</span>
         </div>
         {(p.status === 'active' || p.status === 'frozen') && (
           <button onClick={onFreeze} className="btn-ghost !px-2 !py-1.5 shrink-0"

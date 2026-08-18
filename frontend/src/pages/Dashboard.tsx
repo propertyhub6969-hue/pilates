@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { api } from '@/services/api'
 import { useAuth } from '@/context/AuthContext'
 import { useBranch } from '@/context/BranchContext'
-import { ROLE_LABEL, isStaff, PAY_STATUS_LABEL, METHOD_LABEL } from '@/types'
+import { ROLE_LABEL, isStaff, PAY_STATUS_LABEL, METHOD_LABEL, packageStatusLabel, packageStatusStyle, isPackageAlmostOut } from '@/types'
 import type { MemberDetail, MyBooking, PaymentStatus } from '@/types'
 import { formatRupiah, formatDate, formatDayDate, formatTime, formatDateTime } from '@/utils/format'
 import {
@@ -136,9 +136,11 @@ function ActiveMemberView({ m, bookings }: { m: MemberDetail; bookings?: MyBooki
           <h2 className="font-display text-lg font-semibold mb-2 flex items-center gap-2"><ShoppingBag size={18} /> Paket Aktif</h2>
           <div className="space-y-2">
             {active.map((p) => (
-              <div key={p.id} className="card flex items-center justify-between">
+              <div key={p.id} className={`card flex items-center justify-between ${isPackageAlmostOut(p) ? 'border-clay/30 bg-clay/5' : ''}`}>
                 <div>
-                  <div className="font-semibold">{p.package_name}</div>
+                  <div className="font-semibold flex items-center gap-2">{p.package_name}
+                    <span className={`text-[10px] rounded-full px-2 py-0.5 ${packageStatusStyle(p)}`}>{packageStatusLabel(p)}</span>
+                  </div>
                   <div className="text-xs text-ink/50">{p.expires_at ? `Berlaku s/d ${formatDate(p.expires_at)}` : 'Tanpa kedaluwarsa'}</div>
                 </div>
                 <div className="text-sm font-semibold text-copper-700">{p.is_unlimited ? <InfinityIcon size={16} className="inline" /> : `${p.sessions_remaining}/${p.sessions_total}`}</div>
