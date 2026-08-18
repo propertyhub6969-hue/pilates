@@ -127,7 +127,7 @@ export default function Settings() {
 
         <div className="card space-y-4">
           <h2 className="font-semibold">Jendela booking berjenjang</h2>
-          <p className="text-[11px] text-ink/45 -mt-2">Kapan booking dibuka/ditutup, dihitung dari tanggal kelas. Semua waktu WITA. H-2 = dua hari sebelum kelas.</p>
+          <p className="text-[11px] text-ink/45 -mt-2">Kapan booking dibuka/ditutup, dihitung dari tanggal kelas. Semua waktu WITA. H-2 = dua hari sebelum kelas. <span className="text-copper-600">Jam "dibuka" juga = jam kirim broadcast jadwal WA</span> (bulanan → grup; per-datang → personal bertiket).</p>
           <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
             <div><label className="label">Bulanan &amp; Private dibuka — H-</label>
               <input className="input" type="number" min={0} value={f.bulanan_open_days_before ?? 2}
