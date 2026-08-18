@@ -124,12 +124,12 @@ async def run_reminder_pass(db: AsyncSession, kind: str = "h1", force: bool = Fa
     return results
 
 
-LONG_PACKAGE_DAYS = 90  # ambang "paket panjang" yang juga dapat reminder H-7
+LONG_PACKAGE_DAYS = 60  # ambang "paket panjang" yang juga dapat reminder H-7 (60 & 120 hari)
 
 
 async def run_expiry_reminders(db: AsyncSession, days_before: int = 1, force: bool = False) -> dict:
     """Reminder sebelum paket KEDALUWARSA. `days_before`=1 → H-1 utk SEMUA paket bermasa-berlaku;
-    `days_before`=7 → H-7 hanya utk paket PANJANG (masa berlaku ≥90 hari, mis. 120 hari).
+    `days_before`=7 → H-7 hanya utk paket PANJANG (masa berlaku ≥60 hari, mis. 60 & 120 hari).
     Idempoten via penanda terpisah per tahap."""
     from app.models.package import MemberPackage, MemberPackageStatus
     from app.models.studio import StudioSettings
