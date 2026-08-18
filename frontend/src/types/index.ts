@@ -204,6 +204,7 @@ export interface Employee {
   is_active: boolean
   user_id?: string | null
   note?: string | null
+  sessions_this_month?: number | null
 }
 
 export type PayrollStatus = 'draft' | 'paid'

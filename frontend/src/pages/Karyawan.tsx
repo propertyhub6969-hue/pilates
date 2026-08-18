@@ -14,11 +14,13 @@ export default function Karyawan() {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
   const [f, setF] = useState<Form>(empty)
+  const [filter, setFilter] = useState<'all' | 'monthly' | 'per_session'>('all')
 
   const { data, isLoading } = useQuery({
-    queryKey: ['employees'],
-    queryFn: async () => (await api.get<Employee[]>('/employees')).data,
+    queryKey: ['employees', filter],
+    queryFn: async () => (await api.get<Employee[]>('/employees', { params: filter === 'all' ? {} : { pay_type: filter } })).data,
   })
+  const monthNow = new Date().toLocaleDateString('id-ID', { month: 'long' })
 
   const save = useMutation({
     mutationFn: async () => {
@@ -57,6 +59,15 @@ export default function Karyawan() {
         <button onClick={openNew} className="btn-primary"><Plus size={16} /> Tambah Karyawan</button>
       </div>
 
+      <div className="flex gap-2">
+        {(['all', 'monthly', 'per_session'] as const).map((t) => (
+          <button key={t} onClick={() => setFilter(t)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${filter === t ? 'bg-copper-600 text-white' : 'bg-sand text-ink/60 hover:bg-copper-100'}`}>
+            {t === 'all' ? 'Semua' : t === 'monthly' ? 'Bulanan' : 'Pendamping (per sesi)'}
+          </button>
+        ))}
+      </div>
+
       <div className="card !p-0 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -67,13 +78,14 @@ export default function Karyawan() {
                 <th className="font-semibold px-4 py-3 hidden md:table-cell">No. HP</th>
                 <th className="font-semibold px-4 py-3">Cara Bayar</th>
                 <th className="font-semibold px-4 py-3 text-right">Gaji / Tarif</th>
+                {filter === 'per_session' && <th className="font-semibold px-4 py-3 text-right">Sesi {monthNow}</th>}
                 <th className="font-semibold px-4 py-3">Status</th>
                 <th className="font-semibold px-4 py-3 text-right w-24">Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {isLoading ? <tr><td colSpan={7} className="px-4 py-10 text-center text-ink/40">Memuat…</td></tr>
-                : rows.length === 0 ? <tr><td colSpan={7} className="px-4 py-10 text-center text-ink/40"><Contact className="mx-auto mb-2 text-ink/30" size={26} />Belum ada karyawan.</td></tr>
+              {isLoading ? <tr><td colSpan={filter === 'per_session' ? 8 : 7} className="px-4 py-10 text-center text-ink/40">Memuat…</td></tr>
+                : rows.length === 0 ? <tr><td colSpan={filter === 'per_session' ? 8 : 7} className="px-4 py-10 text-center text-ink/40"><Contact className="mx-auto mb-2 text-ink/30" size={26} />Belum ada karyawan.</td></tr>
                 : rows.map((e) => (
                   <tr key={e.id} className={`border-b border-sand/60 last:border-0 hover:bg-sand/40 transition ${!e.is_active ? 'opacity-55' : ''}`}>
                     <td className="px-4 py-3 font-semibold">{e.name}</td>
@@ -87,6 +99,12 @@ export default function Karyawan() {
                     <td className="px-4 py-3 text-right font-medium whitespace-nowrap">
                       {e.pay_type === 'per_session' ? <>{formatRupiah(e.session_rate)}<span className="text-ink/40 text-xs">/sesi</span></> : formatRupiah(e.base_salary)}
                     </td>
+                    {filter === 'per_session' && (
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <span className="font-semibold text-copper-700">{e.sessions_this_month ?? 0} sesi</span>
+                        <span className="text-ink/40 text-xs block">≈ {formatRupiah((e.sessions_this_month ?? 0) * e.session_rate)}</span>
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <span className={`text-xs rounded-full px-2 py-0.5 ${e.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-sand text-ink/50'}`}>{e.is_active ? 'Aktif' : 'Non-aktif'}</span>
                     </td>

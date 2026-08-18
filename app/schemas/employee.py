@@ -42,6 +42,7 @@ class EmployeeRow(BaseModel):
     is_active: bool
     user_id: Optional[uuid.UUID] = None
     note: Optional[str] = None
+    sessions_this_month: Optional[int] = None  # utk pendamping: jumlah sesi didampingi bulan berjalan
 
     class Config:
         from_attributes = True

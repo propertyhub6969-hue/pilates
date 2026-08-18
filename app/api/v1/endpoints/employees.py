@@ -36,13 +36,24 @@ async def list_assistants(db: AsyncSession = Depends(get_db), _: User = Depends(
 @router.get("", response_model=list[EmployeeRow])
 async def list_employees(
     active_only: bool = Query(False),
+    pay_type: PayType | None = Query(None, description="Filter cara bayar (monthly/per_session)"),
     db: AsyncSession = Depends(get_db), _: User = Depends(require_owner),
 ):
+    from app.services.booking import today_local
     stmt = select(Employee)
     if active_only:
         stmt = stmt.where(Employee.is_active.is_(True))
-    rows = (await db.execute(stmt.order_by(Employee.is_active.desc(), Employee.name.asc()))).scalars().all()
-    return rows
+    if pay_type:
+        stmt = stmt.where(Employee.pay_type == pay_type)
+    emps = (await db.execute(stmt.order_by(Employee.is_active.desc(), Employee.name.asc()))).scalars().all()
+    period = today_local().strftime("%Y-%m")
+    out = []
+    for e in emps:
+        row = EmployeeRow.model_validate(e)
+        if e.pay_type == PayType.PER_SESSION:
+            row.sessions_this_month = await _sessions_worked(db, e.id, period)
+        out.append(row)
+    return out
 
 
 @router.post("", response_model=EmployeeRow, status_code=201)
