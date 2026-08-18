@@ -4,7 +4,7 @@ import { api } from '@/services/api'
 import { useBranch } from '@/context/BranchContext'
 import type { ClassSession } from '@/types'
 import { formatTime, formatDayDate } from '@/utils/format'
-import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays, Building2 } from 'lucide-react'
+import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays, Building2, Check } from 'lucide-react'
 
 function endTime(start: string, mins: number): string {
   const [h, m] = start.split(':').map(Number)
@@ -45,11 +45,6 @@ export default function MemberSchedule() {
     mutationFn: async (session_id: string) => api.post('/bookings', { session_id }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] }) },
     onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal booking'),
-  })
-  const cancel = useMutation({
-    mutationFn: async (booking_id: string) => api.post(`/bookings/${booking_id}/cancel`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] }) },
-    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal membatalkan'),
   })
 
   const groups = groupByDate(sessions ?? [])
@@ -120,9 +115,9 @@ export default function MemberSchedule() {
                       <div className="shrink-0">
                         {mine === 'booked' || mine === 'waitlist' ? (
                           <div className="text-right">
-                            {mine === 'waitlist' && <div className="text-[11px] text-clay-dark mb-1">Waitlist</div>}
-                            <button onClick={() => cancel.mutate(s.my_booking_id!)} disabled={cancel.isPending}
-                              className="btn-ghost !px-3 !py-1.5 text-clay-dark">Batalkan</button>
+                            {mine === 'waitlist'
+                              ? <span className="text-xs rounded-full px-3 py-1.5 bg-clay/10 text-clay-dark font-medium">Waitlist</span>
+                              : <span className="inline-flex items-center gap-1 text-xs rounded-full px-3 py-1.5 bg-copper-100 text-copper-700 font-medium"><Check size={13} /> Terdaftar</span>}
                           </div>
                         ) : st === 'open' ? (
                           <button onClick={() => book.mutate(s.id)} disabled={book.isPending}
@@ -146,7 +141,7 @@ export default function MemberSchedule() {
           ))}
         </div>
       )}
-      <p className="text-xs text-ink/40 flex items-center gap-1"><Clock size={12} /> Batal &gt; 12 jam sebelum kelas, kuota kembali.</p>
+      <p className="text-xs text-ink/40 flex items-center gap-1"><Clock size={12} /> Untuk membatalkan/mengubah booking, hubungi admin studio.</p>
     </div>
   )
 }
