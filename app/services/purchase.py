@@ -66,6 +66,13 @@ async def apply_monthly_expiry(db: AsyncSession, mp: MemberPackage) -> None:
         mp.sessions_remaining = (mp.sessions_remaining or 0) + carry
     refresh_status(mp)
 
+    # Member yang sempat dinonaktifkan ke Per-Datang otomatis kembali ke Bulanan
+    # begitu paket bulanan aktif lagi. Kategori Private/Bulanan tidak ditimpa.
+    from app.models.user import User, MemberCategory
+    member = await db.get(User, mp.member_id)
+    if member and member.member_category in (None, MemberCategory.PER_DATANG):
+        member.member_category = MemberCategory.BULANAN
+
 
 async def create_purchase(
     db: AsyncSession,
