@@ -1,13 +1,15 @@
 import uuid
+import calendar
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.api.deps import require_owner
+from app.api.deps import require_owner, require_staff
 from app.models.user import User
-from app.models.employee import Employee, PayrollEntry, PayrollStatus
+from app.models.employee import Employee, PayrollEntry, PayrollStatus, PayType
+from app.models.schedule import ClassSession, ClassSessionStatus
 from app.models.finance import FinancialAccount, Expense
 from app.schemas.employee import (
     EmployeeCreate, EmployeeUpdate, EmployeeRow,
@@ -15,6 +17,19 @@ from app.schemas.employee import (
 )
 
 router = APIRouter()
+
+
+# Daftar ringan karyawan pendamping (per-sesi) utk dropdown roster — boleh diakses staf (tanpa data gaji)
+@router.get("/assistants")
+async def list_assistants(db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    rows = (
+        await db.execute(
+            select(Employee.id, Employee.name).where(
+                Employee.is_active.is_(True), Employee.pay_type == PayType.PER_SESSION
+            ).order_by(Employee.name)
+        )
+    ).all()
+    return [{"id": str(i), "name": n} for i, n in rows]
 
 
 # ── Data Karyawan ──
@@ -89,9 +104,28 @@ async def list_payroll(
     return await _payroll_rows(db, period)
 
 
+async def _sessions_worked(db: AsyncSession, employee_id, period: str) -> int:
+    """Jumlah sesi (tidak dibatalkan) pada periode YYYY-MM di mana karyawan jadi pendamping."""
+    y, m = int(period[:4]), int(period[5:7])
+    d_from = date(y, m, 1)
+    d_to = date(y, m, calendar.monthrange(y, m)[1])
+    return (
+        await db.execute(
+            select(func.count()).select_from(ClassSession).where(
+                ClassSession.assistant_id == employee_id,
+                ClassSession.status != ClassSessionStatus.CANCELLED,
+                ClassSession.session_date >= d_from,
+                ClassSession.session_date <= d_to,
+            )
+        )
+    ).scalar_one()
+
+
 @router.post("/payroll/generate", response_model=list[PayrollRow])
 async def generate_payroll(payload: PayrollGenerate, db: AsyncSession = Depends(get_db), _: User = Depends(require_owner)):
-    """Buat baris payroll DRAFT untuk semua karyawan aktif yang belum punya baris di periode ini."""
+    """Buat baris payroll DRAFT untuk karyawan aktif yang belum punya baris di periode ini.
+    - Gaji bulanan → nilai = gaji pokok.
+    - Per sesi → nilai = (jumlah sesi jadi pendamping) × tarif; dilewati bila 0 sesi."""
     emps = (await db.execute(select(Employee).where(Employee.is_active.is_(True)))).scalars().all()
     existing = set(
         (await db.execute(select(PayrollEntry.employee_id).where(PayrollEntry.period == payload.period))).scalars().all()
@@ -99,9 +133,18 @@ async def generate_payroll(payload: PayrollGenerate, db: AsyncSession = Depends(
     for e in emps:
         if e.id in existing:
             continue
+        if e.pay_type == PayType.PER_SESSION:
+            n = await _sessions_worked(db, e.id, payload.period)
+            if n == 0:
+                continue  # tak ada sesi didampingi → tak dibuat
+            amount = float(e.session_rate or 0) * n
+            note = f"{n} sesi × {int(e.session_rate or 0):,}".replace(",", ".")
+        else:
+            amount = e.base_salary or 0
+            note = None
         db.add(PayrollEntry(
             employee_id=e.id, employee_name=e.name, period=payload.period,
-            amount=e.base_salary or 0, status=PayrollStatus.DRAFT,
+            amount=amount, note=note, status=PayrollStatus.DRAFT,
         ))
     await db.flush()
     return await _payroll_rows(db, payload.period)

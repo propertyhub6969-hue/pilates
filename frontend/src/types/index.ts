@@ -191,12 +191,15 @@ export interface LedgerResponse {
   entries: LedgerEntry[]
 }
 
+export type PayType = 'monthly' | 'per_session'
 export interface Employee {
   id: string
   name: string
   position?: string | null
   phone?: string | null
+  pay_type: PayType
   base_salary: number
+  session_rate: number
   join_date?: string | null
   is_active: boolean
   user_id?: string | null
@@ -268,6 +271,8 @@ export interface ClassSession {
   title: string
   instructor_id?: string | null
   instructor_name?: string | null
+  assistant_id?: string | null
+  assistant_name?: string | null
   session_date: string
   start_time: string
   duration_minutes: number

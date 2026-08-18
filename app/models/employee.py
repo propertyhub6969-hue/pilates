@@ -7,6 +7,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import BaseModel
 
 
+class PayType(str, enum.Enum):
+    MONTHLY = "monthly"          # gaji pokok bulanan tetap
+    PER_SESSION = "per_session"  # dibayar per sesi hadir (mis. pendamping instruktur)
+
+
 class Employee(BaseModel):
     """Karyawan studio (entitas HR). Bisa TANPA akun aplikasi (mis. kebersihan/resepsionis),
     atau ditautkan ke akun User (instruktur/admin) lewat user_id."""
@@ -15,7 +20,11 @@ class Employee(BaseModel):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     position: Mapped[str] = mapped_column(String(100), nullable=True)     # jabatan
     phone: Mapped[str] = mapped_column(String(30), nullable=True)
-    base_salary: Mapped[float] = mapped_column(Numeric(14, 2), default=0, nullable=False)  # gaji pokok bulanan
+    pay_type: Mapped[PayType] = mapped_column(
+        SAEnum(PayType), default=PayType.MONTHLY, nullable=False
+    )
+    base_salary: Mapped[float] = mapped_column(Numeric(14, 2), default=0, nullable=False)  # gaji pokok bulanan (MONTHLY)
+    session_rate: Mapped[float] = mapped_column(Numeric(14, 2), default=0, nullable=False)  # tarif per sesi (PER_SESSION)
     join_date: Mapped[date] = mapped_column(Date, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(

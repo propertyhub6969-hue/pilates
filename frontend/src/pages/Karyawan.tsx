@@ -6,8 +6,8 @@ import { formatRupiah, formatDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import { Plus, Loader2, Pencil, Power, Contact } from 'lucide-react'
 
-type Form = { id?: string; name: string; position: string; phone: string; base_salary: string; join_date: string; note: string }
-const empty: Form = { name: '', position: '', phone: '', base_salary: '', join_date: '', note: '' }
+type Form = { id?: string; name: string; position: string; phone: string; pay_type: 'monthly' | 'per_session'; base_salary: string; session_rate: string; join_date: string; note: string }
+const empty: Form = { name: '', position: '', phone: '', pay_type: 'monthly', base_salary: '', session_rate: '', join_date: '', note: '' }
 
 export default function Karyawan() {
   const qc = useQueryClient()
@@ -24,7 +24,10 @@ export default function Karyawan() {
     mutationFn: async () => {
       const body = {
         name: f.name, position: f.position || null, phone: f.phone || null,
-        base_salary: Number(f.base_salary || 0), join_date: f.join_date || null, note: f.note || null,
+        pay_type: f.pay_type,
+        base_salary: f.pay_type === 'monthly' ? Number(f.base_salary || 0) : 0,
+        session_rate: f.pay_type === 'per_session' ? Number(f.session_rate || 0) : 0,
+        join_date: f.join_date || null, note: f.note || null,
       }
       if (f.id) return api.patch(`/employees/${f.id}`, body)
       return api.post('/employees', body)
@@ -41,7 +44,7 @@ export default function Karyawan() {
   function openNew() { setError(''); setF(empty); setOpen(true) }
   function openEdit(e: Employee) {
     setError('')
-    setF({ id: e.id, name: e.name, position: e.position || '', phone: e.phone || '', base_salary: String(e.base_salary || ''), join_date: e.join_date || '', note: e.note || '' })
+    setF({ id: e.id, name: e.name, position: e.position || '', phone: e.phone || '', pay_type: e.pay_type, base_salary: String(e.base_salary || ''), session_rate: String(e.session_rate || ''), join_date: e.join_date || '', note: e.note || '' })
     setOpen(true)
   }
 
@@ -62,20 +65,28 @@ export default function Karyawan() {
                 <th className="font-semibold px-4 py-3">Nama</th>
                 <th className="font-semibold px-4 py-3 hidden sm:table-cell">Jabatan</th>
                 <th className="font-semibold px-4 py-3 hidden md:table-cell">No. HP</th>
-                <th className="font-semibold px-4 py-3 text-right">Gaji Pokok</th>
+                <th className="font-semibold px-4 py-3">Cara Bayar</th>
+                <th className="font-semibold px-4 py-3 text-right">Gaji / Tarif</th>
                 <th className="font-semibold px-4 py-3">Status</th>
                 <th className="font-semibold px-4 py-3 text-right w-24">Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {isLoading ? <tr><td colSpan={6} className="px-4 py-10 text-center text-ink/40">Memuat…</td></tr>
-                : rows.length === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-ink/40"><Contact className="mx-auto mb-2 text-ink/30" size={26} />Belum ada karyawan.</td></tr>
+              {isLoading ? <tr><td colSpan={7} className="px-4 py-10 text-center text-ink/40">Memuat…</td></tr>
+                : rows.length === 0 ? <tr><td colSpan={7} className="px-4 py-10 text-center text-ink/40"><Contact className="mx-auto mb-2 text-ink/30" size={26} />Belum ada karyawan.</td></tr>
                 : rows.map((e) => (
                   <tr key={e.id} className={`border-b border-sand/60 last:border-0 hover:bg-sand/40 transition ${!e.is_active ? 'opacity-55' : ''}`}>
                     <td className="px-4 py-3 font-semibold">{e.name}</td>
                     <td className="px-4 py-3 text-ink/60 hidden sm:table-cell">{e.position || '—'}</td>
                     <td className="px-4 py-3 text-ink/60 hidden md:table-cell">{e.phone || '—'}</td>
-                    <td className="px-4 py-3 text-right font-medium whitespace-nowrap">{formatRupiah(e.base_salary)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs rounded-full px-2 py-0.5 ${e.pay_type === 'per_session' ? 'bg-copper-50 text-copper-700 border border-copper-100' : 'bg-sand text-ink/60'}`}>
+                        {e.pay_type === 'per_session' ? 'Per Sesi' : 'Bulanan'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium whitespace-nowrap">
+                      {e.pay_type === 'per_session' ? <>{formatRupiah(e.session_rate)}<span className="text-ink/40 text-xs">/sesi</span></> : formatRupiah(e.base_salary)}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs rounded-full px-2 py-0.5 ${e.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-sand text-ink/50'}`}>{e.is_active ? 'Aktif' : 'Non-aktif'}</span>
                     </td>
@@ -100,9 +111,18 @@ export default function Karyawan() {
             <div><label className="label">No. HP</label><input className="input" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Gaji Pokok (Rp)</label><input type="number" min={0} className="input" value={f.base_salary} onChange={(e) => setF({ ...f, base_salary: e.target.value })} placeholder="3000000" /></div>
-            <div><label className="label">Tanggal Bergabung</label><input type="date" className="input" value={f.join_date} onChange={(e) => setF({ ...f, join_date: e.target.value })} /></div>
+            <div><label className="label">Cara Bayar</label>
+              <select className="input" value={f.pay_type} onChange={(e) => setF({ ...f, pay_type: e.target.value as Form['pay_type'] })}>
+                <option value="monthly">Gaji Bulanan</option>
+                <option value="per_session">Per Sesi (pendamping)</option>
+              </select>
+            </div>
+            {f.pay_type === 'monthly'
+              ? <div><label className="label">Gaji Pokok (Rp)</label><input type="number" min={0} className="input" value={f.base_salary} onChange={(e) => setF({ ...f, base_salary: e.target.value })} placeholder="3000000" /></div>
+              : <div><label className="label">Tarif per Sesi (Rp)</label><input type="number" min={0} className="input" value={f.session_rate} onChange={(e) => setF({ ...f, session_rate: e.target.value })} placeholder="50000" /></div>}
           </div>
+          <div><label className="label">Tanggal Bergabung</label><input type="date" className="input" value={f.join_date} onChange={(e) => setF({ ...f, join_date: e.target.value })} /></div>
+          {f.pay_type === 'per_session' && <p className="text-[11px] text-ink/45 -mt-2">Dibayar sesuai jumlah sesi yang didampingi (ditandai admin di roster tiap sesi). Payroll menghitung otomatis.</p>}
           <div><label className="label">Catatan</label><textarea className="input" rows={2} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></div>
           {error && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{error}</div>}
           <button className="btn-primary w-full" disabled={save.isPending || !f.name}>{save.isPending && <Loader2 size={16} className="animate-spin" />} Simpan</button>

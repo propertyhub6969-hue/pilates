@@ -70,6 +70,10 @@ class ClassSession(BaseModel):
         SAEnum(ClassSessionStatus), default=ClassSessionStatus.SCHEDULED, nullable=False, index=True
     )
     notes: Mapped[str] = mapped_column(Text, nullable=True)
+    # Karyawan pendamping (dibayar per sesi) yang hadir mendampingi instruktur di sesi ini
+    assistant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     instructor: Mapped["User"] = relationship("User", foreign_keys=[instructor_id])
     bookings: Mapped[list["Booking"]] = relationship("Booking", back_populates="session")

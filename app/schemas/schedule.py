@@ -87,6 +87,8 @@ class SessionResponse(BaseModel):
     title: str
     instructor_id: Optional[uuid.UUID] = None
     instructor_name: Optional[str] = None
+    assistant_id: Optional[uuid.UUID] = None
+    assistant_name: Optional[str] = None
     session_date: date
     start_time: time
     duration_minutes: int

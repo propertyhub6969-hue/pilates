@@ -2,14 +2,16 @@ import uuid
 from datetime import date, datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
-from app.models.employee import PayrollStatus
+from app.models.employee import PayrollStatus, PayType
 
 
 class EmployeeCreate(BaseModel):
     name: str = Field(min_length=1, max_length=150)
     position: Optional[str] = None
     phone: Optional[str] = None
+    pay_type: PayType = PayType.MONTHLY
     base_salary: float = Field(default=0, ge=0)
+    session_rate: float = Field(default=0, ge=0)
     join_date: Optional[date] = None
     user_id: Optional[uuid.UUID] = None
     note: Optional[str] = None
@@ -19,7 +21,9 @@ class EmployeeUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=150)
     position: Optional[str] = None
     phone: Optional[str] = None
+    pay_type: Optional[PayType] = None
     base_salary: Optional[float] = Field(default=None, ge=0)
+    session_rate: Optional[float] = Field(default=None, ge=0)
     join_date: Optional[date] = None
     is_active: Optional[bool] = None
     user_id: Optional[uuid.UUID] = None
@@ -31,7 +35,9 @@ class EmployeeRow(BaseModel):
     name: str
     position: Optional[str] = None
     phone: Optional[str] = None
+    pay_type: PayType
     base_salary: float
+    session_rate: float
     join_date: Optional[date] = None
     is_active: bool
     user_id: Optional[uuid.UUID] = None

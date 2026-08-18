@@ -149,6 +149,16 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
     ).all()
     bulanan = {sid: c for sid, c in bul_rows}
     names = await _instructor_names(db, {s.instructor_id for s in rows})
+    # nama karyawan pendamping (assistant)
+    assistant_ids = {s.assistant_id for s in rows if s.assistant_id}
+    assistant_names = {}
+    if assistant_ids:
+        from app.models.employee import Employee
+        assistant_names = {
+            eid: nm for eid, nm in (
+                await db.execute(select(Employee.id, Employee.name).where(Employee.id.in_(assistant_ids)))
+            ).all()
+        }
     # nama cabang
     bids = {s.branch_id for s in rows}
     branch_names = {
@@ -178,6 +188,7 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
     for s in rows:
         r = SessionResponse.model_validate(s)
         r.instructor_name = names.get(s.instructor_id)
+        r.assistant_name = assistant_names.get(s.assistant_id)
         r.branch_name = branch_names.get(s.branch_id)
         bc = booked.get(s.id, 0)
         r.booked_count = bc
@@ -346,6 +357,29 @@ async def cancel_session(
             await _notify_cancel(db, s, recipients)
         except Exception:  # noqa: BLE001
             pass
+    await db.refresh(s)
+    return (await _serialize_sessions(db, [s], staff))[0]
+
+
+class AssistantSet(BaseModel):
+    assistant_id: Optional[uuid.UUID] = None
+
+
+@router.patch("/sessions/{session_id}/assistant", response_model=SessionResponse)
+async def set_assistant(session_id: uuid.UUID, payload: AssistantSet, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)):
+    """Tandai (absensi) karyawan pendamping yang hadir di sesi ini. None = tak ada pendamping."""
+    s = (await db.execute(select(ClassSession).where(ClassSession.id == session_id))).scalar_one_or_none()
+    if not s:
+        raise HTTPException(404, "Sesi tidak ditemukan")
+    if payload.assistant_id is not None:
+        from app.models.employee import Employee, PayType
+        emp = (await db.execute(select(Employee).where(Employee.id == payload.assistant_id))).scalar_one_or_none()
+        if not emp:
+            raise HTTPException(400, "Karyawan tidak ditemukan")
+        if emp.pay_type != PayType.PER_SESSION:
+            raise HTTPException(400, "Karyawan ini bukan tipe bayar per sesi")
+    s.assistant_id = payload.assistant_id
+    await db.flush()
     await db.refresh(s)
     return (await _serialize_sessions(db, [s], staff))[0]
 

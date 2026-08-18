@@ -291,6 +291,18 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
   const [addId, setAddId] = useState('')
   const inval = () => { qc.invalidateQueries({ queryKey: ['roster', session.id] }); qc.invalidateQueries({ queryKey: ['staff-sessions'] }) }
 
+  // Karyawan pendamping (dibayar per sesi) — admin tandai kehadiran di sesi ini
+  const { data: assistants } = useQuery({
+    queryKey: ['assistants'],
+    queryFn: async () => (await api.get<{ id: string; name: string }[]>('/employees/assistants')).data,
+  })
+  const [assistantId, setAssistantId] = useState(session.assistant_id ?? '')
+  const setAssistant = useMutation({
+    mutationFn: async (id: string) => api.patch(`/schedule/sessions/${session.id}/assistant`, { assistant_id: id || null }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff-sessions'] }),
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menandai pendamping'),
+  })
+
   const addMember = useMutation({
     mutationFn: async () => api.post('/bookings', { session_id: session.id, member_id: addId }),
     onSuccess: () => { setAddId(''); inval() },
@@ -332,6 +344,18 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
               {addable.map((m) => <option key={m.id} value={m.id}>{m.full_name}{m.has_unlimited ? ' · ∞' : ` · sisa ${m.active_sessions_remaining ?? 0}`}</option>)}
             </select>
             <button className="btn-primary" disabled={!addId || addMember.isPending} onClick={() => addMember.mutate()}>Tambah</button>
+          </div>
+        )}
+
+        {session.status !== 'cancelled' && (assistants?.length ?? 0) > 0 && (
+          <div className="flex items-center gap-2 rounded-xl bg-sand/40 px-3 py-2">
+            <span className="text-sm text-ink/60 shrink-0">Staf pendamping</span>
+            <select className="input !py-1.5 flex-1" value={assistantId}
+              onChange={(e) => { setAssistantId(e.target.value); setAssistant.mutate(e.target.value) }}>
+              <option value="">— Tidak ada —</option>
+              {assistants!.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            {setAssistant.isPending && <Loader2 size={15} className="animate-spin text-ink/30" />}
           </div>
         )}
 
