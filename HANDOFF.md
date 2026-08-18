@@ -69,7 +69,7 @@ docker compose -f docker-compose.prod.yml logs -f backend
 - **ClassTemplate** (jadwal berulang mingguan, `branch_id`) → **ClassSession** (sesi konkret, `branch_id`).
 - **Booking**: status booked/waitlist/attended/cancelled/no_show; `reminder_sent_at`, `reminder_2h_sent_at`.
 
-**Aturan kuota** (`services/booking.py`): booking **menahan** 1 kuota → check-in mengonsumsi → batal **tepat waktu** (> `cancellation_window_hours` cabang) mengembalikan → no-show/telat menghanguskan. Kapasitas penuh → waitlist; slot kosong → promosi otomatis. Unlimited tak di-decrement.
+**Aturan kuota** (`services/booking.py`) — ★ **KUOTA DIPOTONG SAAT HADIR (ubah 18 Agu 2026), bukan saat booking:** booking hanya reservasi (dibatasi ≤ sisa kuota via `quota_available`/`committed_reservations`, TIDAK potong kuota). Kuota dipotong saat **Hadir** atau **Tidak-hadir HANGUS** (`consume_one`); dikembalikan saat **Tidak-hadir TETAP** / **undo** / **sesi dibatalkan** (`refund_one`). `Booking.member_package_id` menandai kuota SUDAH dikonsumsi. Kapasitas penuh → waitlist; slot kosong → promosi auto (cek kuota waiter). Unlimited tak dihitung. "Terisi"/`booked_count` = BOOKED+ATTENDED+NO_SHOW (tetap saat absensi ditandai). Absensi: `AttendanceUpdate.forfeit` (no_show), `BookingRow.consumed`.
 
 **Member & paket dibagi seluruh studio** (satu keanggotaan, booking di cabang mana saja). Cuma jadwal yang per-cabang.
 
