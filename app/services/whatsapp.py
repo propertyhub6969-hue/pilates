@@ -62,6 +62,23 @@ def normalize_phone(phone: str) -> str | None:
     return digits
 
 
+async def phone_taken(db, phone: str | None, exclude_id=None) -> bool:
+    """True bila nomor (setelah normalisasi) sudah dipakai user lain.
+    exclude_id = abaikan user ini sendiri (untuk kasus update)."""
+    target = normalize_phone(phone or "")
+    if not target:
+        return False
+    from sqlalchemy import select
+    from app.models.user import User
+    rows = (await db.execute(select(User.id, User.phone).where(User.phone.isnot(None)))).all()
+    for uid, ph in rows:
+        if exclude_id is not None and uid == exclude_id:
+            continue
+        if normalize_phone(ph or "") == target:
+            return True
+    return False
+
+
 async def _post_message(target: str, message: str) -> tuple[bool, str]:
     """Kirim ke `target` (nomor 62xxx utk personal, atau JID `...@g.us` utk grup)."""
     if not settings.WA_ENABLED or not settings.WA_GATEWAY_URL:

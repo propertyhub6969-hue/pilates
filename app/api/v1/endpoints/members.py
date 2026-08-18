@@ -19,6 +19,7 @@ from app.models.schedule import ClassSession
 from app.models.booking import Booking, BookingStatus
 from app.schemas.auth import SetPassword
 from app.services.quota import refresh_status, is_usable
+from app.services.whatsapp import phone_taken
 
 router = APIRouter()
 
@@ -114,6 +115,8 @@ async def create_user(
     exists = (await db.execute(select(User).where(User.email == payload.email.lower()))).scalar_one_or_none()
     if exists:
         raise HTTPException(400, "Email sudah terdaftar")
+    if payload.phone and await phone_taken(db, payload.phone):
+        raise HTTPException(400, "Nomor WhatsApp sudah terdaftar")
     data = payload.model_dump(exclude={"password"})
     data["email"] = payload.email.lower()
     user = User(**data, hashed_password=get_password_hash(payload.password))
@@ -301,6 +304,10 @@ async def update_user(
         raise HTTPException(403, "Tidak bisa mengubah akun owner")
 
     data = payload.model_dump(exclude_unset=True)
+
+    # Ganti nomor WA (harus unik antar user)
+    if "phone" in data and data["phone"] and await phone_taken(db, data["phone"], exclude_id=user.id):
+        raise HTTPException(400, "Nomor WhatsApp sudah dipakai akun lain")
 
     # Ganti email (harus unik)
     if "email" in data and data["email"]:

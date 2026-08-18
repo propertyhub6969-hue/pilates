@@ -43,6 +43,10 @@ async def register_member(payload: MemberRegister, db: AsyncSession = Depends(ge
     if existing:
         raise HTTPException(status_code=400, detail="Email sudah terdaftar")
 
+    from app.services.whatsapp import phone_taken
+    if payload.phone and await phone_taken(db, payload.phone):
+        raise HTTPException(status_code=400, detail="Nomor WhatsApp sudah terdaftar")
+
     user = User(
         email=payload.email.lower(),
         hashed_password=get_password_hash(payload.password),

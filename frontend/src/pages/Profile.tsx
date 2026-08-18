@@ -4,7 +4,7 @@ import { api } from '@/services/api'
 import { useAuth } from '@/context/AuthContext'
 import { ROLE_LABEL } from '@/types'
 import Avatar from '@/components/Avatar'
-import { Loader2, Check, Camera, Trash2 } from 'lucide-react'
+import { Loader2, Check, Camera, Trash2, Phone } from 'lucide-react'
 
 export default function Profile() {
   const { user, refreshUser } = useAuth()
@@ -66,6 +66,9 @@ export default function Profile() {
         <div className="min-w-0">
           <div className="font-display text-lg font-semibold truncate">{user?.full_name}</div>
           <div className="text-sm text-ink/50 truncate">{user?.email} · {user && ROLE_LABEL[user.role]}</div>
+          <div className="text-sm text-ink/50 truncate inline-flex items-center gap-1 mt-0.5">
+            <Phone size={13} className="text-copper-600" /> {user?.phone || <span className="italic text-ink/35">No. WhatsApp belum diisi</span>}
+          </div>
           <div className="flex items-center gap-3 mt-1.5">
             <button type="button" onClick={() => fileRef.current?.click()} className="text-xs text-copper-700 font-medium hover:underline">Ganti foto</button>
             {user?.avatar_path && (
