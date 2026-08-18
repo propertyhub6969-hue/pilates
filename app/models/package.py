@@ -63,7 +63,8 @@ class MemberPackage(BaseModel):
 
     purchased_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
-    expiry_reminded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)  # penanda reminder H-1 kedaluwarsa
+    expiry_reminded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)   # penanda reminder H-1 kedaluwarsa
+    expiry_reminded_7d_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)  # penanda reminder H-7 (paket panjang)
 
     status: Mapped[MemberPackageStatus] = mapped_column(
         SAEnum(MemberPackageStatus), default=MemberPackageStatus.ACTIVE, nullable=False, index=True

@@ -137,11 +137,13 @@ export default function Packages() {
                 onChange={(e) => setForm({ ...form, session_count: e.target.value })} placeholder="10" />
             </div>
           )}
-          <label className="flex items-start gap-2 text-sm">
+          <label className={`flex items-start gap-2 text-sm ${!form.monthly_expiry && form.validity_days ? 'opacity-50' : ''}`}>
             <input type="checkbox" className="mt-1" checked={form.monthly_expiry}
-              onChange={(e) => setForm({ ...form, monthly_expiry: e.target.checked })} />
+              disabled={!form.monthly_expiry && !!form.validity_days}
+              onChange={(e) => setForm({ ...form, monthly_expiry: e.target.checked, validity_days: e.target.checked ? '' : form.validity_days })} />
             <span>Paket <b>bulanan</b> <span className="text-ink/50">— kedaluwarsa akhir bulan pembayaran; sisa sesi diakumulasi bila perpanjang sebelum habis, hangus bila telat. Reminder WA H-1.</span></span>
           </label>
+          {!form.monthly_expiry && form.validity_days && <p className="text-[11px] text-ink/40 -mt-2">Kosongkan "Masa berlaku (hari)" dulu untuk memakai mode bulanan.</p>}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Harga (Rp)</label>

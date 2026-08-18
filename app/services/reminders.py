@@ -124,9 +124,13 @@ async def run_reminder_pass(db: AsyncSession, kind: str = "h1", force: bool = Fa
     return results
 
 
-async def run_expiry_reminders(db: AsyncSession, force: bool = False) -> dict:
-    """Reminder H-1 sebelum paket KEDALUWARSA — SEMUA paket bermasa-berlaku (bulanan
-    akhir-bulan MAUPUN paket 30/60/120 hari). Idempoten via MemberPackage.expiry_reminded_at."""
+LONG_PACKAGE_DAYS = 90  # ambang "paket panjang" yang juga dapat reminder H-7
+
+
+async def run_expiry_reminders(db: AsyncSession, days_before: int = 1, force: bool = False) -> dict:
+    """Reminder sebelum paket KEDALUWARSA. `days_before`=1 → H-1 utk SEMUA paket bermasa-berlaku;
+    `days_before`=7 → H-7 hanya utk paket PANJANG (masa berlaku ≥90 hari, mis. 120 hari).
+    Idempoten via penanda terpisah per tahap."""
     from app.models.package import MemberPackage, MemberPackageStatus
     from app.models.studio import StudioSettings
     from app.services.booking import today_local
@@ -134,7 +138,8 @@ async def run_expiry_reminders(db: AsyncSession, force: bool = False) -> dict:
 
     studio = (await db.execute(select(StudioSettings))).scalars().first()
     booking_url = studio.booking_url if studio else "https://reformeryourbody.com/jadwal"
-    tomorrow = today_local() + timedelta(days=1)
+    target = today_local() + timedelta(days=days_before)
+    marker = "expiry_reminded_7d_at" if days_before == 7 else "expiry_reminded_at"
 
     rows = (
         await db.execute(
@@ -146,11 +151,16 @@ async def run_expiry_reminders(db: AsyncSession, force: bool = False) -> dict:
             )
         )
     ).all()
-    results = {"kind": "expiry", "sent": 0, "skipped": 0, "failed": 0, "detail": []}
+    results = {"kind": f"expiry-H{days_before}", "sent": 0, "skipped": 0, "failed": 0, "detail": []}
     for mp, member in rows:
-        if mp.expires_at.astimezone(TZ).date() != tomorrow:
+        if mp.expires_at.astimezone(TZ).date() != target:
             continue
-        if mp.expiry_reminded_at and not force:
+        # H-7 hanya untuk paket panjang (≥90 hari masa berlaku)
+        if days_before == 7:
+            validity = (mp.expires_at.astimezone(TZ).date() - mp.purchased_at.astimezone(TZ).date()).days
+            if validity < LONG_PACKAGE_DAYS:
+                continue
+        if getattr(mp, marker) and not force:
             results["skipped"] += 1
             continue
         if not member.phone:
@@ -158,20 +168,21 @@ async def run_expiry_reminders(db: AsyncSession, force: bool = False) -> dict:
             results["detail"].append(f"{member.full_name}: tak ada nomor HP")
             continue
         sisa = "unlimited" if mp.is_unlimited else f"{mp.sessions_remaining or 0} sesi"
-        tgl = tomorrow.strftime("%d/%m/%Y")
+        tgl = target.strftime("%d/%m/%Y")
+        kapan = "besok" if days_before == 1 else f"{days_before} hari lagi ({tgl})"
         if mp.monthly_expiry:
             msg = (
-                f"Halo {member.full_name}, paket bulananmu (*{sisa} tersisa*) berakhir *besok, {tgl}*.\n"
+                f"Halo {member.full_name}, paket bulananmu (*{sisa} tersisa*) berakhir *{kapan}*.\n"
                 f"Perpanjang *sebelum habis* agar sisa sesimu TIDAK hangus & ikut terbawa ke bulan depan 🎯\n{booking_url}"
             )
         else:
             msg = (
-                f"Halo {member.full_name}, paketmu *{mp.package_name}* (*{sisa} tersisa*) berakhir *besok, {tgl}*.\n"
+                f"Halo {member.full_name}, paketmu *{mp.package_name}* (*{sisa} tersisa*) berakhir *{kapan}*.\n"
                 f"Perpanjang agar kamu tetap bisa ikut kelas 🎯\n{booking_url}"
             )
         ok, info = await send_whatsapp(member.phone, msg)
         if ok:
-            mp.expiry_reminded_at = datetime.now(timezone.utc)
+            setattr(mp, marker, datetime.now(timezone.utc))
             results["sent"] += 1
         elif info.startswith("DRY-RUN"):
             results["skipped"] += 1
