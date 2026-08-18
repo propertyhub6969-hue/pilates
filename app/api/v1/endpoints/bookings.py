@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, time, datetime, timezone
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -91,6 +91,32 @@ async def set_attendance(
     row = BookingRow.model_validate(booking)
     row.member_name = name
     return row
+
+
+class MyHistoryRow(BaseModel):
+    session_date: date
+    start_time: time
+    title: str
+    status: BookingStatus
+
+
+@router.get("/me/history", response_model=list[MyHistoryRow])
+async def my_history(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """Riwayat kehadiran member: kelas yang sudah lewat & pernah didaftari."""
+    rows = (
+        await db.execute(
+            select(ClassSession.session_date, ClassSession.start_time, ClassSession.title, Booking.status)
+            .join(ClassSession, Booking.session_id == ClassSession.id)
+            .where(
+                Booking.member_id == user.id,
+                ClassSession.session_date < booking_svc.today_local(),
+                Booking.status.in_([BookingStatus.BOOKED, BookingStatus.ATTENDED, BookingStatus.NO_SHOW]),
+            )
+            .order_by(ClassSession.session_date.desc(), ClassSession.start_time.desc())
+            .limit(100)
+        )
+    ).all()
+    return [MyHistoryRow(session_date=d, start_time=t, title=ti, status=s) for d, t, ti, s in rows]
 
 
 @router.get("/me", response_model=list[MyBookingRow])

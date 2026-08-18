@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { api } from '@/services/api'
 import { useAuth } from '@/context/AuthContext'
 import { useBranch } from '@/context/BranchContext'
-import { ROLE_LABEL, isStaff, PAY_STATUS_LABEL, METHOD_LABEL, packageStatusLabel, packageStatusStyle, isPackageAlmostOut } from '@/types'
+import { ROLE_LABEL, isStaff, PAY_STATUS_LABEL, METHOD_LABEL, BOOKING_STATUS_LABEL, packageStatusLabel, packageStatusStyle, isPackageAlmostOut } from '@/types'
 import type { MemberDetail, MyBooking, PaymentStatus } from '@/types'
 import { formatRupiah, formatDate, formatDayDate, formatTime, formatDateTime } from '@/utils/format'
 import {
@@ -83,6 +83,36 @@ function MemberHome() {
       {pending.length > 0 && <PendingSection payments={pending} m={m} qc={qc} />}
       {enrolled && <ActiveMemberView m={m} bookings={bookings} />}
       {m.payments.length > 0 && <PaymentHistory payments={m.payments} packages={m.packages} />}
+      <AttendanceHistory />
+    </div>
+  )
+}
+
+interface MyHistory { session_date: string; start_time: string; title: string; status: string }
+function AttendanceHistory() {
+  const [limit, setLimit] = useState(5)
+  const { data } = useQuery({ queryKey: ['my-history'], queryFn: async () => (await api.get<MyHistory[]>('/bookings/me/history')).data })
+  if (!data || data.length === 0) return null
+  return (
+    <div>
+      <h2 className="font-display text-lg font-semibold mb-2 flex items-center gap-2"><CalendarDays size={18} /> Riwayat Kehadiran</h2>
+      <div className="card !p-0 overflow-hidden divide-y divide-sand">
+        {data.slice(0, limit).map((h, i) => (
+          <div key={i} className="flex items-center gap-3 px-4 py-3">
+            <span className="font-display font-semibold text-copper-700 w-12 shrink-0">{formatTime(h.start_time)}</span>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-sm truncate">{h.title}</div>
+              <div className="text-[11px] text-ink/45 capitalize">{formatDayDate(h.session_date)}</div>
+            </div>
+            <span className={`text-[10px] rounded-full px-2 py-0.5 shrink-0 ${h.status === 'attended' ? 'bg-copper-100 text-copper-700' : h.status === 'no_show' ? 'bg-clay/10 text-clay-dark' : 'bg-sand text-ink/50'}`}>{BOOKING_STATUS_LABEL[h.status as keyof typeof BOOKING_STATUS_LABEL]}</span>
+          </div>
+        ))}
+        {data.length > limit && (
+          <button onClick={() => setLimit((n) => n + 5)} className="w-full text-center text-sm text-copper-700 font-medium py-2.5 hover:bg-sand/40">
+            Muat lebih ({data.length - limit} lagi)
+          </button>
+        )}
+      </div>
     </div>
   )
 }

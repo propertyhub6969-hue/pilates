@@ -11,6 +11,7 @@ import Dashboard from '@/pages/Dashboard'
 import Schedule from '@/pages/Schedule'
 import Members from '@/pages/Members'
 import MemberDetail from '@/pages/MemberDetail'
+import MemberReport from '@/pages/MemberReport'
 import Packages from '@/pages/Packages'
 import Payments from '@/pages/Payments'
 import Settings from '@/pages/Settings'
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="profil" element={<Profile />} />
           {staff && <Route path="member" element={<Members />} />}
           {staff && <Route path="member/:id" element={<MemberDetail />} />}
+          {staff && <Route path="laporan-member" element={<MemberReport />} />}
           {staff && <Route path="paket" element={<Packages />} />}
           {staff && <Route path="pembayaran" element={<Payments />} />}
           {staff && <Route path="cabang" element={<Branches />} />}

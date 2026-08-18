@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timezone, timedelta
 from typing import Optional, List
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -7,10 +7,11 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.deps import require_staff
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, MemberCategory
 from app.models.schedule import ClassSession, ClassSessionStatus
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import Payment, PaymentStatus
+from app.models.package import MemberPackage, MemberPackageStatus
 
 router = APIRouter()
 
@@ -186,4 +187,82 @@ async def attendance_report(
         sessions_total=sessions_total, sessions_cancelled=sessions_cancelled,
         attended=attended, no_show=no_show, booked_open=booked_open,
         attendance_rate=rate, top_members=top,
+    )
+
+
+# ─────────────── LAPORAN MEMBER ───────────────
+class NeedRenewalRow(BaseModel):
+    member_id: uuid.UUID
+    full_name: str
+    phone: Optional[str] = None
+    category: Optional[MemberCategory] = None
+    expires_at: datetime
+    days_left: int          # negatif = sudah lewat
+    status: str             # 'expiring' | 'expired'
+
+
+class MemberReport(BaseModel):
+    active_total: int
+    inactive_total: int
+    by_category: dict
+    new_this_month: int
+    need_renewal: List[NeedRenewalRow]
+
+
+@router.get("/members", response_model=MemberReport)
+async def member_report(
+    within_days: int = Query(14, ge=1, le=90, description="Ambang 'perlu perpanjang' (hari ke depan)"),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_staff),
+):
+    from app.services.booking import today_local
+    from app.services.purchase import TZ
+
+    active_total = (await db.execute(
+        select(func.count()).select_from(User).where(User.role == UserRole.MEMBER, User.is_active.is_(True))
+    )).scalar_one()
+    inactive_total = (await db.execute(
+        select(func.count()).select_from(User).where(User.role == UserRole.MEMBER, User.is_active.is_(False))
+    )).scalar_one()
+
+    by_cat = {"bulanan": 0, "private": 0, "per_datang": 0, "none": 0}
+    for cat, c in (await db.execute(
+        select(User.member_category, func.count())
+        .where(User.role == UserRole.MEMBER, User.is_active.is_(True))
+        .group_by(User.member_category)
+    )).all():
+        by_cat[cat.value if cat else "none"] = c
+
+    today = today_local()
+    month_start = today.replace(day=1)
+    new_this_month = (await db.execute(
+        select(func.count()).select_from(User)
+        .where(User.role == UserRole.MEMBER, func.date(User.created_at) >= month_start)
+    )).scalar_one()
+
+    # Perlu perpanjang: coverage (max expiry paket aktif) <= sekarang + within_days
+    cov_sq = (
+        select(MemberPackage.member_id, func.max(MemberPackage.expires_at).label("cov"))
+        .where(MemberPackage.status == MemberPackageStatus.ACTIVE, MemberPackage.expires_at.isnot(None))
+        .group_by(MemberPackage.member_id)
+    ).subquery()
+    now = datetime.now(timezone.utc)
+    cutoff = now + timedelta(days=within_days)
+    rows = (await db.execute(
+        select(User.id, User.full_name, User.phone, User.member_category, cov_sq.c.cov)
+        .join(cov_sq, cov_sq.c.member_id == User.id)
+        .where(User.role == UserRole.MEMBER, User.is_active.is_(True), cov_sq.c.cov <= cutoff)
+        .order_by(cov_sq.c.cov.asc())
+    )).all()
+    need = []
+    for uid, name, phone, cat, cov in rows:
+        d = (cov.astimezone(TZ).date() - today).days
+        need.append(NeedRenewalRow(
+            member_id=uid, full_name=name, phone=phone, category=cat,
+            expires_at=cov, days_left=d, status="expired" if cov < now else "expiring",
+        ))
+
+    return MemberReport(
+        active_total=active_total, inactive_total=inactive_total,
+        by_category=by_cat, new_this_month=new_this_month, need_renewal=need,
     )

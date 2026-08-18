@@ -9,7 +9,7 @@ import Avatar from '@/components/Avatar'
 import {
   LogOut, LayoutDashboard, CalendarDays, Users, Wallet, Package,
   ChevronDown, UserRound, Settings as SettingsIcon, Menu, X, Building2, Plus,
-  Coins, BarChart3, ShieldCheck,
+  Coins, BarChart3, ShieldCheck, UsersRound,
 } from 'lucide-react'
 
 interface NavItem { icon: any; label: string; short: string; to: string; roles: 'all' | 'staff' | 'owner' }
@@ -18,6 +18,7 @@ const NAV: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', short: 'Home', to: '/', roles: 'all' },
   { icon: CalendarDays, label: 'Jadwal', short: 'Jadwal', to: '/jadwal', roles: 'all' },
   { icon: Users, label: 'Member', short: 'Member', to: '/member', roles: 'staff' },
+  { icon: UsersRound, label: 'Laporan Member', short: 'Lap. Mbr', to: '/laporan-member', roles: 'staff' },
   { icon: Package, label: 'Paket', short: 'Paket', to: '/paket', roles: 'staff' },
   { icon: Wallet, label: 'Pembayaran', short: 'Bayar', to: '/pembayaran', roles: 'staff' },
   { icon: Coins, label: 'Keuangan', short: 'Uang', to: '/keuangan', roles: 'staff' },
