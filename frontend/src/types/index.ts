@@ -76,6 +76,14 @@ export interface MemberPackage {
   status: MemberPackageStatus
 }
 
+export interface PackageUsage {
+  session_date: string
+  start_time: string
+  title: string
+  status: BookingStatus
+  booked_at: string
+}
+
 export interface PaymentBrief {
   id: string
   amount: number

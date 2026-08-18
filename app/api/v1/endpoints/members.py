@@ -13,7 +13,10 @@ from app.schemas.common import Page
 from app.schemas.member import (
     UserCreate, UserUpdate, UserBrief, MemberDetail,
     MemberPackageResponse, PaymentResponse, PurchaseCreate, EnrollRequest, DropinTicketCreate,
+    PackageUsageRow,
 )
+from app.models.schedule import ClassSession
+from app.models.booking import Booking, BookingStatus
 from app.schemas.auth import SetPassword
 from app.services.quota import refresh_status, is_usable
 
@@ -154,6 +157,23 @@ async def member_counts(db: AsyncSession = Depends(get_db), _: User = Depends(re
         await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.INSTRUCTOR))
     ).scalar_one()
     return out
+
+
+@router.get("/packages/{mp_id}/usage", response_model=list[PackageUsageRow])
+async def package_usage(mp_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    """Riwayat pemakaian sesi dari sebuah paket — booking yang menahan/memakai kuota paket ini."""
+    rows = (
+        await db.execute(
+            select(ClassSession.session_date, ClassSession.start_time, ClassSession.title, Booking.status, Booking.booked_at)
+            .join(Booking, Booking.session_id == ClassSession.id)
+            .where(
+                Booking.member_package_id == mp_id,
+                Booking.status.in_([BookingStatus.BOOKED, BookingStatus.ATTENDED, BookingStatus.NO_SHOW]),
+            )
+            .order_by(ClassSession.session_date.desc(), ClassSession.start_time.desc())
+        )
+    ).all()
+    return [PackageUsageRow(session_date=d, start_time=t, title=ti, status=s, booked_at=ba) for d, t, ti, s, ba in rows]
 
 
 @router.get("/staff", response_model=list[UserBrief])

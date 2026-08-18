@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
-import type { MemberDetail as TDetail, Package, Page, PaymentMethod, MemberCategory } from '@/types'
-import { STATUS_LABEL, PAY_STATUS_LABEL, METHOD_LABEL, ROLE_LABEL, CATEGORY_LABEL } from '@/types'
-import { formatRupiah, formatDate, formatDateTime } from '@/utils/format'
+import type { MemberDetail as TDetail, Package, Page, PaymentMethod, MemberCategory, MemberPackage, PackageUsage } from '@/types'
+import { STATUS_LABEL, PAY_STATUS_LABEL, METHOD_LABEL, ROLE_LABEL, CATEGORY_LABEL, BOOKING_STATUS_LABEL } from '@/types'
+import { formatRupiah, formatDate, formatDateTime, formatTime } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   ArrowLeft, Plus, Loader2, Snowflake, Infinity as InfinityIcon,
-  Wallet, ShoppingBag, Phone, Mail, Pencil, Trash2, Power, KeyRound, Check,
+  Wallet, ShoppingBag, Phone, Mail, Pencil, Trash2, Power, KeyRound, Check, ChevronDown,
 } from 'lucide-react'
 
 const STATUS_STYLE: Record<string, string> = {
@@ -170,26 +170,7 @@ export default function MemberDetail() {
         <h2 className="font-display text-lg font-semibold mb-2 flex items-center gap-2"><ShoppingBag size={18} /> Paket</h2>
         <div className="space-y-2">
           {m.packages.map((p) => (
-            <div key={p.id} className="card flex items-center gap-3">
-              <div className="flex-1">
-                <div className="font-semibold">{p.package_name}</div>
-                <div className="text-xs text-ink/50">
-                  Beli {formatDate(p.purchased_at)}{p.expires_at ? ` · s/d ${formatDate(p.expires_at)}` : ''} · {formatRupiah(p.price_paid)}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-semibold">
-                  {p.is_unlimited ? <InfinityIcon size={16} className="inline" /> : `${p.sessions_remaining}/${p.sessions_total}`}
-                </div>
-                <span className={`text-[11px] rounded-full px-2 py-0.5 ${STATUS_STYLE[p.status]}`}>{STATUS_LABEL[p.status]}</span>
-              </div>
-              {(p.status === 'active' || p.status === 'frozen') && (
-                <button onClick={() => freeze.mutate(p.id)} className="btn-ghost !px-2 !py-1.5"
-                  title={p.status === 'frozen' ? 'Aktifkan' : 'Bekukan'}>
-                  <Snowflake size={15} className={p.status === 'frozen' ? 'text-clay' : 'text-ink/40'} />
-                </button>
-              )}
-            </div>
+            <PackageCard key={p.id} p={p} onFreeze={() => freeze.mutate(p.id)} />
           ))}
           {m.packages.length === 0 && <div className="text-ink/40 text-sm py-4 text-center">Belum ada paket.</div>}
         </div>
@@ -370,6 +351,65 @@ export default function MemberDetail() {
           </button>
         </form>
       </Modal>
+    </div>
+  )
+}
+
+/* ─────────── Kartu paket (accordion penggunaan sesi) ─────────── */
+function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }) {
+  const [open, setOpen] = useState(false)
+  const used = p.is_unlimited ? null : (p.sessions_total ?? 0) - (p.sessions_remaining ?? 0)
+  const { data: usage, isLoading } = useQuery({
+    queryKey: ['pkg-usage', p.id],
+    enabled: open,
+    queryFn: async () => (await api.get<PackageUsage[]>(`/members/packages/${p.id}/usage`)).data,
+  })
+  return (
+    <div className="card !p-0 overflow-hidden">
+      <div className="flex items-center gap-3 p-3">
+        <button onClick={() => setOpen((v) => !v)} className="flex-1 flex items-center gap-2 text-left min-w-0">
+          <ChevronDown size={16} className={`text-ink/40 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <div className="min-w-0">
+            <div className="font-semibold truncate">{p.package_name}</div>
+            <div className="text-xs text-ink/50">
+              Beli {formatDate(p.purchased_at)}{p.expires_at ? ` · s/d ${formatDate(p.expires_at)}` : ''} · {formatRupiah(p.price_paid)}
+            </div>
+          </div>
+        </button>
+        <div className="text-right shrink-0">
+          <div className="text-sm font-semibold">
+            {p.is_unlimited ? <InfinityIcon size={16} className="inline" /> : `${p.sessions_remaining}/${p.sessions_total}`}
+          </div>
+          <span className={`text-[11px] rounded-full px-2 py-0.5 ${STATUS_STYLE[p.status]}`}>{STATUS_LABEL[p.status]}</span>
+        </div>
+        {(p.status === 'active' || p.status === 'frozen') && (
+          <button onClick={onFreeze} className="btn-ghost !px-2 !py-1.5 shrink-0"
+            title={p.status === 'frozen' ? 'Aktifkan' : 'Bekukan'}>
+            <Snowflake size={15} className={p.status === 'frozen' ? 'text-clay' : 'text-ink/40'} />
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="border-t border-sand bg-sand/30 px-4 py-3">
+          <div className="text-xs text-ink/50 mb-2">
+            {used !== null ? <>Terpakai <b>{used}</b> sesi{p.is_unlimited ? '' : ` dari ${p.sessions_total}`}</> : 'Paket unlimited'}
+          </div>
+          {isLoading ? <div className="text-ink/40 text-sm py-2 text-center">Memuat…</div>
+            : (usage?.length ?? 0) === 0 ? <div className="text-ink/40 text-sm py-2 text-center">Belum ada sesi terpakai dari paket ini.</div>
+            : (
+              <ol className="space-y-1.5">
+                {usage!.map((u, i) => (
+                  <li key={i} className="flex items-center gap-2 text-sm">
+                    <span className="font-display font-semibold text-copper-700 w-12 shrink-0">{formatTime(u.start_time)}</span>
+                    <span className="flex-1 min-w-0"><span className="truncate">{u.title}</span> <span className="text-ink/45 text-xs">· {formatDate(u.session_date)}</span></span>
+                    <span className={`text-[10px] rounded-full px-2 py-0.5 shrink-0 ${u.status === 'attended' ? 'bg-copper-100 text-copper-700' : u.status === 'no_show' ? 'bg-clay/10 text-clay-dark' : 'bg-sand text-ink/50'}`}>{BOOKING_STATUS_LABEL[u.status]}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+        </div>
+      )}
     </div>
   )
 }

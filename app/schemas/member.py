@@ -1,10 +1,20 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, time, datetime
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field
 from app.models.user import UserRole, MemberCategory
 from app.models.package import MemberPackageStatus
 from app.models.payment import PaymentMethod, PaymentStatus
+from app.models.booking import BookingStatus
+
+
+class PackageUsageRow(BaseModel):
+    """Satu pemakaian sesi dari sebuah paket (booking yang menahan/memakai kuota)."""
+    session_date: date
+    start_time: time
+    title: str
+    status: BookingStatus
+    booked_at: datetime
 
 
 # ── User (member / instruktur / admin) ──
