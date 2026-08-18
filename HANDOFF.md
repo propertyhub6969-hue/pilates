@@ -105,6 +105,14 @@ Detail lengkap keputusan di memori `reformer-jadwal-redesign-plan.md`.
 - **Non-aktifkan → Per-Datang** (tombol di detail member) ubah kategori → tab Per-Datang (non-destruktif).
 - **Accordion pemakaian sesi** per paket: `GET /members/packages/{mp_id}/usage`.
 
+### Laporan Member (LIVE 18 Agu 2026)
+
+Menu **Laporan Member** (staf) — TAB + tabel paginasi:
+- **Ringkasan**: KPI (aktif/non-aktif/baru bln ini/perlu-perpanjang) + per kategori.
+- **Perlu Perpanjang**: `GET /reports/members?within_days` (staf) — coverage paket aktif habis ≤ now+within_days, urut kedaluwarsa + follow-up WA. Retensi/churn.
+- **Pendapatan** (OWNER saja): `GET /reports/member-revenue` (`require_owner`) — total LUNAS + jml transaksi + terakhir bayar per member, urut total desc.
+- Sisi **member**: seksi **Riwayat Kehadiran** di dashboard (`GET /bookings/me/history`).
+
 **Keuangan** (`models/finance.py`): `FinancialAccount` (kas/bank + saldo awal) & `Expense` (pengeluaran operasional per kategori). Endpoint `/finance/accounts|expenses|report`. Saldo akun = saldo awal + income LUNAS ter-atribusi + − pengeluaran. Income lunas otomatis masuk akun via **metode** (cash→akun kas, transfer/qris→bank) — `Payment.account_id` diisi saat lunas (`services/finance.resolve_income_account`). Menu FE: **Keuangan** (Pengeluaran + Akun + **Buku Besar**) & **Laporan** (income/expense/laba-rugi + per-kategori + saldo akun). Tab Pengeluaran & Laporan punya **filter tanggal Dari/Sampai** (default awal bulan→hari ini).
 
 **Buku Besar** (tab di Keuangan): `GET /finance/accounts/{id}/ledger?from&to` (JSON) — mutasi masuk (pembayaran LUNAS ter-atribusi) & keluar (pengeluaran) + saldo berjalan, dihitung dari SELURUH riwayat sejak saldo awal → saldo akhir selalu cocok dgn kartu akun (`_build_ledger`). Saldo awal periode + total masuk/keluar + saldo akhir.
