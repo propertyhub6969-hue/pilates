@@ -3,11 +3,34 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { api } from '@/services/api'
 import type { Page, PaymentRow, PaymentStatus } from '@/types'
 import { PAY_STATUS_LABEL, METHOD_LABEL } from '@/types'
-import { formatRupiah, formatDateTime } from '@/utils/format'
+import { formatRupiah, formatDateTime, formatDate } from '@/utils/format'
 import Modal from '@/components/Modal'
-import { CheckCircle2, Loader2, ChevronLeft, ChevronRight, ImageIcon, Trash2 } from 'lucide-react'
+import { CheckCircle2, Loader2, ChevronLeft, ChevronRight, ImageIcon, Trash2, Printer } from 'lucide-react'
 
 const PAGE_SIZE = 15
+
+interface Studio { name: string; address?: string | null; phone?: string | null }
+
+// Angka → terbilang (Bahasa Indonesia)
+function terbilang(num: number): string {
+  const n = Math.floor(Math.abs(num))
+  if (n === 0) return 'nol'
+  const s = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas']
+  const w = (x: number): string => {
+    if (x < 12) return s[x]
+    if (x < 20) return w(x - 10) + ' belas'
+    if (x < 100) return w(Math.floor(x / 10)) + ' puluh' + (x % 10 ? ' ' + w(x % 10) : '')
+    if (x < 200) return 'seratus' + (x - 100 ? ' ' + w(x - 100) : '')
+    if (x < 1000) return w(Math.floor(x / 100)) + ' ratus' + (x % 100 ? ' ' + w(x % 100) : '')
+    if (x < 2000) return 'seribu' + (x - 1000 ? ' ' + w(x - 1000) : '')
+    if (x < 1e6) return w(Math.floor(x / 1000)) + ' ribu' + (x % 1000 ? ' ' + w(x % 1000) : '')
+    if (x < 1e9) return w(Math.floor(x / 1e6)) + ' juta' + (x % 1e6 ? ' ' + w(x % 1e6) : '')
+    return w(Math.floor(x / 1e9)) + ' miliar' + (x % 1e9 ? ' ' + w(x % 1e9) : '')
+  }
+  return w(n).replace(/\s+/g, ' ').trim()
+}
+
+const receiptNo = (p: PaymentRow) => `KW-${new Date(p.created_at).getFullYear()}-${String(p.receipt_no ?? 0).padStart(5, '0')}`
 const FILTERS: { key: PaymentStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'Semua' },
   { key: 'paid', label: 'Lunas' },
@@ -45,6 +68,47 @@ export default function Payments() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['payments'] }),
     onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menghapus'),
   })
+
+  const { data: studio } = useQuery({
+    queryKey: ['studio-settings'],
+    queryFn: async () => (await api.get<Studio>('/studio/settings')).data,
+  })
+
+  function printReceipt(p: PaymentRow) {
+    const nama = studio?.name ?? 'Reformer Your Body'
+    const item = p.package_name ?? p.note ?? 'Pembayaran'
+    const statusLabel = PAY_STATUS_LABEL[p.status]
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Kuitansi ${receiptNo(p)}</title>
+<style>
+  *{box-sizing:border-box} body{font-family:'Segoe UI',Arial,sans-serif;color:#2A2724;margin:36px;font-size:14px}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #A9654E;padding-bottom:14px}
+  .studio{font-size:20px;font-weight:700;color:#8A5140}.muted{color:#888;font-size:12px}
+  .title{font-weight:700;letter-spacing:1px;font-size:16px}
+  table{width:100%;border-collapse:collapse;margin-top:20px} td{padding:7px 2px;vertical-align:top}
+  td.k{color:#888;width:150px} .amount{margin-top:18px;padding:12px 16px;background:#FBF1EB;border:1px solid #E8C2AF;border-radius:8px}
+  .amount .rp{font-size:22px;font-weight:700;color:#8A5140}.amount .tb{font-style:italic;color:#6b6b6b;font-size:13px;text-transform:capitalize}
+  .sign{margin-top:48px;text-align:right}.sign .line{margin-top:56px;border-top:1px solid #999;width:200px;display:inline-block}
+  .foot{margin-top:24px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:10px}
+  @media print{body{margin:0;padding:24px}}
+</style></head><body>
+  <div class="head">
+    <div><div class="studio">${nama}</div>${studio?.address ? `<div class="muted">${studio.address}</div>` : ''}${studio?.phone ? `<div class="muted">${studio.phone}</div>` : ''}</div>
+    <div style="text-align:right"><div class="title">KUITANSI</div><div class="muted">No. ${receiptNo(p)}</div><div class="muted">${formatDate(p.created_at)}</div></div>
+  </div>
+  <table>
+    <tr><td class="k">Telah diterima dari</td><td><b>${p.member_name ?? '—'}</b></td></tr>
+    <tr><td class="k">Untuk pembayaran</td><td>${item}</td></tr>
+    <tr><td class="k">Metode</td><td>${METHOD_LABEL[p.method]}</td></tr>
+    <tr><td class="k">Status</td><td>${statusLabel}${p.paid_at ? ` · ${formatDate(p.paid_at)}` : ''}</td></tr>
+  </table>
+  <div class="amount"><div class="rp">${formatRupiah(p.amount)}</div><div class="tb">${terbilang(p.amount)} rupiah</div></div>
+  <div class="sign"><div>Hormat kami,</div><div class="line"></div><div class="muted">${nama}</div></div>
+  <div class="foot">Kuitansi ini sah tanpa tanda tangan basah · dicetak ${formatDate(new Date().toISOString())}</div>
+</body></html>`
+    const wdw = window.open('', '_blank', 'width=760,height=900')
+    if (!wdw) { alert('Popup diblokir browser. Izinkan popup untuk mencetak.'); return }
+    wdw.document.write(html); wdw.document.close(); wdw.focus(); setTimeout(() => wdw.print(), 300)
+  }
 
   const [proofView, setProofView] = useState<{ url: string; isPdf: boolean } | null>(null)
   const [proofLoading, setProofLoading] = useState<string | null>(null)
@@ -132,6 +196,7 @@ export default function Payments() {
                             {verify.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                           </button>
                         )}
+                        <button onClick={() => printReceipt(p)} className="btn-ghost !px-2 !py-1.5 text-ink/55" title="Cetak kuitansi"><Printer size={14} /></button>
                         <button onClick={() => { if (confirm('Hapus pembayaran ini? Tak bisa dibatalkan.')) del.mutate(p.id) }} disabled={del.isPending}
                           className="btn-ghost !px-2 !py-1.5 text-clay-dark" title="Hapus pembayaran"><Trash2 size={14} /></button>
                       </div>

@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Numeric, Text, ForeignKey, DateTime, Enum as SAEnum
+from sqlalchemy import String, Numeric, Text, ForeignKey, DateTime, BigInteger, FetchedValue, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import BaseModel
@@ -42,6 +42,9 @@ class Payment(BaseModel):
     account_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("financial_accounts.id", ondelete="SET NULL"), nullable=True
     )
+
+    # Nomor kuitansi berurutan (di-generate DB via sequence) — utk cetak kuitansi.
+    receipt_no: Mapped[int] = mapped_column(BigInteger, server_default=FetchedValue(), unique=True, nullable=True)
 
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     method: Mapped[PaymentMethod] = mapped_column(

@@ -7,6 +7,7 @@ from app.models.payment import PaymentMethod, PaymentStatus
 
 class PaymentRow(BaseModel):
     id: uuid.UUID
+    receipt_no: Optional[int] = None
     member_id: uuid.UUID
     member_name: Optional[str] = None
     member_package_id: Optional[uuid.UUID] = None

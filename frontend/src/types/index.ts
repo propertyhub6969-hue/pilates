@@ -109,6 +109,7 @@ export interface MemberDetail extends User {
 
 export interface PaymentRow {
   id: string
+  receipt_no?: number | null
   member_id: string
   member_name?: string | null
   package_name?: string | null
