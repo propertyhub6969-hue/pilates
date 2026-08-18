@@ -12,6 +12,10 @@ function endTime(start: string, mins: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+// Tanggal zona studio (WITA)
+const todayISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date())
+const plusDays = (n: number) => { const [y, m, d] = todayISO().split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10) }
+
 const openLabel = (iso?: string | null) => {
   if (!iso) return ''
   const d = new Date(iso)
@@ -31,15 +35,23 @@ export default function MemberSchedule() {
   const qc = useQueryClient()
   const { branches, activeId, setActiveId } = useBranch()
   const [tab, setTab] = useState<'all' | 'mine'>('all')
+  const [range, setRange] = useState({ from: todayISO(), to: plusDays(14) })
+  const [instructorId, setInstructorId] = useState('')
 
   const { data: sessions, isLoading } = useQuery({
-    queryKey: ['sessions', tab, activeId],
+    queryKey: ['sessions', tab, activeId, range.from, range.to],
     enabled: tab === 'mine' || !!activeId,
     queryFn: async () =>
       (await api.get<ClassSession[]>('/schedule/sessions', {
-        params: tab === 'mine' ? { mine: true } : { branch_id: activeId },
+        params: tab === 'mine' ? { mine: true } : { branch_id: activeId, from: range.from, to: range.to },
       })).data,
   })
+
+  // Opsi instruktur diambil dari sesi yang tampil; filter di sisi klien.
+  const instructors = Array.from(
+    new Map((sessions ?? []).filter((s) => s.instructor_id).map((s) => [s.instructor_id!, s.instructor_name ?? '—'])).entries()
+  )
+  const shown = (sessions ?? []).filter((s) => !instructorId || s.instructor_id === instructorId)
 
   const book = useMutation({
     mutationFn: async (session_id: string) => api.post('/bookings', { session_id }),
@@ -47,7 +59,7 @@ export default function MemberSchedule() {
     onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal booking'),
   })
 
-  const groups = groupByDate(sessions ?? [])
+  const groups = groupByDate(shown)
 
   return (
     <div className="space-y-5">
@@ -73,6 +85,20 @@ export default function MemberSchedule() {
               <Building2 size={14} /> {b.name}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Filter tanggal & instruktur (saat lihat semua kelas) */}
+      {tab === 'all' && (
+        <div className="flex gap-2 items-end flex-wrap">
+          <div><label className="label !mb-1 text-xs">Dari</label><input type="date" className="input !py-1.5" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} /></div>
+          <div><label className="label !mb-1 text-xs">Sampai</label><input type="date" className="input !py-1.5" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} /></div>
+          <div className="min-w-[160px]"><label className="label !mb-1 text-xs">Instruktur</label>
+            <select className="input !py-1.5" value={instructorId} onChange={(e) => setInstructorId(e.target.value)}>
+              <option value="">Semua instruktur</option>
+              {instructors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </div>
         </div>
       )}
 
