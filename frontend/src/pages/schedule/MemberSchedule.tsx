@@ -4,7 +4,7 @@ import { api } from '@/services/api'
 import { useBranch } from '@/context/BranchContext'
 import type { ClassSession } from '@/types'
 import { formatTime, formatDayDate } from '@/utils/format'
-import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays, Building2, Check } from 'lucide-react'
+import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays, Building2, Check, ArrowRight } from 'lucide-react'
 
 function endTime(start: string, mins: number): string {
   const [h, m] = start.split(':').map(Number)
@@ -92,6 +92,8 @@ export default function MemberSchedule() {
       {tab === 'all' && (
         <div className="flex gap-2 items-end flex-wrap">
           <div><label className="label !mb-1 text-xs">Dari</label><input type="date" className="input !py-1.5" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} /></div>
+          <button type="button" onClick={() => setRange({ ...range, to: range.from })} title="Samakan: Sampai = Dari (lihat 1 hari)"
+            className="btn-ghost !px-2 !py-2 border border-sand text-copper-600 self-end"><ArrowRight size={16} /></button>
           <div><label className="label !mb-1 text-xs">Sampai</label><input type="date" className="input !py-1.5" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} /></div>
           <div className="min-w-[160px]"><label className="label !mb-1 text-xs">Instruktur</label>
             <select className="input !py-1.5" value={instructorId} onChange={(e) => setInstructorId(e.target.value)}>

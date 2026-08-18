@@ -8,7 +8,7 @@ import { formatTime, formatDayDate } from '@/utils/format'
 import Modal from '@/components/Modal'
 import {
   Plus, RefreshCw, Users, UserRound, MapPin, Loader2, CalendarDays,
-  Pencil, Trash2, XCircle, CalendarClock, CheckCircle2, RotateCcw, ChevronRight,
+  Pencil, Trash2, XCircle, CalendarClock, CheckCircle2, RotateCcw, ChevronRight, ArrowRight,
 } from 'lucide-react'
 
 // Tanggal "hari ini" menurut zona studio (WITA) — hindari bug UTC di dekat tengah malam.
@@ -174,6 +174,8 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
         {view === 'range' && (
           <div className="flex gap-2 items-end ml-1">
             <div><label className="label !mb-1 text-xs">Dari</label><input type="date" min={todayISO()} className="input !py-1.5" value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} /></div>
+            <button type="button" onClick={() => setCustom({ ...custom, to: custom.from })} title="Samakan: Sampai = Dari (lihat 1 hari)"
+              className="btn-ghost !px-2 !py-2 border border-sand text-copper-600 self-end"><ArrowRight size={16} /></button>
             <div><label className="label !mb-1 text-xs">Sampai</label><input type="date" min={todayISO()} className="input !py-1.5" value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} /></div>
           </div>
         )}
