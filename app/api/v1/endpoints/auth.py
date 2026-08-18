@@ -70,11 +70,9 @@ async def register_member(payload: MemberRegister, db: AsyncSession = Depends(ge
 
 @router.post("/login", response_model=Token)
 async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)):
-    user = (
-        await db.execute(select(User).where(User.email == payload.email.lower()))
-    ).scalar_one_or_none()
+    user = await _find_user_by_identifier(db, payload.identifier)
     if not user or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Email atau password salah")
+        raise HTTPException(status_code=401, detail="Email/No. WhatsApp atau password salah")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Akun non-aktif. Hubungi admin.")
     return _tokens_for(user)

@@ -7,7 +7,7 @@ import { Loader2 } from 'lucide-react'
 
 export default function Login() {
   const { login } = useAuth()
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,7 +17,7 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      await login(email.trim(), password)
+      await login(identifier.trim(), password)
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? 'Gagal masuk. Coba lagi.')
     } finally {
@@ -58,12 +58,12 @@ export default function Login() {
 
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
-              <label className="label">Email</label>
+              <label className="label">Email atau No. WhatsApp</label>
               <input
-                type="email" required autoFocus autoComplete="email"
-                className="input" value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nama@email.com"
+                type="text" required autoFocus autoComplete="username"
+                className="input" value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="nama@email.com atau 0812xxxxxxx"
               />
             </div>
             <div>

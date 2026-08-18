@@ -9,7 +9,7 @@ const AUTO_REFRESH_MS = 15 * 60 * 1000        // segarkan semua data tiap 15 men
 interface AuthState {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (identifier: string, password: string) => Promise<void>
   register: (data: {
     email: string; password: string; full_name: string; phone?: string
     member_category?: string; package_id?: string; payment_method?: string
@@ -40,8 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { loadMe() }, [])
 
-  async function login(email: string, password: string) {
-    const { data } = await api.post('/auth/login', { email, password })
+  async function login(identifier: string, password: string) {
+    const { data } = await api.post('/auth/login', { identifier, password })
     tokenStore.set(data.access_token, data.refresh_token)
     const me = await api.get<User>('/auth/me')
     setUser(me.data)

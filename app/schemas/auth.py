@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, AliasChoices
 from app.models.user import UserRole, MemberCategory
 from app.models.payment import PaymentMethod
 
@@ -19,7 +19,9 @@ class MemberRegister(BaseModel):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    # Bisa login pakai email ATAU nomor WhatsApp yang didaftarkan.
+    # Terima key "identifier" (baru) maupun "email" (lama) demi kompatibilitas.
+    identifier: str = Field(validation_alias=AliasChoices("identifier", "email"))
     password: str
 
 
