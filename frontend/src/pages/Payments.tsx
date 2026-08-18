@@ -5,7 +5,7 @@ import type { Page, PaymentRow, PaymentStatus } from '@/types'
 import { PAY_STATUS_LABEL, METHOD_LABEL } from '@/types'
 import { formatRupiah, formatDateTime } from '@/utils/format'
 import Modal from '@/components/Modal'
-import { CheckCircle2, Loader2, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
+import { CheckCircle2, Loader2, ChevronLeft, ChevronRight, ImageIcon, Trash2 } from 'lucide-react'
 
 const PAGE_SIZE = 15
 const FILTERS: { key: PaymentStatus | 'all'; label: string }[] = [
@@ -39,6 +39,11 @@ export default function Payments() {
   const verify = useMutation({
     mutationFn: async (pid: string) => api.patch(`/payments/${pid}`, { status: 'paid' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['payments'] }),
+  })
+  const del = useMutation({
+    mutationFn: async (pid: string) => api.delete(`/payments/${pid}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['payments'] }),
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menghapus'),
   })
 
   const [proofView, setProofView] = useState<{ url: string; isPdf: boolean } | null>(null)
@@ -120,12 +125,16 @@ export default function Payments() {
                     </td>
                     <td className="px-4 py-3"><StatusBadge s={p.status} /></td>
                     <td className="px-2 py-3">
-                      {p.status === 'pending' && (
-                        <button onClick={() => verify.mutate(p.id)} disabled={verify.isPending}
-                          className="btn-primary !px-2.5 !py-1.5" title="Tandai lunas">
-                          {verify.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1 justify-end">
+                        {p.status === 'pending' && (
+                          <button onClick={() => verify.mutate(p.id)} disabled={verify.isPending}
+                            className="btn-primary !px-2.5 !py-1.5" title="Tandai lunas">
+                            {verify.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                          </button>
+                        )}
+                        <button onClick={() => { if (confirm('Hapus pembayaran ini? Tak bisa dibatalkan.')) del.mutate(p.id) }} disabled={del.isPending}
+                          className="btn-ghost !px-2 !py-1.5 text-clay-dark" title="Hapus pembayaran"><Trash2 size={14} /></button>
+                      </div>
                     </td>
                   </tr>
                 ))

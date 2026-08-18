@@ -84,6 +84,38 @@ async def update_payment_status(
     return row
 
 
+@router.delete("/{payment_id}", status_code=204)
+async def delete_payment(payment_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """Batalkan/hapus pembayaran.
+    - Member: hanya tagihannya sendiri yang masih PENDING (mis. salah klik beli).
+    - Staf: hapus pembayaran apa pun.
+    Bila terkait paket/tiket yang masih FROZEN (belum aktif) → paket ikut dihapus."""
+    pay = (await db.execute(select(Payment).where(Payment.id == payment_id))).scalar_one_or_none()
+    if not pay:
+        raise HTTPException(404, "Pembayaran tidak ditemukan")
+    if not user.is_staff():
+        if pay.member_id != user.id:
+            raise HTTPException(403, "Tidak boleh membatalkan pembayaran orang lain")
+        if pay.status != PaymentStatus.PENDING:
+            raise HTTPException(400, "Hanya tagihan yang belum dibayar yang bisa dibatalkan")
+
+    # Bersihkan paket/tiket yang belum aktif (FROZEN) — dibuat bersama tagihan ini
+    if pay.member_package_id:
+        mp = (await db.execute(select(MemberPackage).where(MemberPackage.id == pay.member_package_id))).scalar_one_or_none()
+        if mp and mp.status == MemberPackageStatus.FROZEN:
+            await db.delete(mp)
+    # Hapus file bukti bila ada
+    if pay.proof_path:
+        full = os.path.join(UPLOAD_DIR, pay.proof_path)
+        if os.path.exists(full):
+            try:
+                os.remove(full)
+            except OSError:
+                pass
+    await db.delete(pay)
+    return None
+
+
 @router.post("/{payment_id}/proof")
 async def upload_proof(
     payment_id: uuid.UUID,

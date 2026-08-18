@@ -4,12 +4,12 @@ import { Link } from 'react-router-dom'
 import { api } from '@/services/api'
 import { useAuth } from '@/context/AuthContext'
 import { useBranch } from '@/context/BranchContext'
-import { ROLE_LABEL, isStaff } from '@/types'
-import type { MemberDetail, MyBooking } from '@/types'
-import { formatRupiah, formatDate, formatDayDate, formatTime } from '@/utils/format'
+import { ROLE_LABEL, isStaff, PAY_STATUS_LABEL, METHOD_LABEL } from '@/types'
+import type { MemberDetail, MyBooking, PaymentStatus } from '@/types'
+import { formatRupiah, formatDate, formatDayDate, formatTime, formatDateTime } from '@/utils/format'
 import {
   CalendarDays, Users, Wallet, Infinity as InfinityIcon, ShoppingBag,
-  TrendingUp, Clock, UserRound, Landmark, Upload, Loader2, Check, Zap, CircleDollarSign, Plus,
+  TrendingUp, Clock, UserRound, Landmark, Upload, Loader2, Check, Zap, CircleDollarSign, Plus, Receipt, X,
 } from 'lucide-react'
 
 /* ═══════════════ STAF ═══════════════ */
@@ -82,6 +82,7 @@ function MemberHome() {
       {!enrolled && pending.length === 0 && <EnrollCard qc={qc} />}
       {pending.length > 0 && <PendingSection payments={pending} m={m} qc={qc} />}
       {enrolled && <ActiveMemberView m={m} bookings={bookings} />}
+      {m.payments.length > 0 && <PaymentHistory payments={m.payments} />}
     </div>
   )
 }
@@ -241,6 +242,11 @@ function PendingRow({ payment, m, qc }: { payment: MemberDetail['payments'][numb
     onSuccess: () => qc.invalidateQueries({ queryKey: ['me-detail'] }),
     onError: (e: any) => setError(e?.response?.data?.detail ?? 'Gagal mengunggah'),
   })
+  const cancel = useMutation({
+    mutationFn: async () => api.delete(`/payments/${payment.id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me-detail'] }),
+    onError: (e: any) => setError(e?.response?.data?.detail ?? 'Gagal membatalkan'),
+  })
 
   return (
     <div className="card space-y-3">
@@ -269,6 +275,38 @@ function PendingRow({ payment, m, qc }: { payment: MemberDetail['payments'][numb
           </button>
         </>
       )}
+      <button onClick={() => { if (confirm('Batalkan tagihan ini?')) cancel.mutate() }} disabled={cancel.isPending}
+        className="w-full text-xs text-clay-dark hover:underline inline-flex items-center justify-center gap-1 pt-1">
+        {cancel.isPending ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />} Batalkan tagihan
+      </button>
+    </div>
+  )
+}
+
+function StatusPill({ s }: { s: PaymentStatus }) {
+  const cls = s === 'paid' ? 'bg-copper-100 text-copper-700' : s === 'pending' ? 'bg-clay/10 text-clay-dark' : 'bg-sand text-ink/50'
+  return <span className={`text-[10px] rounded-full px-2 py-0.5 ${cls}`}>{PAY_STATUS_LABEL[s]}</span>
+}
+
+function PaymentHistory({ payments }: { payments: MemberDetail['payments'] }) {
+  const sorted = [...payments].sort((a, b) => b.created_at.localeCompare(a.created_at))
+  return (
+    <div>
+      <h2 className="font-display text-lg font-semibold mb-2 flex items-center gap-2"><Receipt size={18} /> Riwayat Pembayaran</h2>
+      <div className="card !p-0 overflow-hidden divide-y divide-sand">
+        {sorted.map((p) => (
+          <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-sm truncate">{p.note ?? 'Pembayaran'}</div>
+              <div className="text-[11px] text-ink/45">{formatDateTime(p.created_at)} · {METHOD_LABEL[p.method]}</div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="font-semibold text-sm whitespace-nowrap">{formatRupiah(p.amount)}</div>
+              <StatusPill s={p.status} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
