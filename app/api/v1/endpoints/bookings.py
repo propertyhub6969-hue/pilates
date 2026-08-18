@@ -3,7 +3,7 @@ from datetime import date, time, datetime, timezone
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.deps import get_current_user, require_staff
@@ -122,8 +122,12 @@ async def my_history(db: AsyncSession = Depends(get_db), user: User = Depends(ge
             .join(ClassSession, Booking.session_id == ClassSession.id)
             .where(
                 Booking.member_id == user.id,
-                ClassSession.session_date < booking_svc.today_local(),
                 Booking.status.in_([BookingStatus.BOOKED, BookingStatus.ATTENDED, BookingStatus.NO_SHOW]),
+                # sesi sudah lewat ATAU sudah ditandai hadir/tidak-hadir
+                or_(
+                    ClassSession.session_date < booking_svc.today_local(),
+                    Booking.status.in_([BookingStatus.ATTENDED, BookingStatus.NO_SHOW]),
+                ),
             )
             .order_by(ClassSession.session_date.desc(), ClassSession.start_time.desc())
             .limit(100)
