@@ -16,6 +16,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.user import User, UserRole, MemberCategory
 from app.models.package import MemberPackage, MemberPackageStatus
 from app.services.whatsapp import send_whatsapp, send_whatsapp_group
+from app.services.booking import today_local
 
 _DOW = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
 _MON = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
@@ -23,6 +24,17 @@ _MON = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt"
 
 def _date_label(d: date) -> str:
     return f"{_DOW[d.weekday()]}, {d.day} {_MON[d.month]} {d.year}"
+
+
+def _rel_day(d: date, today: date) -> str:
+    """Kata relatif: hari ini / besok / lusa; selain itu string kosong."""
+    return {0: "hari ini", 1: "besok", 2: "lusa"}.get((d - today).days, "")
+
+
+def _when_phrase(d: date, today: date) -> str:
+    """'kelas besok (Rabu, 20 Agu 2026)' / 'kelas pada Sabtu, 24 Agu 2026'."""
+    rel = _rel_day(d, today)
+    return f"{rel} ({_date_label(d)})" if rel else f"pada {_date_label(d)}"
 
 
 def _hhmm(t: time) -> str:
@@ -102,13 +114,13 @@ async def notify_dropin(db: AsyncSession, target_date: date, jitter=(3.0, 7.0)) 
     if not members:
         return {"ok": True, "sent": 0, "total": 0, "reason": "tak ada per-datang bertiket"}
 
+    when = _when_phrase(target_date, today_local())
     sent = 0
     for i, m in enumerate(members):
         if i > 0:
             await asyncio.sleep(random.uniform(*jitter))
         msg = (
-            f"Halo {m.full_name}, masih ada slot *drop-in* untuk kelas besok "
-            f"({_date_label(target_date)}) 🎟️\n"
+            f"Halo {m.full_name}, masih ada slot *drop-in* untuk kelas {when} 🎟️\n"
             f"Kamu punya tiket aktif — tinggal pilih kelas & booking:\n{booking_url}"
         )
         ok, _info = await send_whatsapp(m.phone, msg)
