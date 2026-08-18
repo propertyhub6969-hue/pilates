@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useBranch } from '@/context/BranchContext'
@@ -12,25 +12,50 @@ import {
   Coins, BarChart3, ShieldCheck, UsersRound, History,
 } from 'lucide-react'
 
-interface NavItem { icon: any; label: string; short: string; to: string; roles: 'all' | 'staff' | 'owner' | 'member' }
+type Role = 'all' | 'staff' | 'owner' | 'member'
+interface NavItem { icon: any; label: string; short: string; to: string; roles: Role }
+interface NavGroup { icon: any; label: string; roles: Role; children: NavItem[] }
+type NavEntry = NavItem | NavGroup
+const isGroup = (e: NavEntry): e is NavGroup => 'children' in e
 
-const NAV: NavItem[] = [
+function roleOk(roles: Role, role?: UserRole): boolean {
+  if (roles === 'all') return true
+  if (roles === 'staff') return isStaff(role)
+  if (roles === 'owner') return isOwner(role)
+  if (roles === 'member') return !isStaff(role)  // hanya member
+  return false
+}
+
+// Nav back office: 2 menu langsung + 3 grup ber-submenu
+const STAFF_NAV: NavEntry[] = [
+  { icon: LayoutDashboard, label: 'Dashboard', short: 'Home', to: '/', roles: 'all' },
+  { icon: CalendarDays, label: 'Jadwal', short: 'Jadwal', to: '/jadwal', roles: 'all' },
+  { icon: Users, label: 'Member', roles: 'staff', children: [
+    { icon: Users, label: 'Data Member', short: 'Member', to: '/member', roles: 'staff' },
+    { icon: UsersRound, label: 'Laporan Member', short: 'Lap. Mbr', to: '/laporan-member', roles: 'staff' },
+    { icon: Package, label: 'Paket', short: 'Paket', to: '/paket', roles: 'staff' },
+  ] },
+  { icon: Coins, label: 'Keuangan', roles: 'staff', children: [
+    { icon: Wallet, label: 'Pembayaran', short: 'Bayar', to: '/pembayaran', roles: 'staff' },
+    { icon: Coins, label: 'Kas & Pengeluaran', short: 'Uang', to: '/keuangan', roles: 'staff' },
+    { icon: BarChart3, label: 'Laporan Keuangan', short: 'Laporan', to: '/laporan', roles: 'owner' },
+  ] },
+  { icon: SettingsIcon, label: 'Pengaturan', roles: 'staff', children: [
+    { icon: Building2, label: 'Cabang', short: 'Cabang', to: '/cabang', roles: 'staff' },
+    { icon: ShieldCheck, label: 'Pengguna Sistem', short: 'User', to: '/pengguna', roles: 'owner' },
+    { icon: SettingsIcon, label: 'Pengaturan Studio', short: 'Set', to: '/pengaturan', roles: 'staff' },
+  ] },
+]
+
+// Nav member (flat): dashboard, jadwal, riwayat
+const MEMBER_NAV: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', short: 'Home', to: '/', roles: 'all' },
   { icon: CalendarDays, label: 'Jadwal', short: 'Jadwal', to: '/jadwal', roles: 'all' },
   { icon: History, label: 'Riwayat', short: 'Riwayat', to: '/riwayat', roles: 'member' },
-  { icon: Users, label: 'Member', short: 'Member', to: '/member', roles: 'staff' },
-  { icon: UsersRound, label: 'Laporan Member', short: 'Lap. Mbr', to: '/laporan-member', roles: 'staff' },
-  { icon: Package, label: 'Paket', short: 'Paket', to: '/paket', roles: 'staff' },
-  { icon: Wallet, label: 'Pembayaran', short: 'Bayar', to: '/pembayaran', roles: 'staff' },
-  { icon: Coins, label: 'Keuangan', short: 'Uang', to: '/keuangan', roles: 'staff' },
-  { icon: BarChart3, label: 'Laporan', short: 'Laporan', to: '/laporan', roles: 'owner' },
-  { icon: Building2, label: 'Cabang', short: 'Cabang', to: '/cabang', roles: 'staff' },
-  { icon: ShieldCheck, label: 'Pengguna', short: 'User', to: '/pengguna', roles: 'owner' },
 ]
 
-// item nav yang boleh dilihat peran tertentu
-function navFor(role?: UserRole): NavItem[] {
-  return NAV.filter((n) => n.roles === 'all' || (n.roles === 'staff' && isStaff(role)) || (n.roles === 'owner' && isOwner(role)))
+function pathActive(to: string, pathname: string): boolean {
+  return to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(to + '/')
 }
 
 function BranchSwitcher() {
@@ -109,28 +134,74 @@ function UserMenu() {
   )
 }
 
+/* ─────────────── Komponen sidebar (menu + submenu) ─────────────── */
+function SidebarLeaf({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
+  return (
+    <NavLink to={item.to} end={item.to === '/'} onClick={onNavigate}
+      className={({ isActive }) =>
+        `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+          isActive ? 'bg-copper-100 text-copper-700' : 'text-ink/65 hover:bg-sand'}`}>
+      <item.icon size={18} /> {item.label}
+    </NavLink>
+  )
+}
+
+function SidebarGroup({ group, role, onNavigate }: { group: NavGroup; role?: UserRole; onNavigate: () => void }) {
+  const loc = useLocation()
+  const children = group.children.filter((c) => roleOk(c.roles, role))
+  const activeInside = children.some((c) => pathActive(c.to, loc.pathname))
+  const [open, setOpen] = useState(activeInside)
+  useEffect(() => { if (activeInside) setOpen(true) }, [activeInside])
+  if (!children.length) return null
+  return (
+    <div>
+      <button onClick={() => setOpen((o) => !o)}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+          activeInside ? 'text-copper-700' : 'text-ink/65 hover:bg-sand'}`}>
+        <group.icon size={18} />
+        <span className="flex-1 text-left">{group.label}</span>
+        <ChevronDown size={15} className={`text-ink/40 transition-transform ${open ? '' : '-rotate-90'}`} />
+      </button>
+      {open && (
+        <div className="mt-1 ml-4 pl-3 border-l border-sand space-y-1">
+          {children.map((c) => (
+            <NavLink key={c.to} to={c.to} end={c.to === '/'} onClick={onNavigate}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition ${
+                  isActive ? 'bg-copper-100 text-copper-700 font-medium' : 'text-ink/60 hover:bg-sand'}`}>
+              <c.icon size={16} /> {c.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SidebarNav({ role, onNavigate }: { role?: UserRole; onNavigate: () => void }) {
+  return (
+    <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+      {STAFF_NAV.map((e) =>
+        isGroup(e)
+          ? <SidebarGroup key={e.label} group={e} role={role} onNavigate={onNavigate} />
+          : (roleOk(e.roles, role) ? <SidebarLeaf key={e.to} item={e} onNavigate={onNavigate} /> : null)
+      )}
+    </nav>
+  )
+}
+
 /* ─────────────── BACK OFFICE: SIDEBAR ─────────────── */
 function StaffShell() {
   const [drawer, setDrawer] = useState(false)
   const loc = useLocation()
   const { user } = useAuth()
-  const items = navFor(user?.role)
 
   const SidebarBody = (
     <>
       <div className="h-16 flex items-center px-5 border-b border-sand">
         <Link to="/" onClick={() => setDrawer(false)}><Brand size="sm" imgClassName="!h-9" showName /></Link>
       </div>
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {items.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.to === '/'} onClick={() => setDrawer(false)}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
-                isActive ? 'bg-copper-100 text-copper-700' : 'text-ink/65 hover:bg-sand'}`}>
-            <n.icon size={18} /> {n.label}
-          </NavLink>
-        ))}
-      </nav>
+      <SidebarNav role={user?.role} onNavigate={() => setDrawer(false)} />
     </>
   )
 
@@ -177,7 +248,7 @@ function StaffShell() {
 
 /* ─────────────── MEMBER: TOP + BOTTOM NAV (mobile-first) ─────────────── */
 function MemberShell() {
-  const items = NAV.filter((n) => n.roles === 'all' || n.roles === 'member')
+  const items = MEMBER_NAV
   return (
     <div className="min-h-screen bg-cream">
       <header className="sticky top-0 z-20 bg-cream/80 backdrop-blur border-b border-sand">
