@@ -9,14 +9,15 @@ import Avatar from '@/components/Avatar'
 import {
   LogOut, LayoutDashboard, CalendarDays, Users, Wallet, Package,
   ChevronDown, UserRound, Settings as SettingsIcon, Menu, X, Building2, Plus,
-  Coins, BarChart3, ShieldCheck, UsersRound,
+  Coins, BarChart3, ShieldCheck, UsersRound, History,
 } from 'lucide-react'
 
-interface NavItem { icon: any; label: string; short: string; to: string; roles: 'all' | 'staff' | 'owner' }
+interface NavItem { icon: any; label: string; short: string; to: string; roles: 'all' | 'staff' | 'owner' | 'member' }
 
 const NAV: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', short: 'Home', to: '/', roles: 'all' },
   { icon: CalendarDays, label: 'Jadwal', short: 'Jadwal', to: '/jadwal', roles: 'all' },
+  { icon: History, label: 'Riwayat', short: 'Riwayat', to: '/riwayat', roles: 'member' },
   { icon: Users, label: 'Member', short: 'Member', to: '/member', roles: 'staff' },
   { icon: UsersRound, label: 'Laporan Member', short: 'Lap. Mbr', to: '/laporan-member', roles: 'staff' },
   { icon: Package, label: 'Paket', short: 'Paket', to: '/paket', roles: 'staff' },
@@ -176,7 +177,7 @@ function StaffShell() {
 
 /* ─────────────── MEMBER: TOP + BOTTOM NAV (mobile-first) ─────────────── */
 function MemberShell() {
-  const items = NAV.filter((n) => n.roles === 'all')
+  const items = NAV.filter((n) => n.roles === 'all' || n.roles === 'member')
   return (
     <div className="min-h-screen bg-cream">
       <header className="sticky top-0 z-20 bg-cream/80 backdrop-blur border-b border-sand">

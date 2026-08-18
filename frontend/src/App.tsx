@@ -9,6 +9,7 @@ import Register from '@/pages/Register'
 import ForgotPassword from '@/pages/ForgotPassword'
 import Dashboard from '@/pages/Dashboard'
 import Schedule from '@/pages/Schedule'
+import Riwayat from '@/pages/Riwayat'
 import Members from '@/pages/Members'
 import MemberDetail from '@/pages/MemberDetail'
 import MemberReport from '@/pages/MemberReport'
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="jadwal" element={<Schedule />} />
+          <Route path="riwayat" element={<Riwayat />} />
           <Route path="profil" element={<Profile />} />
           {staff && <Route path="member" element={<Members />} />}
           {staff && <Route path="member/:id" element={<MemberDetail />} />}
