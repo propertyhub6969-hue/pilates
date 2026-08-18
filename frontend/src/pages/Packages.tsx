@@ -14,12 +14,13 @@ interface FormState {
   session_count: string
   price: string
   validity_days: string
+  monthly_expiry: boolean
   is_active: boolean
 }
 
 const EMPTY: FormState = {
   name: '', description: '', is_unlimited: false,
-  session_count: '', price: '', validity_days: '', is_active: true,
+  session_count: '', price: '', validity_days: '', monthly_expiry: false, is_active: true,
 }
 
 export default function Packages() {
@@ -41,7 +42,8 @@ export default function Packages() {
         is_unlimited: f.is_unlimited,
         session_count: f.is_unlimited ? null : Number(f.session_count),
         price: Number(f.price),
-        validity_days: f.validity_days ? Number(f.validity_days) : null,
+        validity_days: f.monthly_expiry ? null : (f.validity_days ? Number(f.validity_days) : null),
+        monthly_expiry: f.monthly_expiry,
         is_active: f.is_active,
       }
       if (f.id) return (await api.patch(`/packages/${f.id}`, body)).data
@@ -62,6 +64,7 @@ export default function Packages() {
       id: p.id, name: p.name, description: p.description ?? '',
       is_unlimited: p.is_unlimited, session_count: p.session_count?.toString() ?? '',
       price: p.price.toString(), validity_days: p.validity_days?.toString() ?? '',
+      monthly_expiry: p.monthly_expiry ?? false,
       is_active: p.is_active,
     })
     setError(''); setOpen(true)
@@ -98,7 +101,8 @@ export default function Packages() {
                 ) : (
                   <span>{p.session_count} sesi</span>
                 )}
-                {p.validity_days && <span>· berlaku {p.validity_days} hari</span>}
+                {p.monthly_expiry ? <span className="text-xs rounded-full px-2 py-0.5 bg-copper-50 text-copper-700 border border-copper-100">Bulanan · akhir bulan</span>
+                  : p.validity_days ? <span>· berlaku {p.validity_days} hari</span> : null}
               </div>
               {p.description && <p className="text-sm text-ink/50 mt-1">{p.description}</p>}
               <div className="mt-3 font-display text-xl font-semibold text-copper-700">{formatRupiah(p.price)}</div>
@@ -133,6 +137,11 @@ export default function Packages() {
                 onChange={(e) => setForm({ ...form, session_count: e.target.value })} placeholder="10" />
             </div>
           )}
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={form.monthly_expiry}
+              onChange={(e) => setForm({ ...form, monthly_expiry: e.target.checked })} />
+            <span>Paket <b>bulanan</b> <span className="text-ink/50">— kedaluwarsa akhir bulan pembayaran; sisa sesi diakumulasi bila perpanjang sebelum habis, hangus bila telat. Reminder WA H-1.</span></span>
+          </label>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Harga (Rp)</label>
@@ -141,8 +150,9 @@ export default function Packages() {
             </div>
             <div>
               <label className="label">Masa berlaku (hari)</label>
-              <input className="input" type="number" min={1} value={form.validity_days}
-                onChange={(e) => setForm({ ...form, validity_days: e.target.value })} placeholder="60" />
+              <input className="input disabled:opacity-50" type="number" min={1} value={form.monthly_expiry ? '' : form.validity_days}
+                disabled={form.monthly_expiry}
+                onChange={(e) => setForm({ ...form, validity_days: e.target.value })} placeholder={form.monthly_expiry ? 'akhir bulan' : '60'} />
             </div>
           </div>
           <div>

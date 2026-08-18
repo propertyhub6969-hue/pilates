@@ -1,11 +1,70 @@
 """Pembelian paket oleh member (self) atau staf. Buat MemberPackage (snapshot) + Payment."""
 from datetime import datetime, timezone, timedelta
+from calendar import monthrange
+from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.package import Package, MemberPackage, MemberPackageStatus
 from app.models.payment import Payment, PaymentMethod, PaymentStatus
+from app.services.quota import refresh_status
+
+TZ = ZoneInfo(settings.TIMEZONE)
+
+
+def _end_of_month(d) -> datetime:
+    """Akhir bulan `d` pukul 23:59:59 zona studio (WITA)."""
+    last = monthrange(d.year, d.month)[1]
+    return datetime(d.year, d.month, last, 23, 59, 59, tzinfo=TZ)
+
+
+def _next_month_end(d) -> datetime:
+    """Akhir bulan SETELAH bulan `d`."""
+    y, m = (d.year + 1, 1) if d.month == 12 else (d.year, d.month + 1)
+    last = monthrange(y, m)[1]
+    return datetime(y, m, last, 23, 59, 59, tzinfo=TZ)
+
+
+async def apply_monthly_expiry(db: AsyncSession, mp: MemberPackage) -> None:
+    """Terapkan aturan paket BULANAN saat paket menjadi AKTIF:
+    - Kedaluwarsa = akhir bulan pembayaran.
+    - Bila member masih punya paket bulanan lama yang VALID (perpanjang tepat waktu) →
+      sisa sesinya diakumulasi ke paket ini & paket baru berlaku s/d akhir bulan BERIKUTNYA;
+      paket lama ditutup. Bila tidak ada (baru/telat) → berlaku s/d akhir bulan ini, tanpa carryover.
+    """
+    now = datetime.now(timezone.utc)
+    priors = (
+        await db.execute(
+            select(MemberPackage).where(
+                MemberPackage.member_id == mp.member_id,
+                MemberPackage.id != mp.id,
+                MemberPackage.monthly_expiry.is_(True),
+                MemberPackage.status == MemberPackageStatus.ACTIVE,
+            )
+        )
+    ).scalars().all()
+    valid = [p for p in priors if p.expires_at and p.expires_at > now and not p.is_unlimited and (p.sessions_remaining or 0) > 0]
+    carry = sum(p.sessions_remaining for p in valid)
+
+    if valid:
+        base = max(p.expires_at for p in valid)          # kedaluwarsa terbaru dari paket lama
+        mp.expires_at = _next_month_end(base.astimezone(TZ).date())
+    else:
+        mp.expires_at = _end_of_month(datetime.now(TZ).date())
+
+    for p in valid:                                       # paket lama digantikan → tutup
+        p.sessions_remaining = 0
+        p.status = MemberPackageStatus.CANCELLED
+    for p in priors:                                      # paket bulanan yang sudah lewat → hangus/EXPIRED
+        if p not in valid and p.expires_at and p.expires_at <= now:
+            p.status = MemberPackageStatus.EXPIRED
+
+    if carry and not mp.is_unlimited and mp.sessions_remaining is not None:
+        mp.sessions_total = (mp.sessions_total or 0) + carry
+        mp.sessions_remaining = (mp.sessions_remaining or 0) + carry
+    refresh_status(mp)
 
 
 async def create_purchase(
@@ -35,6 +94,7 @@ async def create_purchase(
         package_id=pkg.id,
         package_name=pkg.name,
         is_unlimited=pkg.is_unlimited,
+        monthly_expiry=pkg.monthly_expiry,
         sessions_total=total,
         sessions_remaining=total,
         price_paid=price,
@@ -44,6 +104,10 @@ async def create_purchase(
     )
     db.add(mp)
     await db.flush()
+    # Paket bulanan yang langsung AKTIF → hitung kedaluwarsa akhir bulan + akumulasi sisa.
+    if pkg.monthly_expiry and activate:
+        await apply_monthly_expiry(db, mp)
+        await db.flush()
 
     account_id = None
     if mark_paid:

@@ -122,3 +122,56 @@ async def run_reminder_pass(db: AsyncSession, kind: str = "h1", force: bool = Fa
             results["detail"].append(f"{member.full_name} ({member.phone}) → {info}")
     await db.flush()
     return results
+
+
+async def run_expiry_reminders(db: AsyncSession, force: bool = False) -> dict:
+    """Reminder H-1 sebelum paket BULANAN kedaluwarsa (akhir bulan). Idempoten via
+    MemberPackage.expiry_reminded_at."""
+    from app.models.package import MemberPackage, MemberPackageStatus
+    from app.models.studio import StudioSettings
+    from app.services.booking import today_local
+    from app.services.purchase import TZ
+
+    studio = (await db.execute(select(StudioSettings))).scalars().first()
+    booking_url = studio.booking_url if studio else "https://reformeryourbody.com/jadwal"
+    tomorrow = today_local() + timedelta(days=1)
+
+    rows = (
+        await db.execute(
+            select(MemberPackage, User)
+            .join(User, MemberPackage.member_id == User.id)
+            .where(
+                MemberPackage.monthly_expiry.is_(True),
+                MemberPackage.status == MemberPackageStatus.ACTIVE,
+                MemberPackage.expires_at.isnot(None),
+            )
+        )
+    ).all()
+    results = {"kind": "expiry", "sent": 0, "skipped": 0, "failed": 0, "detail": []}
+    for mp, member in rows:
+        if mp.expires_at.astimezone(TZ).date() != tomorrow:
+            continue
+        if mp.expiry_reminded_at and not force:
+            results["skipped"] += 1
+            continue
+        if not member.phone:
+            results["skipped"] += 1
+            results["detail"].append(f"{member.full_name}: tak ada nomor HP")
+            continue
+        sisa = "unlimited" if mp.is_unlimited else f"{mp.sessions_remaining or 0} sesi"
+        msg = (
+            f"Halo {member.full_name}, paket bulananmu (*{sisa} tersisa*) berakhir "
+            f"*besok, {tomorrow.strftime('%d/%m/%Y')}*.\n"
+            f"Perpanjang *sebelum habis* agar sisa sesimu TIDAK hangus & ikut terbawa ke bulan depan 🎯\n{booking_url}"
+        )
+        ok, info = await send_whatsapp(member.phone, msg)
+        if ok:
+            mp.expiry_reminded_at = datetime.now(timezone.utc)
+            results["sent"] += 1
+        elif info.startswith("DRY-RUN"):
+            results["skipped"] += 1
+        else:
+            results["failed"] += 1
+        results["detail"].append(f"{member.full_name} ({member.phone}) → {info}")
+    await db.flush()
+    return results

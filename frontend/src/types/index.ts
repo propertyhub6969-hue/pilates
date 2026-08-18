@@ -55,6 +55,7 @@ export interface Package {
   session_count?: number | null
   price: number
   validity_days?: number | null
+  monthly_expiry?: boolean
   is_active: boolean
   created_at: string
 }

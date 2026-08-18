@@ -77,6 +77,9 @@ async def update_payment_status(
             if mp and mp.status == MemberPackageStatus.FROZEN:
                 mp.status = MemberPackageStatus.ACTIVE
                 refresh_status(mp)
+                if mp.monthly_expiry:  # paket bulanan → kedaluwarsa akhir bulan + akumulasi sisa
+                    from app.services.purchase import apply_monthly_expiry
+                    await apply_monthly_expiry(db, mp)
     await db.flush()
     await db.refresh(pay)
     row = PaymentRow.model_validate(pay)
