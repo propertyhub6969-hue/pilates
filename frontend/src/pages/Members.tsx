@@ -6,7 +6,7 @@ import { waLink, formatDate } from '@/utils/format'
 import type { Page, User, MemberCategory } from '@/types'
 import { CATEGORY_SHORT, SESSION_STATUS_LABEL, sessionStatusStyle } from '@/types'
 import Modal from '@/components/Modal'
-import { Plus, Search, ChevronRight, Loader2, UserRound, ChevronLeft, MessageCircle, Infinity as InfinityIcon } from 'lucide-react'
+import { Plus, Search, ChevronRight, Loader2, UserRound, ChevronLeft, MessageCircle, Infinity as InfinityIcon, Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
 type Tab = 'all' | 'bulanan' | 'private' | 'per_datang' | 'instructor'
 const PAGE_SIZE = 15
@@ -25,6 +25,7 @@ export default function Members() {
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [open, setOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '', category: 'bulanan' as MemberCategory })
 
@@ -78,10 +79,20 @@ export default function Members() {
     <div>
       <div className="flex items-center justify-between mb-5">
         <h1 className="font-display text-2xl font-semibold">Orang</h1>
-        <button onClick={openAdd} className="btn-primary">
-          <Plus size={16} /> Tambah {isMemberTab ? 'Member' : 'Instruktur'}
-        </button>
+        <div className="flex gap-2">
+          {isMemberTab && (
+            <button onClick={() => setImportOpen(true)} className="btn-ghost border border-sand">
+              <Upload size={16} /> Import Excel
+            </button>
+          )}
+          <button onClick={openAdd} className="btn-primary">
+            <Plus size={16} /> Tambah {isMemberTab ? 'Member' : 'Instruktur'}
+          </button>
+        </div>
       </div>
+      <ImportMembersModal open={importOpen} onClose={() => setImportOpen(false)} onDone={() => {
+        qc.invalidateQueries({ queryKey: ['users'] }); qc.invalidateQueries({ queryKey: ['member-counts'] })
+      }} />
 
       {/* Tab kategori + pencarian (sticky) */}
       <div className="sticky top-16 z-10 bg-cream border-b border-sand py-3 -mx-4 px-4 lg:-mx-8 lg:px-8 space-y-3">
@@ -235,5 +246,155 @@ export default function Members() {
         </form>
       </Modal>
     </div>
+  )
+}
+
+
+// ── Modal Import Member dari Excel ──
+type ImportRow = {
+  row_no: number; nama: string; no_wa: string; kategori: string | null
+  nama_paket: string; sisa_sesi: number | null; unlimited: boolean
+  expired: string | null; gabung: string | null
+  has_package: boolean; action: 'create' | 'update'; errors: string[]; warnings: string[]
+}
+type ImportPreview = {
+  total_rows: number; to_create: number; to_update: number; with_package: number; errors: number
+  rows: ImportRow[]
+}
+
+function ImportMembersModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<ImportPreview | null>(null)
+  const [result, setResult] = useState<{ created: number; updated: number; packages: number; skipped: number } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [pwd, setPwd] = useState('reformer123')
+
+  function reset() { setFile(null); setPreview(null); setResult(null); setErr(''); setPwd('reformer123') }
+  function close() { reset(); onClose() }
+
+  async function downloadTemplate() {
+    try {
+      const res = await api.get('/members/import/template', { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data as Blob)
+      const a = document.createElement('a'); a.href = url; a.download = 'template_import_member.xlsx'
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    } catch { alert('Gagal mengunduh template.') }
+  }
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; e.target.value = ''
+    if (!f) return
+    setFile(f); setResult(null); setErr(''); setBusy(true)
+    try {
+      const fd = new FormData(); fd.append('file', f)
+      const res = await api.post<ImportPreview>('/members/import/preview', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setPreview(res.data)
+    } catch (e: any) { setErr(e?.response?.data?.detail ?? 'Gagal membaca file'); setPreview(null) }
+    finally { setBusy(false) }
+  }
+
+  async function doImport() {
+    if (!file) return
+    setBusy(true); setErr('')
+    try {
+      const fd = new FormData(); fd.append('file', file); fd.append('default_password', pwd)
+      const res = await api.post('/members/import/commit', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setResult(res.data); onDone()
+    } catch (e: any) { setErr(e?.response?.data?.detail ?? 'Gagal impor') }
+    finally { setBusy(false) }
+  }
+
+  const okCount = preview ? preview.total_rows - preview.errors : 0
+
+  return (
+    <Modal open={open} onClose={close} title="Import Member dari Excel">
+      {result ? (
+        <div className="space-y-4 text-center py-2">
+          <CheckCircle2 size={44} className="mx-auto text-emerald-600" />
+          <div className="font-display text-lg font-semibold">Impor selesai</div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="card"><div className="text-2xl font-semibold text-copper-700">{result.created}</div><div className="text-ink/50">akun dibuat</div></div>
+            <div className="card"><div className="text-2xl font-semibold text-copper-700">{result.updated}</div><div className="text-ink/50">akun diperbarui</div></div>
+            <div className="card"><div className="text-2xl font-semibold text-copper-700">{result.packages}</div><div className="text-ink/50">paket berjalan</div></div>
+            <div className="card"><div className="text-2xl font-semibold text-clay-dark">{result.skipped}</div><div className="text-ink/50">baris dilewati (error)</div></div>
+          </div>
+          <p className="text-xs text-ink/45">Member login pakai No. WA. Password awal: <b>{pwd}</b> (bisa direset via WA). Paket lama migrasi akan digantikan bila diimpor ulang.</p>
+          <button onClick={close} className="btn-primary w-full">Selesai</button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 bg-copper-50 border border-copper-100 rounded-xl p-3 text-sm">
+            <FileSpreadsheet size={20} className="text-copper-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-ink/70">Unduh template, salin datamu ke kolomnya (Nama, No. WA, Kategori, Sisa Sesi, Tanggal Expired…), lalu unggah. Tidak ada data masuk sebelum kamu klik <b>Impor</b>.</p>
+              <button onClick={downloadTemplate} className="btn-ghost border border-copper-200 text-copper-700 mt-2 !py-1.5"><Download size={15} /> Unduh Template</button>
+            </div>
+          </div>
+
+          <label className="block">
+            <span className="label">File Excel (.xlsx)</span>
+            <input type="file" accept=".xlsx" onChange={onPick}
+              className="block w-full text-sm text-ink/60 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-copper-600 file:text-white file:font-medium hover:file:bg-copper-700 file:cursor-pointer" />
+            {file && <span className="text-xs text-ink/45 mt-1 inline-block">{file.name}</span>}
+          </label>
+
+          {busy && !preview && <div className="text-center py-6 text-ink/50"><Loader2 className="animate-spin inline mr-2" size={18} />Memproses…</div>}
+          {err && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{err}</div>}
+
+          {preview && (
+            <>
+              <div className="grid grid-cols-4 gap-2 text-center text-sm">
+                <div className="rounded-lg bg-sand/60 py-2"><div className="font-semibold text-lg">{preview.total_rows}</div><div className="text-ink/50 text-xs">total baris</div></div>
+                <div className="rounded-lg bg-emerald-50 py-2"><div className="font-semibold text-lg text-emerald-700">{preview.to_create}</div><div className="text-ink/50 text-xs">baru</div></div>
+                <div className="rounded-lg bg-copper-50 py-2"><div className="font-semibold text-lg text-copper-700">{preview.to_update}</div><div className="text-ink/50 text-xs">diperbarui</div></div>
+                <div className={`rounded-lg py-2 ${preview.errors ? 'bg-clay/10' : 'bg-sand/60'}`}><div className={`font-semibold text-lg ${preview.errors ? 'text-clay-dark' : 'text-ink/40'}`}>{preview.errors}</div><div className="text-ink/50 text-xs">error</div></div>
+              </div>
+              {preview.errors > 0 && (
+                <div className="flex items-start gap-2 text-xs text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">
+                  <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                  <span>{preview.errors} baris ber-error akan <b>dilewati</b>. Perbaiki di Excel lalu unggah ulang bila ingin ikut terimpor.</span>
+                </div>
+              )}
+              <div className="max-h-64 overflow-auto border border-sand rounded-lg">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-cream">
+                    <tr className="text-left text-ink/45 border-b border-sand">
+                      <th className="px-2 py-1.5">#</th><th className="px-2 py-1.5">Nama</th><th className="px-2 py-1.5">No. WA</th>
+                      <th className="px-2 py-1.5">Kat.</th><th className="px-2 py-1.5">Sisa</th><th className="px-2 py-1.5">Expired</th><th className="px-2 py-1.5">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.rows.map((r) => (
+                      <tr key={r.row_no} className={`border-b border-sand/50 ${r.errors.length ? 'bg-clay/5' : ''}`}>
+                        <td className="px-2 py-1.5 text-ink/40">{r.row_no}</td>
+                        <td className="px-2 py-1.5">{r.nama || <span className="text-clay-dark italic">(kosong)</span>}</td>
+                        <td className="px-2 py-1.5 text-ink/60">{r.no_wa}</td>
+                        <td className="px-2 py-1.5 text-ink/60">{r.kategori ?? '—'}</td>
+                        <td className="px-2 py-1.5">{r.unlimited ? '∞' : (r.sisa_sesi ?? '—')}</td>
+                        <td className="px-2 py-1.5 text-ink/60">{r.expired ? formatDate(r.expired) : '—'}</td>
+                        <td className="px-2 py-1.5">
+                          {r.errors.length
+                            ? <span className="text-clay-dark" title={r.errors.join('; ')}>⚠ {r.errors[0]}</span>
+                            : <span className={r.action === 'create' ? 'text-emerald-700' : 'text-copper-700'}>{r.action === 'create' ? 'baru' : 'perbarui'}{r.has_package ? ' +paket' : ''}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div>
+                <label className="label">Password awal (akun baru)</label>
+                <input className="input" value={pwd} onChange={(e) => setPwd(e.target.value)} />
+                <p className="text-[11px] text-ink/45 mt-1">Dipakai untuk akun baru. Member login pakai No. WA + password ini, lalu bisa ganti / reset via WA.</p>
+              </div>
+              <button onClick={doImport} disabled={busy || okCount === 0} className="btn-primary w-full">
+                {busy ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} Impor {okCount} baris sekarang
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </Modal>
   )
 }

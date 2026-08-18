@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
@@ -451,3 +451,53 @@ async def freeze_package(
     await db.flush()
     await db.refresh(mp)
     return mp
+
+
+# ── Impor member dari Excel (migrasi data lama) ──
+@router.get("/import/template")
+async def import_template(_: User = Depends(require_staff)):
+    """Unduh template Excel untuk impor member."""
+    import io
+    from fastapi.responses import StreamingResponse
+    from app.services import member_import
+    data = member_import.build_template_xlsx()
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="template_import_member.xlsx"'},
+    )
+
+
+@router.post("/import/preview")
+async def import_preview(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_staff),
+):
+    """Pratinjau (dry-run) — validasi & tentukan aksi, TANPA menyimpan apa pun."""
+    from app.services import member_import
+    content = await file.read()
+    try:
+        return await member_import.analyze(db, content)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/import/commit")
+async def import_commit(
+    file: UploadFile = File(...),
+    default_password: str = Form("reformer123"),
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_staff),
+):
+    """Jalankan impor (upsert per No. WA). Baris ber-error dilewati."""
+    from app.services import member_import
+    if len((default_password or "").strip()) < 6:
+        raise HTTPException(400, "Password awal minimal 6 karakter")
+    content = await file.read()
+    try:
+        result = await member_import.commit(db, content, default_password.strip(), actor_id=actor.id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    await db.commit()
+    return result
