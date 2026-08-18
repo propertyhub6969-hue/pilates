@@ -258,6 +258,7 @@ export interface BookingRow {
   waitlist_position?: number | null
   booked_at: string
   checked_in_at?: string | null
+  consumed?: boolean
 }
 
 export interface MyBooking {

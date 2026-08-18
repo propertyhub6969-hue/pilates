@@ -18,9 +18,11 @@ router = APIRouter()
 
 
 class AttendanceUpdate(BaseModel):
-    # Peralihan absensi: booked (belum check-in) ↔ attended (hadir) ↔ no_show (tidak hadir).
-    # Kuota TIDAK berubah — sudah ditahan sejak booking.
+    # booked (belum absen) ↔ attended (hadir) ↔ no_show (tidak hadir).
+    # Kuota dipotong saat HADIR. no_show: forfeit=True → sesi HANGUS (kuota terpakai),
+    # forfeit=False → sesi TETAP (kuota kembali). Undo → kuota dikembalikan.
     status: Literal["booked", "attended", "no_show"]
+    forfeit: bool = True
 
 
 class BookRequest(BaseModel):
@@ -83,6 +85,16 @@ async def set_attendance(
         raise HTTPException(400, "Hanya peserta terdaftar yang bisa diabsen (bukan waitlist/batal)")
 
     target = BookingStatus(payload.status)
+    # Kuota dikonsumsi bila HADIR, atau TIDAK HADIR + hangus. Rekonsiliasi vs kondisi saat ini.
+    want_consumed = target == BookingStatus.ATTENDED or (target == BookingStatus.NO_SHOW and payload.forfeit)
+    currently_consumed = booking.member_package_id is not None
+    if currently_consumed and not want_consumed:
+        await booking_svc.refund_one(db, booking.member_package_id)
+        booking.member_package_id = None
+    elif not currently_consumed and want_consumed:
+        mp = await booking_svc.consume_one(db, booking.member_id)
+        booking.member_package_id = mp.id if mp else None
+
     booking.status = target
     booking.checked_in_at = datetime.now(timezone.utc) if target == BookingStatus.ATTENDED else None
     await db.flush()
@@ -90,6 +102,7 @@ async def set_attendance(
     name = (await db.execute(select(User.full_name).where(User.id == booking.member_id))).scalar_one_or_none()
     row = BookingRow.model_validate(booking)
     row.member_name = name
+    row.consumed = booking.member_package_id is not None
     return row
 
 

@@ -192,6 +192,42 @@ async def _void_dropin_payment(db: AsyncSession, booking: Booking) -> None:
             p.status = PaymentStatus.REFUNDED
 
 
+async def quota_available(db: AsyncSession, member_id) -> int | None:
+    """Total sesi tersedia (belum dikonsumsi) dari paket usable. None = unlimited."""
+    rows = (await db.execute(select(MemberPackage).where(MemberPackage.member_id == member_id))).scalars().all()
+    usable = [mp for mp in rows if is_usable(mp)]
+    if any(mp.is_unlimited for mp in usable):
+        return None
+    return sum((mp.sessions_remaining or 0) for mp in usable)
+
+
+async def committed_reservations(db: AsyncSession, member_id) -> int:
+    """Jumlah reservasi BOOKED (belum diabsen) — belum mengonsumsi kuota."""
+    return (
+        await db.execute(
+            select(func.count()).select_from(Booking).where(
+                Booking.member_id == member_id, Booking.status == BookingStatus.BOOKED
+            )
+        )
+    ).scalar_one()
+
+
+async def consume_one(db: AsyncSession, member_id) -> MemberPackage | None:
+    """Potong 1 kuota dari paket termanfaat (dipanggil saat HADIR / no-show HANGUS)."""
+    mp = await _pick_usable_package(db, member_id)
+    if mp is None:
+        return None
+    _hold_quota(mp)
+    return mp
+
+
+async def refund_one(db: AsyncSession, mp_id) -> None:
+    """Kembalikan 1 kuota ke paket (dipanggil saat undo hadir / no-show tetap)."""
+    mp = (await db.execute(select(MemberPackage).where(MemberPackage.id == mp_id))).scalar_one_or_none()
+    if mp:
+        _refund_quota(mp)
+
+
 async def book_session(db: AsyncSession, session: ClassSession, member_id, bypass_window: bool = False) -> Booking:
     """Member memesan slot. `bypass_window=True` untuk staf yang memesan atas nama member
     (lewati aturan jendela waktu). Semua kategori kini pakai kuota paket — per-datang wajib
@@ -230,6 +266,12 @@ async def book_session(db: AsyncSession, session: ClassSession, member_id, bypas
             raise HTTPException(400, "Belum ada tiket drop-in aktif. Beli tiket dulu (1 sesi, bayar lunas).")
         raise HTTPException(400, "Tidak ada paket aktif dengan sisa kuota. Beli/aktifkan paket dulu.")
 
+    # Kuota dipotong saat HADIR (bukan saat booking). Batasi jumlah reservasi ≤ sisa kuota.
+    avail = await quota_available(db, member_id)
+    if avail is not None:
+        if (await committed_reservations(db, member_id)) >= avail:
+            raise HTTPException(400, f"Kuota tidak cukup: {avail} sesimu sudah dibooking semua. Hadiri/batalkan salah satu, atau tambah paket.")
+
     taken = await booked_count(db, session.id)
     go_waitlist = taken >= session.capacity
 
@@ -237,16 +279,14 @@ async def book_session(db: AsyncSession, session: ClassSession, member_id, bypas
     booking.booked_at = now_local()
     booking.cancelled_at = None
     booking.checked_in_at = None
+    booking.member_package_id = None  # kuota belum dikonsumsi (dipotong saat absensi)
 
     if go_waitlist:
         booking.status = BookingStatus.WAITLIST
         booking.waitlist_position = (await waitlist_count(db, session.id)) + 1
-        booking.member_package_id = None  # kuota belum ditahan utk waitlist
     else:
         booking.status = BookingStatus.BOOKED
         booking.waitlist_position = None
-        booking.member_package_id = mp.id
-        _hold_quota(mp)
 
     if existing is None:
         db.add(booking)
@@ -255,42 +295,27 @@ async def book_session(db: AsyncSession, session: ClassSession, member_id, bypas
 
 
 async def cancel_booking(db: AsyncSession, booking: Booking) -> None:
-    """Batalkan booking; kembalikan kuota bila tepat waktu; promosikan waitlist."""
+    """Batalkan booking (BOOKED/WAITLIST). Kuota TAK terpengaruh (belum dikonsumsi —
+    dipotong saat absensi). Slot yang terbuka → promosikan waitlist."""
     if booking.status in (BookingStatus.CANCELLED, BookingStatus.NO_SHOW, BookingStatus.ATTENDED):
         raise HTTPException(400, "Booking ini tidak dapat dibatalkan")
 
     session = (
         await db.execute(select(ClassSession).where(ClassSession.id == booking.session_id))
     ).scalar_one()
-    branch = await get_branch(db, session.branch_id)
-
     was_booked = booking.status == BookingStatus.BOOKED
-    timely = now_local() < session_start_dt(session) - timedelta(hours=branch.cancellation_window_hours or 0)
-
-    # Kembalikan kuota hanya bila slot terkonfirmasi & dibatalkan tepat waktu
-    if was_booked and timely and booking.member_package_id:
-        mp = (
-            await db.execute(select(MemberPackage).where(MemberPackage.id == booking.member_package_id))
-        ).scalar_one_or_none()
-        if mp:
-            _refund_quota(mp)
-
-    # Booking drop-in (tanpa paket) → batalkan/refund tagihannya
-    if booking.member_package_id is None:
-        await _void_dropin_payment(db, booking)
 
     booking.status = BookingStatus.CANCELLED
     booking.cancelled_at = now_local()
     booking.member_package_id = None
     await db.flush()
 
-    # Slot terbuka → promosikan waitlist teratas
     if was_booked:
         await _promote_waitlist(db, session)
 
 
 async def _promote_waitlist(db: AsyncSession, session: ClassSession) -> None:
-    """Promosikan booking waitlist teratas yang masih punya kuota jadi BOOKED."""
+    """Promosikan waitlist teratas yang masih punya kuota tersisa (belum full booking) jadi BOOKED."""
     if await booked_count(db, session.id) >= session.capacity:
         return
     waiters = (
@@ -301,12 +326,12 @@ async def _promote_waitlist(db: AsyncSession, session: ClassSession) -> None:
         )
     ).scalars().all()
     for w in waiters:
-        mp = await _pick_usable_package(db, w.member_id)
-        if mp is None:
-            continue  # tak punya kuota/tiket aktif → lewati, coba berikutnya
+        avail = await quota_available(db, w.member_id)
+        if avail is not None and (await committed_reservations(db, w.member_id)) >= avail:
+            continue  # kuota sudah habis terbooking → lewati
         w.status = BookingStatus.BOOKED
         w.waitlist_position = None
-        w.member_package_id = mp.id
+        w.member_package_id = None
         _hold_quota(mp)
         await db.flush()
         break

@@ -286,23 +286,16 @@ async def cancel_session(session_id: uuid.UUID, db: AsyncSession = Depends(get_d
     bookings = (
         await db.execute(select(Booking).where(
             Booking.session_id == session_id,
-            Booking.status.in_([BookingStatus.BOOKED, BookingStatus.WAITLIST]),
+            Booking.status != BookingStatus.CANCELLED,
         ))
     ).scalars().all()
-    from app.models.payment import Payment, PaymentStatus
     for b in bookings:
-        if b.status == BookingStatus.BOOKED and b.member_package_id:
+        # Kuota yang SUDAH dikonsumsi (hadir / no-show hangus, ditandai member_package_id) dikembalikan.
+        if b.member_package_id:
             mp = (await db.execute(select(MemberPackage).where(MemberPackage.id == b.member_package_id))).scalar_one_or_none()
             if mp and not mp.is_unlimited and mp.sessions_remaining is not None:
                 mp.sessions_remaining += 1
                 refresh_status(mp)
-        elif b.member_package_id is None:
-            # drop-in → hapus/refund tagihannya
-            for p in (await db.execute(select(Payment).where(Payment.booking_id == b.id))).scalars().all():
-                if p.status == PaymentStatus.PENDING:
-                    await db.delete(p)
-                elif p.status == PaymentStatus.PAID:
-                    p.status = PaymentStatus.REFUNDED
         b.status = BookingStatus.CANCELLED
         b.cancelled_at = _quota_now()
         b.member_package_id = None
@@ -412,5 +405,6 @@ async def session_roster(session_id: uuid.UUID, db: AsyncSession = Depends(get_d
     for b, name in rows:
         r = BookingRow.model_validate(b)
         r.member_name = name
+        r.consumed = b.member_package_id is not None
         out.append(r)
     return out

@@ -299,8 +299,8 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
     onSuccess: inval,
   })
   const attend = useMutation({
-    mutationFn: async (v: { bid: string; status: 'attended' | 'no_show' | 'booked' }) =>
-      api.patch(`/bookings/${v.bid}/attendance`, { status: v.status }),
+    mutationFn: async (v: { bid: string; status: 'attended' | 'no_show' | 'booked'; forfeit?: boolean }) =>
+      api.patch(`/bookings/${v.bid}/attendance`, { status: v.status, forfeit: v.forfeit ?? true }),
     onSuccess: inval,
   })
   const cancelSession = useMutation({
@@ -344,18 +344,22 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold truncate">{r.member_name}</div>
                   <div className="text-[11px] text-ink/50">
-                    {BOOKING_STATUS_LABEL[r.status]}{r.status === 'waitlist' && r.waitlist_position ? ` #${r.waitlist_position}` : ''}
+                    {BOOKING_STATUS_LABEL[r.status]}
+                    {r.status === 'waitlist' && r.waitlist_position ? ` #${r.waitlist_position}` : ''}
+                    {r.status === 'no_show' ? (r.consumed ? ' · hangus' : ' · tetap') : ''}
                   </div>
                 </div>
                 {/* Kontrol absensi */}
                 {r.status === 'booked' && (
-                  <>
+                  <div className="flex items-center gap-1 flex-wrap justify-end">
                     <button onClick={() => attend.mutate({ bid: r.id, status: 'attended' })} disabled={attend.isPending}
                       className="btn-primary !px-3 !py-1.5 text-xs">Hadir</button>
-                    <button onClick={() => attend.mutate({ bid: r.id, status: 'no_show' })} disabled={attend.isPending}
-                      className="btn-ghost !px-2 !py-1.5 text-xs text-ink/50 border border-sand">Tidak</button>
-                    <button onClick={() => cancelBooking.mutate(r.id)} className="btn-ghost !px-2 !py-1.5 text-clay-dark" title="Batalkan"><XCircle size={16} /></button>
-                  </>
+                    <button onClick={() => attend.mutate({ bid: r.id, status: 'no_show', forfeit: true })} disabled={attend.isPending}
+                      className="btn-ghost !px-2 !py-1.5 text-xs text-clay-dark border border-clay/20" title="Tidak hadir — sesi HANGUS (kuota terpakai)">Hangus</button>
+                    <button onClick={() => attend.mutate({ bid: r.id, status: 'no_show', forfeit: false })} disabled={attend.isPending}
+                      className="btn-ghost !px-2 !py-1.5 text-xs text-ink/50 border border-sand" title="Tidak hadir — sesi TETAP (kuota kembali)">Tetap</button>
+                    <button onClick={() => cancelBooking.mutate(r.id)} className="btn-ghost !px-2 !py-1.5 text-clay-dark" title="Batalkan booking"><XCircle size={16} /></button>
+                  </div>
                 )}
                 {(r.status === 'attended' || r.status === 'no_show') && (
                   <button onClick={() => attend.mutate({ bid: r.id, status: 'booked' })} disabled={attend.isPending}

@@ -93,9 +93,21 @@ function AttendanceHistory() {
   const [limit, setLimit] = useState(5)
   const { data } = useQuery({ queryKey: ['my-history'], queryFn: async () => (await api.get<MyHistory[]>('/bookings/me/history')).data })
   if (!data || data.length === 0) return null
+  const hadir = data.filter((h) => h.status === 'attended').length
+  const tidak = data.filter((h) => h.status === 'no_show').length
   return (
     <div>
       <h2 className="font-display text-lg font-semibold mb-2 flex items-center gap-2"><CalendarDays size={18} /> Riwayat Kehadiran</h2>
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="card text-center bg-copper-50 border-copper-100">
+          <div className="font-display text-2xl font-semibold text-copper-700">{hadir}</div>
+          <div className="text-xs text-ink/50 mt-0.5">Hadir</div>
+        </div>
+        <div className="card text-center">
+          <div className="font-display text-2xl font-semibold text-clay-dark">{tidak}</div>
+          <div className="text-xs text-ink/50 mt-0.5">Tidak hadir</div>
+        </div>
+      </div>
       <div className="card !p-0 overflow-hidden divide-y divide-sand">
         {data.slice(0, limit).map((h, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">

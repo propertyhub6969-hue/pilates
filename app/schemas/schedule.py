@@ -128,6 +128,7 @@ class BookingRow(BaseModel):
     waitlist_position: Optional[int] = None
     booked_at: datetime
     checked_in_at: Optional[datetime] = None
+    consumed: bool = False   # kuota sudah dipotong (hadir / no-show hangus)
 
     class Config:
         from_attributes = True
