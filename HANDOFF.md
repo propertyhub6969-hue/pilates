@@ -102,8 +102,9 @@ Detail lengkap keputusan di memori `reformer-jadwal-redesign-plan.md`.
 - **Riwayat Pembayaran** di dashboard member (nama paket + pagination).
 - **Nomor kuitansi** `Payment.receipt_no` (sequence Postgres, format `KW-<tahun>-<5digit>`) + tombol **Cetak Kuitansi** (Printer) di tabel Pembayaran (kop studio, terbilang, ttd).
 - **Status sesi**: `packageStatusLabel/Style`+`isPackageAlmostOut` (≤2→"Sesi hampir habis"); used_up="Sesi habis", expired="Paket expired". Di detail member, dashboard member, & daftar member (`UserBrief.session_status`+`package_expires_at`).
-- **Non-aktifkan → Per-Datang** (tombol di detail member) ubah kategori → tab Per-Datang (non-destruktif).
+- **Non-aktifkan → Per-Datang** (tombol di detail member) ubah kategori → tab Per-Datang (non-destruktif). ★ **Otomatis kembali ke Bulanan** begitu paket **bulanan** aktif lagi: `apply_monthly_expiry` set `member_category=BULANAN` bila kategori saat ini `per_datang`/null; **Private & Bulanan tidak ditimpa**.
 - **Accordion pemakaian sesi** per paket: `GET /members/packages/{mp_id}/usage`.
+- **Tombol panah Dari↔Sampai** di filter tanggal (jadwal member "Semua kelas" & staf tab "Rentang"): klik → `Sampai = Dari` (lihat 1 hari).
 
 ### Laporan Member (LIVE 18 Agu 2026)
 
