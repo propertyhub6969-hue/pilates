@@ -94,8 +94,19 @@ async def _count_status(db: AsyncSession, session_id, status: BookingStatus) -> 
     ).scalar_one()
 
 
+# Slot "terisi" = semua yang mengambil slot (booked/hadir/tidak-hadir) — TIDAK termasuk
+# waitlist & cancelled. Menandai kehadiran tak mengubah jumlah terisi.
+_SLOT_STATUSES = [BookingStatus.BOOKED, BookingStatus.ATTENDED, BookingStatus.NO_SHOW]
+
+
 async def booked_count(db: AsyncSession, session_id) -> int:
-    return await _count_status(db, session_id, BookingStatus.BOOKED)
+    return (
+        await db.execute(
+            select(func.count()).select_from(Booking).where(
+                Booking.session_id == session_id, Booking.status.in_(_SLOT_STATUSES)
+            )
+        )
+    ).scalar_one()
 
 
 async def waitlist_count(db: AsyncSession, session_id) -> int:

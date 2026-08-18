@@ -131,8 +131,9 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
     ).all()
     booked, waits = {}, {}
     for sid, status, c in counts:
-        if status == BookingStatus.BOOKED:
-            booked[sid] = c
+        # "Terisi" = booked + hadir + tidak-hadir (semua yang mengambil slot) → tetap saat absensi ditandai
+        if status in (BookingStatus.BOOKED, BookingStatus.ATTENDED, BookingStatus.NO_SHOW):
+            booked[sid] = booked.get(sid, 0) + c
         elif status == BookingStatus.WAITLIST:
             waits[sid] = c
     # jumlah booking bulanan per sesi (utk deteksi "sesi sepi")
@@ -140,7 +141,8 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
         await db.execute(
             select(Booking.session_id, func.count())
             .join(User, Booking.member_id == User.id)
-            .where(Booking.session_id.in_(ids), Booking.status == BookingStatus.BOOKED,
+            .where(Booking.session_id.in_(ids),
+                   Booking.status.in_([BookingStatus.BOOKED, BookingStatus.ATTENDED, BookingStatus.NO_SHOW]),
                    User.member_category == MemberCategory.BULANAN)
             .group_by(Booking.session_id)
         )
