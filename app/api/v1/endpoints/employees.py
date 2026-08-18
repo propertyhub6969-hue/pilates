@@ -65,6 +65,40 @@ async def create_employee(payload: EmployeeCreate, db: AsyncSession = Depends(ge
     return emp
 
 
+@router.get("/{employee_id}/sessions")
+async def employee_sessions(
+    employee_id: uuid.UUID,
+    period: str | None = Query(None, description="YYYY-MM; default bulan berjalan"),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_owner),
+):
+    """Daftar tanggal sesi yang didampingi karyawan pada suatu periode (utk detail per-sesi)."""
+    from app.services.booking import today_local
+    from app.models.branch import Branch
+    if not period:
+        period = today_local().strftime("%Y-%m")
+    y, m = int(period[:4]), int(period[5:7])
+    d_from = date(y, m, 1)
+    d_to = date(y, m, calendar.monthrange(y, m)[1])
+    rows = (
+        await db.execute(
+            select(ClassSession.session_date, ClassSession.start_time, ClassSession.title, Branch.name)
+            .outerjoin(Branch, ClassSession.branch_id == Branch.id)
+            .where(ClassSession.assistant_id == employee_id,
+                   ClassSession.status != ClassSessionStatus.CANCELLED,
+                   ClassSession.session_date >= d_from, ClassSession.session_date <= d_to)
+            .order_by(ClassSession.session_date, ClassSession.start_time)
+        )
+    ).all()
+    return {
+        "period": period,
+        "count": len(rows),
+        "sessions": [
+            {"session_date": d.isoformat(), "start_time": t.strftime("%H:%M"), "title": title, "branch_name": bn}
+            for d, t, title, bn in rows
+        ],
+    }
+
+
 @router.patch("/{employee_id}", response_model=EmployeeRow)
 async def update_employee(employee_id: uuid.UUID, payload: EmployeeUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_owner)):
     emp = (await db.execute(select(Employee).where(Employee.id == employee_id))).scalar_one_or_none()

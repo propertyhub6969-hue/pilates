@@ -4,7 +4,7 @@ import { api } from '@/services/api'
 import type { Employee } from '@/types'
 import { formatRupiah, formatDate } from '@/utils/format'
 import Modal from '@/components/Modal'
-import { Plus, Loader2, Pencil, Power, Contact } from 'lucide-react'
+import { Plus, Loader2, Pencil, Power, Contact, CalendarDays, MapPin } from 'lucide-react'
 
 type Form = { id?: string; name: string; position: string; phone: string; pay_type: 'monthly' | 'per_session'; base_salary: string; session_rate: string; join_date: string; note: string }
 const empty: Form = { name: '', position: '', phone: '', pay_type: 'monthly', base_salary: '', session_rate: '', join_date: '', note: '' }
@@ -15,6 +15,7 @@ export default function Karyawan() {
   const [error, setError] = useState('')
   const [f, setF] = useState<Form>(empty)
   const [filter, setFilter] = useState<'all' | 'monthly' | 'per_session'>('all')
+  const [sessionsFor, setSessionsFor] = useState<Employee | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['employees', filter],
@@ -88,7 +89,11 @@ export default function Karyawan() {
                 : rows.length === 0 ? <tr><td colSpan={filter === 'per_session' ? 8 : 7} className="px-4 py-10 text-center text-ink/40"><Contact className="mx-auto mb-2 text-ink/30" size={26} />Belum ada karyawan.</td></tr>
                 : rows.map((e) => (
                   <tr key={e.id} className={`border-b border-sand/60 last:border-0 hover:bg-sand/40 transition ${!e.is_active ? 'opacity-55' : ''}`}>
-                    <td className="px-4 py-3 font-semibold">{e.name}</td>
+                    <td className="px-4 py-3 font-semibold">
+                      {e.pay_type === 'per_session'
+                        ? <button onClick={() => setSessionsFor(e)} className="text-copper-700 hover:underline inline-flex items-center gap-1">{e.name}<CalendarDays size={13} className="text-copper-400" /></button>
+                        : e.name}
+                    </td>
                     <td className="px-4 py-3 text-ink/60 hidden sm:table-cell">{e.position || '—'}</td>
                     <td className="px-4 py-3 text-ink/60 hidden md:table-cell">{e.phone || '—'}</td>
                     <td className="px-4 py-3">
@@ -146,6 +151,51 @@ export default function Karyawan() {
           <button className="btn-primary w-full" disabled={save.isPending || !f.name}>{save.isPending && <Loader2 size={16} className="animate-spin" />} Simpan</button>
         </form>
       </Modal>
+
+      {sessionsFor && <SessionsModal employee={sessionsFor} onClose={() => setSessionsFor(null)} />}
     </div>
+  )
+}
+
+type SessionRow = { session_date: string; start_time: string; title: string; branch_name?: string | null }
+function SessionsModal({ employee, onClose }: { employee: Employee; onClose: () => void }) {
+  const period = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date()).slice(0, 7)
+  const monthLabel = new Date(Number(period.slice(0, 4)), Number(period.slice(5, 7)) - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+  const { data, isLoading } = useQuery({
+    queryKey: ['emp-sessions', employee.id, period],
+    queryFn: async () => (await api.get<{ count: number; sessions: SessionRow[] }>(`/employees/${employee.id}/sessions`, { params: { period } })).data,
+  })
+  const count = data?.count ?? 0
+  return (
+    <Modal open onClose={onClose} title={`Sesi Pendampingan — ${employee.name}`}>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-ink/55">{monthLabel}</span>
+          <span className="font-semibold text-copper-700">{count} sesi · ≈ {formatRupiah(count * employee.session_rate)}</span>
+        </div>
+        {isLoading ? <div className="text-ink/40 py-8 text-center">Memuat…</div>
+          : count === 0 ? <div className="text-ink/40 py-8 text-center">Belum ada sesi didampingi bulan ini.</div>
+          : (
+            <div className="max-h-80 overflow-auto rounded-xl border border-sand divide-y divide-sand/70">
+              {data!.sessions.map((s, i) => (
+                <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                  <div className="grid place-items-center w-9 h-9 rounded-lg bg-copper-50 text-copper-700 shrink-0">
+                    <CalendarDays size={16} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium capitalize">{formatDate(s.session_date)}</div>
+                    <div className="text-xs text-ink/50 flex flex-wrap gap-x-3">
+                      <span>{s.start_time} · {s.title}</span>
+                      {s.branch_name && <span className="inline-flex items-center gap-1"><MapPin size={11} />{s.branch_name}</span>}
+                    </div>
+                  </div>
+                  <span className="text-xs text-ink/45">#{i + 1}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        <p className="text-[11px] text-ink/45">Daftar tanggal ini = absensi pendampingan yang ditandai admin di roster. Ini dasar hitung payroll per sesi.</p>
+      </div>
+    </Modal>
   )
 }
