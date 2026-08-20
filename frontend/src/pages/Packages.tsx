@@ -13,6 +13,7 @@ interface FormState {
   is_unlimited: boolean
   session_count: string
   price: string
+  renewal_discount: string
   validity_days: string
   monthly_expiry: boolean
   is_active: boolean
@@ -20,7 +21,7 @@ interface FormState {
 
 const EMPTY: FormState = {
   name: '', description: '', is_unlimited: false,
-  session_count: '', price: '', validity_days: '', monthly_expiry: false, is_active: true,
+  session_count: '', price: '', renewal_discount: '', validity_days: '', monthly_expiry: false, is_active: true,
 }
 
 export default function Packages() {
@@ -42,6 +43,7 @@ export default function Packages() {
         is_unlimited: f.is_unlimited,
         session_count: f.is_unlimited ? null : Number(f.session_count),
         price: Number(f.price),
+        renewal_discount: f.renewal_discount ? Number(f.renewal_discount) : 0,
         validity_days: f.monthly_expiry ? null : (f.validity_days ? Number(f.validity_days) : null),
         monthly_expiry: f.monthly_expiry,
         is_active: f.is_active,
@@ -63,7 +65,8 @@ export default function Packages() {
     setForm({
       id: p.id, name: p.name, description: p.description ?? '',
       is_unlimited: p.is_unlimited, session_count: p.session_count?.toString() ?? '',
-      price: p.price.toString(), validity_days: p.validity_days?.toString() ?? '',
+      price: p.price.toString(), renewal_discount: (p.renewal_discount ?? 0) ? p.renewal_discount!.toString() : '',
+      validity_days: p.validity_days?.toString() ?? '',
       monthly_expiry: p.monthly_expiry ?? false,
       is_active: p.is_active,
     })
@@ -156,6 +159,12 @@ export default function Packages() {
                 disabled={form.monthly_expiry}
                 onChange={(e) => setForm({ ...form, validity_days: e.target.value })} placeholder={form.monthly_expiry ? 'akhir bulan' : '60'} />
             </div>
+          </div>
+          <div>
+            <label className="label">Diskon perpanjangan (Rp)</label>
+            <input className="input" type="number" min={0} value={form.renewal_discount}
+              onChange={(e) => setForm({ ...form, renewal_discount: e.target.value })} placeholder="0 (mis. 50000)" />
+            <p className="text-[11px] text-ink/40 mt-1">Potongan otomatis saat admin menjual paket ini ke member yang <b>masih pegang paket sama & belum expired</b> (perpanjang tepat waktu). 0 = tak ada.</p>
           </div>
           <div>
             <label className="label">Deskripsi (opsional)</label>

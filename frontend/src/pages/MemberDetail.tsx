@@ -31,6 +31,13 @@ export default function MemberDetail() {
     queryFn: async () => (await api.get<Page<Package>>('/packages', { params: { active_only: true } })).data,
   })
 
+  // Pratinjau harga (diskon perpanjangan) saat paket dipilih & belum override harga manual
+  const { data: quote } = useQuery({
+    queryKey: ['purchase-quote', id, sale.package_id],
+    enabled: open && !!sale.package_id,
+    queryFn: async () => (await api.get<{ base_price: number; renewal_discount: number; eligible: boolean; total: number }>(`/members/${id}/purchase-quote`, { params: { package_id: sale.package_id } })).data,
+  })
+
   const purchase = useMutation({
     mutationFn: async () => {
       const body: any = { package_id: sale.package_id, method: sale.method, mark_paid: sale.mark_paid }
@@ -331,11 +338,22 @@ export default function MemberDetail() {
               ))}
             </select>
           </div>
+
+          {quote?.eligible && !sale.price_paid && (
+            <div className="rounded-xl border border-copper-200 bg-copper-50 p-3 text-sm space-y-1">
+              <div className="flex justify-between text-ink/60"><span>Harga normal</span><span>{formatRupiah(quote.base_price)}</span></div>
+              <div className="flex justify-between text-copper-700 font-medium"><span>Diskon perpanjangan</span><span>−{formatRupiah(quote.renewal_discount)}</span></div>
+              <div className="flex justify-between font-semibold border-t border-copper-200 pt-1"><span>Total</span><span>{formatRupiah(quote.total)}</span></div>
+              <p className="text-[11px] text-copper-700/70">Member masih pegang paket ini & belum expired → perpanjang tepat waktu.</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Harga bayar</label>
               <input className="input" type="number" min={0} value={sale.price_paid}
-                onChange={(e) => setSale({ ...sale, price_paid: e.target.value })} placeholder="default harga paket" />
+                onChange={(e) => setSale({ ...sale, price_paid: e.target.value })}
+                placeholder={quote ? `otomatis ${formatRupiah(quote.total)}` : 'default harga paket'} />
+              {quote?.eligible && !sale.price_paid && <p className="text-[11px] text-ink/40 mt-1">Kosongkan = pakai harga diskon otomatis.</p>}
             </div>
             <div>
               <label className="label">Metode</label>

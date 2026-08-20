@@ -74,6 +74,28 @@ async def apply_monthly_expiry(db: AsyncSession, mp: MemberPackage) -> None:
         member.member_category = MemberCategory.BULANAN
 
 
+async def eligible_renewal_discount(db: AsyncSession, member_id, pkg: Package) -> float:
+    """Potongan perpanjangan (Rp) bila member MASIH punya paket YANG SAMA yang belum expired.
+    0 bila paket tak punya diskon / member tak memenuhi syarat."""
+    disc = float(pkg.renewal_discount or 0)
+    if disc <= 0:
+        return 0.0
+    now = datetime.now(timezone.utc)
+    existing = (
+        await db.execute(
+            select(MemberPackage).where(
+                MemberPackage.member_id == member_id,
+                MemberPackage.package_id == pkg.id,
+                MemberPackage.status == MemberPackageStatus.ACTIVE,
+            )
+        )
+    ).scalars().all()
+    for mp in existing:
+        if mp.expires_at is None or mp.expires_at > now:
+            return disc  # masih punya paket ini & belum expired → berhak diskon
+    return 0.0
+
+
 async def create_purchase(
     db: AsyncSession,
     member_id,
@@ -84,6 +106,7 @@ async def create_purchase(
     recorded_by=None,
     note: str | None = None,
     activate: bool = True,
+    purchased_at: datetime | None = None,
 ) -> tuple[MemberPackage, Payment]:
     """activate=False → paket FROZEN (belum bisa dipakai) sampai pembayaran diverifikasi
     (dipakai untuk self-enroll member: bayar dulu, aktif setelah admin konfirmasi)."""
@@ -92,7 +115,8 @@ async def create_purchase(
         raise HTTPException(404, "Paket tidak ditemukan / tidak aktif")
 
     now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(days=pkg.validity_days) if pkg.validity_days else None
+    pdate = purchased_at or now
+    expires_at = pdate + timedelta(days=pkg.validity_days) if pkg.validity_days else None
     price = price_paid if price_paid is not None else float(pkg.price)
     total = None if pkg.is_unlimited else pkg.session_count
 
@@ -105,7 +129,7 @@ async def create_purchase(
         sessions_total=total,
         sessions_remaining=total,
         price_paid=price,
-        purchased_at=now,
+        purchased_at=pdate,
         expires_at=expires_at,
         status=MemberPackageStatus.ACTIVE if activate else MemberPackageStatus.FROZEN,
     )

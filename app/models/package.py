@@ -22,6 +22,9 @@ class Package(BaseModel):
     is_unlimited: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    # Potongan harga (Rp) saat member PERPANJANG paket ini sementara paket lamanya belum expired.
+    # 0 = tak ada diskon. Diterapkan hanya di jual paket oleh admin.
+    renewal_discount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     # Masa berlaku sejak tanggal beli (hari). NULL = tak kedaluwarsa.
     validity_days: Mapped[int] = mapped_column(Integer, nullable=True)
     # Paket bulanan: kedaluwarsa AKHIR BULAN pembayaran + akumulasi sisa saat perpanjang tepat waktu.

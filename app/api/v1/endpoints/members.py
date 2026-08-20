@@ -388,7 +388,9 @@ async def sell_package(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(require_staff),
 ):
-    """Jual/assign paket ke member: buat MemberPackage (snapshot) + catat Payment."""
+    """Jual/assign paket ke member. Pakai mesin create_purchase (menerapkan aturan bulanan
+    + carryover, atribusi akun, & update kategori). Diskon perpanjangan otomatis bila berhak."""
+    from app.services.purchase import create_purchase, eligible_renewal_discount
     member = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if not member:
         raise HTTPException(404, "Member tidak ditemukan")
@@ -396,40 +398,42 @@ async def sell_package(
     if not pkg:
         raise HTTPException(404, "Paket tidak ditemukan")
 
-    purchased_at = payload.purchased_at or datetime.now(timezone.utc)
-    expires_at = purchased_at + timedelta(days=pkg.validity_days) if pkg.validity_days else None
-    price_paid = payload.price_paid if payload.price_paid is not None else float(pkg.price)
-    total = None if pkg.is_unlimited else pkg.session_count
+    note = payload.note
+    if payload.price_paid is not None:
+        price = float(payload.price_paid)  # admin set harga manual → dipakai apa adanya (tanpa diskon otomatis)
+    else:
+        discount = await eligible_renewal_discount(db, member.id, pkg)
+        price = max(0.0, float(pkg.price) - discount)
+        if discount > 0:
+            note = (note + " · " if note else "") + f"Diskon perpanjangan -{int(discount):,}".replace(",", ".")
 
-    mp = MemberPackage(
-        member_id=member.id,
-        package_id=pkg.id,
-        package_name=pkg.name,
-        is_unlimited=pkg.is_unlimited,
-        sessions_total=total,
-        sessions_remaining=total,
-        price_paid=price_paid,
-        purchased_at=purchased_at,
-        expires_at=expires_at,
-        status=MemberPackageStatus.ACTIVE,
+    await create_purchase(
+        db, member_id=member.id, package_id=pkg.id,
+        method=payload.method, mark_paid=payload.mark_paid, price_paid=price,
+        recorded_by=actor.id, note=note, activate=True, purchased_at=payload.purchased_at,
     )
-    db.add(mp)
-    await db.flush()
-
-    payment = Payment(
-        member_id=member.id,
-        member_package_id=mp.id,
-        amount=price_paid,
-        method=payload.method,
-        status=PaymentStatus.PAID if payload.mark_paid else PaymentStatus.PENDING,
-        paid_at=datetime.now(timezone.utc) if payload.mark_paid else None,
-        note=payload.note,
-        recorded_by_id=actor.id,
-    )
-    db.add(payment)
-    await db.flush()
     await db.refresh(member)
     return await _load_detail(db, member)
+
+
+@router.get("/{user_id}/purchase-quote")
+async def purchase_quote(
+    user_id: uuid.UUID, package_id: uuid.UUID = Query(...),
+    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+):
+    """Pratinjau harga jual paket ke member ini (dengan diskon perpanjangan bila berhak)."""
+    from app.services.purchase import eligible_renewal_discount
+    pkg = (await db.execute(select(Package).where(Package.id == package_id))).scalar_one_or_none()
+    if not pkg:
+        raise HTTPException(404, "Paket tidak ditemukan")
+    discount = await eligible_renewal_discount(db, user_id, pkg)
+    base = float(pkg.price)
+    return {
+        "base_price": base,
+        "renewal_discount": discount,
+        "eligible": discount > 0,
+        "total": max(0.0, base - discount),
+    }
 
 
 @router.post("/{user_id}/packages/{mp_id}/freeze", response_model=MemberPackageResponse)
