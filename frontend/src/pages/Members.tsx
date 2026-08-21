@@ -23,6 +23,7 @@ export default function Members() {
   const nav = useNavigate()
   const [tab, setTab] = useState<Tab>('all')
   const [q, setQ] = useState('')
+  const [packageName, setPackageName] = useState('')
   const [page, setPage] = useState(1)
   const [open, setOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -33,13 +34,14 @@ export default function Members() {
   const role = tab === 'instructor' ? 'instructor' : 'member'
   const category = tab === 'all' || tab === 'instructor' ? undefined : tab
 
-  useEffect(() => { setPage(1) }, [tab, q])
+  useEffect(() => { setPage(1) }, [tab, q, packageName])
+  useEffect(() => { if (tab === 'instructor') setPackageName('') }, [tab])
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['users', role, category, q, page],
+    queryKey: ['users', role, category, packageName, q, page],
     queryFn: async () =>
       (await api.get<Page<User>>('/members', {
-        params: { role, category, q: q || undefined, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE },
+        params: { role, category, package_name: packageName || undefined, q: q || undefined, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE },
       })).data,
     placeholderData: keepPreviousData,
   })
@@ -47,6 +49,11 @@ export default function Members() {
   const { data: counts } = useQuery({
     queryKey: ['member-counts'],
     queryFn: async () => (await api.get<Record<Tab, number>>('/members/counts')).data,
+  })
+
+  const { data: pkgNames } = useQuery({
+    queryKey: ['member-package-names'],
+    queryFn: async () => (await api.get<{ name: string; count: number }[]>('/members/package-names')).data,
   })
 
   const create = useMutation({
@@ -113,10 +120,19 @@ export default function Members() {
             )
           })}
         </div>
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/30" />
-          <input className="input pl-9" placeholder="Cari nama, email, atau telepon…"
-            value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/30" />
+            <input className="input pl-9" placeholder="Cari nama, email, atau telepon…"
+              value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          {isMemberTab && (
+            <select className="input !w-auto min-w-[160px]" value={packageName} onChange={(e) => setPackageName(e.target.value)}
+              title="Filter berdasarkan paket aktif yang dipegang member">
+              <option value="">Semua paket</option>
+              {pkgNames?.map((p) => <option key={p.name} value={p.name}>{p.name} ({p.count})</option>)}
+            </select>
+          )}
         </div>
       </div>
 

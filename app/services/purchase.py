@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 from calendar import monthrange
 from zoneinfo import ZoneInfo
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -81,12 +81,16 @@ async def eligible_renewal_discount(db: AsyncSession, member_id, pkg: Package) -
     if disc <= 0:
         return 0.0
     now = datetime.now(timezone.utc)
+    # Cocok berdasar package_id (paket dijual sistem) ATAU nama sama (paket migrasi, package_id kosong)
     existing = (
         await db.execute(
             select(MemberPackage).where(
                 MemberPackage.member_id == member_id,
-                MemberPackage.package_id == pkg.id,
                 MemberPackage.status == MemberPackageStatus.ACTIVE,
+                or_(
+                    MemberPackage.package_id == pkg.id,
+                    func.lower(MemberPackage.package_name) == (pkg.name or "").lower(),
+                ),
             )
         )
     ).scalars().all()

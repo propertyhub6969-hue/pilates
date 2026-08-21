@@ -36,6 +36,7 @@ def _can_manage_role(actor: User, target_role: UserRole) -> None:
 async def list_users(
     role: UserRole | None = Query(None, description="Filter peran (mis. member/instructor)"),
     category: MemberCategory | None = Query(None, description="Filter kategori member"),
+    package_name: str | None = Query(None, description="Filter member yang pegang paket AKTIF bernama ini (abaikan huruf besar/kecil)"),
     q: str | None = Query(None, description="Cari nama/email/telepon"),
     active_only: bool = Query(False),
     limit: int = Query(50, le=200),
@@ -48,6 +49,13 @@ async def list_users(
         stmt = stmt.where(User.role == role)
     if category:
         stmt = stmt.where(User.member_category == category)
+    if package_name:
+        stmt = stmt.where(User.id.in_(
+            select(MemberPackage.member_id).where(
+                func.lower(MemberPackage.package_name) == package_name.strip().lower(),
+                MemberPackage.status == MemberPackageStatus.ACTIVE,
+            )
+        ))
     if active_only:
         stmt = stmt.where(User.is_active.is_(True))
     if q:
@@ -103,6 +111,24 @@ async def list_users(
             brief.session_status = "none"
         items.append(brief)
     return Page(items=items, total=total)
+
+
+@router.get("/package-names")
+async def package_names(db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    """Daftar nama paket AKTIF yang sedang dipegang member (dikelompokkan tanpa peduli huruf
+    besar/kecil) + jumlah member — untuk dropdown filter."""
+    rows = (
+        await db.execute(
+            select(
+                func.min(MemberPackage.package_name).label("name"),
+                func.count(func.distinct(MemberPackage.member_id)).label("count"),
+            )
+            .where(MemberPackage.status == MemberPackageStatus.ACTIVE)
+            .group_by(func.lower(MemberPackage.package_name))
+            .order_by(func.count(func.distinct(MemberPackage.member_id)).desc())
+        )
+    ).all()
+    return [{"name": n, "count": c} for n, c in rows]
 
 
 @router.post("", response_model=UserBrief, status_code=201)
