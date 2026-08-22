@@ -121,6 +121,11 @@ class EnrollRequest(BaseModel):
     package_id: Optional[uuid.UUID] = None
 
 
+class UpgradeRequest(BaseModel):
+    """Member upgrade ke paket (harga upgrade)."""
+    package_id: uuid.UUID
+
+
 class PurchaseCreate(BaseModel):
     package_id: uuid.UUID
     price_paid: Optional[float] = Field(default=None, ge=0)  # default: harga katalog

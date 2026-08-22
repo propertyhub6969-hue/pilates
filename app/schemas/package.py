@@ -11,6 +11,7 @@ class PackageBase(BaseModel):
     session_count: Optional[int] = Field(default=None, ge=1)
     price: float = Field(ge=0)
     renewal_discount: float = Field(default=0, ge=0)
+    upgrade_price: float = Field(default=0, ge=0)
     validity_days: Optional[int] = Field(default=None, ge=1)
     monthly_expiry: bool = False
     is_active: bool = True
@@ -35,6 +36,7 @@ class PackageUpdate(BaseModel):
     session_count: Optional[int] = Field(default=None, ge=1)
     price: Optional[float] = Field(default=None, ge=0)
     renewal_discount: Optional[float] = Field(default=None, ge=0)
+    upgrade_price: Optional[float] = Field(default=None, ge=0)
     validity_days: Optional[int] = Field(default=None, ge=1)
     monthly_expiry: Optional[bool] = None
     is_active: Optional[bool] = None

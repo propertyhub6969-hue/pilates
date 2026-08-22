@@ -9,7 +9,7 @@ import type { MemberDetail, MyBooking, PaymentStatus } from '@/types'
 import { formatRupiah, formatDate, formatDayDate, formatTime, formatDateTime } from '@/utils/format'
 import {
   CalendarDays, Users, Wallet, Infinity as InfinityIcon, ShoppingBag,
-  TrendingUp, Clock, UserRound, Landmark, Upload, Loader2, Check, Zap, CircleDollarSign, Plus, Receipt, X,
+  TrendingUp, Clock, UserRound, Landmark, Upload, Loader2, Check, Zap, CircleDollarSign, Plus, Receipt, X, ArrowUpCircle,
 } from 'lucide-react'
 
 /* ═══════════════ STAF ═══════════════ */
@@ -120,6 +120,8 @@ function ActiveMemberView({ m, bookings }: { m: MemberDetail; bookings?: MyBooki
         </div>
       )}
 
+      <UpgradeSection />
+
       {next && (
         <Link to="/jadwal" className="card flex items-center gap-4 hover:shadow-card transition border-copper-100">
           <span className="grid place-items-center w-12 h-12 rounded-xl bg-copper-50 text-copper-600 shrink-0"><Clock size={22} /></span>
@@ -155,6 +157,41 @@ function ActiveMemberView({ m, bookings }: { m: MemberDetail; bookings?: MyBooki
         <p className="text-sm text-ink/70 flex-1">Lihat jadwal kelas & booking sesimu →</p>
       </Link>
     </>
+  )
+}
+
+type UpgradeOpt = { id: string; name: string; base_price: number; upgrade_price: number; is_unlimited: boolean; session_count: number | null }
+function UpgradeSection() {
+  const qc = useQueryClient()
+  const { data: opts } = useQuery({
+    queryKey: ['upgrade-options'],
+    queryFn: async () => (await api.get<UpgradeOpt[]>('/members/me/upgrade-options')).data,
+  })
+  const upgrade = useMutation({
+    mutationFn: async (pid: string) => api.post('/members/me/upgrade', { package_id: pid }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['me-detail'] }); qc.invalidateQueries({ queryKey: ['upgrade-options'] }) },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal upgrade'),
+  })
+  if (!opts?.length) return null
+  return (
+    <div className="card border-copper-100">
+      <h2 className="font-display text-lg font-semibold mb-1 flex items-center gap-2"><ArrowUpCircle size={18} className="text-copper-600" /> Upgrade Paket</h2>
+      <p className="text-xs text-ink/50 mb-3">Naik ke paket member dengan harga khusus. Sisa tiket/sesi lamamu tetap. Setelah upgrade, transfer & tunggu konfirmasi admin.</p>
+      <div className="space-y-2">
+        {opts.map((o) => (
+          <div key={o.id} className="flex items-center gap-3 rounded-xl border border-sand p-3">
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold">{o.name}</div>
+              <div className="text-xs text-ink/50">{o.is_unlimited ? 'Unlimited' : `${o.session_count} sesi`} · harga upgrade <b className="text-copper-700">{formatRupiah(o.upgrade_price)}</b> <s className="text-ink/35">{formatRupiah(o.base_price)}</s></div>
+            </div>
+            <button onClick={() => { if (confirm(`Upgrade ke ${o.name} seharga ${formatRupiah(o.upgrade_price)}? Kamu perlu transfer lalu dikonfirmasi admin.`)) upgrade.mutate(o.id) }}
+              disabled={upgrade.isPending} className="btn-primary !px-4 !py-1.5 text-sm shrink-0">
+              {upgrade.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Upgrade'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 

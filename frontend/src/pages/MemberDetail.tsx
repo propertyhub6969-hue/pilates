@@ -35,8 +35,9 @@ export default function MemberDetail() {
   const { data: quote } = useQuery({
     queryKey: ['purchase-quote', id, sale.package_id],
     enabled: open && !!sale.package_id,
-    queryFn: async () => (await api.get<{ base_price: number; renewal_discount: number; eligible: boolean; total: number }>(`/members/${id}/purchase-quote`, { params: { package_id: sale.package_id } })).data,
+    queryFn: async () => (await api.get<{ kind: 'renewal' | 'upgrade' | 'normal'; base_price: number; renewal_discount: number; upgrade_price: number; eligible: boolean; total: number }>(`/members/${id}/purchase-quote`, { params: { package_id: sale.package_id } })).data,
   })
+  const special = quote && quote.kind !== 'normal' && !sale.price_paid
 
   const purchase = useMutation({
     mutationFn: async () => {
@@ -339,12 +340,23 @@ export default function MemberDetail() {
             </select>
           </div>
 
-          {quote?.eligible && !sale.price_paid && (
+          {special && quote && (
             <div className="rounded-xl border border-copper-200 bg-copper-50 p-3 text-sm space-y-1">
-              <div className="flex justify-between text-ink/60"><span>Harga normal</span><span>{formatRupiah(quote.base_price)}</span></div>
-              <div className="flex justify-between text-copper-700 font-medium"><span>Diskon perpanjangan</span><span>−{formatRupiah(quote.renewal_discount)}</span></div>
-              <div className="flex justify-between font-semibold border-t border-copper-200 pt-1"><span>Total</span><span>{formatRupiah(quote.total)}</span></div>
-              <p className="text-[11px] text-copper-700/70">Member masih pegang paket ini & belum expired → perpanjang tepat waktu.</p>
+              {quote.kind === 'renewal' ? (
+                <>
+                  <div className="flex justify-between text-ink/60"><span>Harga normal</span><span>{formatRupiah(quote.base_price)}</span></div>
+                  <div className="flex justify-between text-copper-700 font-medium"><span>Diskon perpanjangan</span><span>−{formatRupiah(quote.renewal_discount)}</span></div>
+                  <div className="flex justify-between font-semibold border-t border-copper-200 pt-1"><span>Total</span><span>{formatRupiah(quote.total)}</span></div>
+                  <p className="text-[11px] text-copper-700/70">Perpanjang tepat waktu (masih pegang paket ini, belum expired).</p>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between text-ink/60"><span>Harga normal</span><span className="line-through">{formatRupiah(quote.base_price)}</span></div>
+                  <div className="flex justify-between text-copper-700 font-medium"><span>Harga UPGRADE</span><span>{formatRupiah(quote.upgrade_price)}</span></div>
+                  <div className="flex justify-between font-semibold border-t border-copper-200 pt-1"><span>Total</span><span>{formatRupiah(quote.total)}</span></div>
+                  <p className="text-[11px] text-copper-700/70">Member sudah pernah bayar & belum pegang paket ini → harga upgrade. Sisa/tiket lama tetap.</p>
+                </>
+              )}
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -353,7 +365,7 @@ export default function MemberDetail() {
               <input className="input" type="number" min={0} value={sale.price_paid}
                 onChange={(e) => setSale({ ...sale, price_paid: e.target.value })}
                 placeholder={quote ? `otomatis ${formatRupiah(quote.total)}` : 'default harga paket'} />
-              {quote?.eligible && !sale.price_paid && <p className="text-[11px] text-ink/40 mt-1">Kosongkan = pakai harga diskon otomatis.</p>}
+              {special && <p className="text-[11px] text-ink/40 mt-1">Kosongkan = pakai harga {quote?.kind === 'upgrade' ? 'upgrade' : 'diskon'} otomatis.</p>}
             </div>
             <div>
               <label className="label">Metode</label>

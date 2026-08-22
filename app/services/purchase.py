@@ -100,6 +100,71 @@ async def eligible_renewal_discount(db: AsyncSession, member_id, pkg: Package) -
     return 0.0
 
 
+async def _holds_active_same_package(db: AsyncSession, member_id, pkg: Package) -> bool:
+    """True bila member masih pegang paket SAMA (by id/nama) yang belum expired."""
+    now = datetime.now(timezone.utc)
+    existing = (
+        await db.execute(
+            select(MemberPackage).where(
+                MemberPackage.member_id == member_id,
+                MemberPackage.status == MemberPackageStatus.ACTIVE,
+                or_(
+                    MemberPackage.package_id == pkg.id,
+                    func.lower(MemberPackage.package_name) == (pkg.name or "").lower(),
+                ),
+            )
+        )
+    ).scalars().all()
+    return any(mp.expires_at is None or mp.expires_at > now for mp in existing)
+
+
+async def _has_paid_before(db: AsyncSession, member_id) -> bool:
+    n = (
+        await db.execute(
+            select(func.count()).select_from(Payment).where(
+                Payment.member_id == member_id, Payment.status == PaymentStatus.PAID
+            )
+        )
+    ).scalar_one()
+    return (n or 0) > 0
+
+
+async def eligible_upgrade(db: AsyncSession, member_id, pkg: Package) -> bool:
+    """Berhak harga UPGRADE bila: paket punya upgrade_price, member BELUM pegang paket ini
+    (aktif maupun pending/frozen), dan member SUDAH pernah bayar (punya transaksi lunas)."""
+    if float(pkg.upgrade_price or 0) <= 0:
+        return False
+    if await _holds_active_same_package(db, member_id, pkg):
+        return False  # sudah pegang paket ini → itu perpanjangan, bukan upgrade
+    # sudah ada upgrade paket ini yang menunggu pembayaran (FROZEN) → jangan tawarkan lagi
+    pending = (await db.execute(
+        select(MemberPackage).where(
+            MemberPackage.member_id == member_id,
+            MemberPackage.status == MemberPackageStatus.FROZEN,
+            or_(MemberPackage.package_id == pkg.id,
+                func.lower(MemberPackage.package_name) == (pkg.name or "").lower()),
+        )
+    )).scalars().first()
+    if pending is not None:
+        return False
+    return await _has_paid_before(db, member_id)
+
+
+async def price_quote(db: AsyncSession, member_id, pkg: Package) -> dict:
+    """Harga jual efektif utk member ini: renewal (potongan) / upgrade (harga flat) / normal."""
+    base = float(pkg.price)
+    disc = await eligible_renewal_discount(db, member_id, pkg)
+    if disc > 0:
+        return {"kind": "renewal", "base_price": base, "renewal_discount": disc,
+                "upgrade_price": 0.0, "total": max(0.0, base - disc)}
+    if await eligible_upgrade(db, member_id, pkg):
+        up = float(pkg.upgrade_price)
+        return {"kind": "upgrade", "base_price": base, "renewal_discount": 0.0,
+                "upgrade_price": up, "total": up}
+    return {"kind": "normal", "base_price": base, "renewal_discount": 0.0,
+            "upgrade_price": 0.0, "total": base}
+
+
 async def create_purchase(
     db: AsyncSession,
     member_id,
@@ -143,6 +208,12 @@ async def create_purchase(
     if pkg.monthly_expiry and activate:
         await apply_monthly_expiry(db, mp)
         await db.flush()
+    elif activate and not pkg.monthly_expiry:
+        # Paket non-bulanan aktif → per-datang naik jadi member Bulanan (mis. upgrade ke GOLD 2).
+        from app.models.user import User as _U, MemberCategory as _MC
+        _m = await db.get(_U, member_id)
+        if _m and _m.member_category in (None, _MC.PER_DATANG):
+            _m.member_category = _MC.BULANAN
 
     account_id = None
     if mark_paid:

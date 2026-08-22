@@ -13,7 +13,7 @@ from app.schemas.common import Page
 from app.schemas.member import (
     UserCreate, UserUpdate, UserBrief, MemberDetail,
     MemberPackageResponse, PaymentResponse, PurchaseCreate, EnrollRequest, DropinTicketCreate,
-    PackageUsageRow,
+    PackageUsageRow, UpgradeRequest,
 )
 from app.models.schedule import ClassSession
 from app.models.booking import Booking, BookingStatus
@@ -285,6 +285,48 @@ async def buy_dropin_ticket(db: AsyncSession = Depends(get_db), user: User = Dep
     return await _load_detail(db, user)
 
 
+@router.get("/me/upgrade-options")
+async def my_upgrade_options(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """Paket yang bisa di-upgrade member ini (harga upgrade), hanya bila memenuhi syarat
+    (sudah pernah bayar & belum pegang paket itu)."""
+    if user.role != UserRole.MEMBER:
+        return []
+    from app.services.purchase import eligible_upgrade
+    pkgs = (await db.execute(
+        select(Package).where(Package.is_active.is_(True), Package.upgrade_price > 0)
+        .order_by(Package.price)
+    )).scalars().all()
+    out = []
+    for p in pkgs:
+        if await eligible_upgrade(db, user.id, p):
+            out.append({
+                "id": str(p.id), "name": p.name,
+                "base_price": float(p.price), "upgrade_price": float(p.upgrade_price),
+                "is_unlimited": p.is_unlimited, "session_count": p.session_count,
+            })
+    return out
+
+
+@router.post("/me/upgrade", response_model=MemberDetail)
+async def upgrade_me(payload: UpgradeRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """Member upgrade ke paket dengan HARGA UPGRADE (flat). Tiket/sisa lama dibiarkan.
+    Paket dibuat FROZEN + tagihan PENDING → aktif setelah admin verifikasi pembayaran."""
+    if user.role != UserRole.MEMBER:
+        raise HTTPException(403, "Hanya untuk member")
+    pkg = (await db.execute(select(Package).where(Package.id == payload.package_id))).scalar_one_or_none()
+    if not pkg or not pkg.is_active:
+        raise HTTPException(404, "Paket tidak ditemukan")
+    from app.services.purchase import eligible_upgrade, create_purchase
+    if not await eligible_upgrade(db, user.id, pkg):
+        raise HTTPException(400, "Belum memenuhi syarat upgrade (harus sudah pernah bayar & belum pegang paket ini).")
+    await create_purchase(
+        db, member_id=user.id, package_id=pkg.id,
+        method=PaymentMethod.TRANSFER, mark_paid=False, activate=False,
+        price_paid=float(pkg.upgrade_price), note="Upgrade paket (menunggu pembayaran)",
+    )
+    return await _load_detail(db, user)
+
+
 @router.post("/{user_id}/dropin-ticket", response_model=MemberDetail)
 async def admin_add_dropin_ticket(
     user_id: uuid.UUID,
@@ -416,7 +458,7 @@ async def sell_package(
 ):
     """Jual/assign paket ke member. Pakai mesin create_purchase (menerapkan aturan bulanan
     + carryover, atribusi akun, & update kategori). Diskon perpanjangan otomatis bila berhak."""
-    from app.services.purchase import create_purchase, eligible_renewal_discount
+    from app.services.purchase import create_purchase, price_quote
     member = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if not member:
         raise HTTPException(404, "Member tidak ditemukan")
@@ -426,12 +468,14 @@ async def sell_package(
 
     note = payload.note
     if payload.price_paid is not None:
-        price = float(payload.price_paid)  # admin set harga manual → dipakai apa adanya (tanpa diskon otomatis)
+        price = float(payload.price_paid)  # admin set harga manual → dipakai apa adanya (tanpa diskon/upgrade otomatis)
     else:
-        discount = await eligible_renewal_discount(db, member.id, pkg)
-        price = max(0.0, float(pkg.price) - discount)
-        if discount > 0:
-            note = (note + " · " if note else "") + f"Diskon perpanjangan -{int(discount):,}".replace(",", ".")
+        q = await price_quote(db, member.id, pkg)
+        price = q["total"]
+        if q["kind"] == "renewal":
+            note = (note + " · " if note else "") + f"Diskon perpanjangan -{int(q['renewal_discount']):,}".replace(",", ".")
+        elif q["kind"] == "upgrade":
+            note = (note + " · " if note else "") + f"Upgrade (harga {int(q['upgrade_price']):,})".replace(",", ".")
 
     await create_purchase(
         db, member_id=member.id, package_id=pkg.id,
@@ -447,19 +491,15 @@ async def purchase_quote(
     user_id: uuid.UUID, package_id: uuid.UUID = Query(...),
     db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
 ):
-    """Pratinjau harga jual paket ke member ini (dengan diskon perpanjangan bila berhak)."""
-    from app.services.purchase import eligible_renewal_discount
+    """Pratinjau harga jual paket ke member ini (renewal / upgrade / normal)."""
+    from app.services.purchase import price_quote
     pkg = (await db.execute(select(Package).where(Package.id == package_id))).scalar_one_or_none()
     if not pkg:
         raise HTTPException(404, "Paket tidak ditemukan")
-    discount = await eligible_renewal_discount(db, user_id, pkg)
-    base = float(pkg.price)
-    return {
-        "base_price": base,
-        "renewal_discount": discount,
-        "eligible": discount > 0,
-        "total": max(0.0, base - discount),
-    }
+    q = await price_quote(db, user_id, pkg)
+    # backward-compat: 'eligible' = ada diskon perpanjangan
+    q["eligible"] = q["kind"] == "renewal"
+    return q
 
 
 @router.post("/{user_id}/packages/{mp_id}/freeze", response_model=MemberPackageResponse)
