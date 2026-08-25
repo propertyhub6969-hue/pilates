@@ -54,8 +54,7 @@ export default function Landing() {
             <a href="#kontak" className="hover:text-ink">Kontak</a>
           </nav>
           <div className="hidden md:flex items-center gap-2">
-            <Link to="/login" className="btn-ghost">Masuk</Link>
-            <Link to="/register" className="btn-primary">Daftar</Link>
+            <Link to="/login" className="btn-primary">Masuk</Link>
           </div>
           <button className="md:hidden btn-ghost !px-2" onClick={() => setMenuOpen((v) => !v)}><Menu size={20} /></button>
         </div>
@@ -65,8 +64,7 @@ export default function Landing() {
             <a href="#paket" onClick={() => setMenuOpen(false)} className="text-ink/70">Paket</a>
             <a href="#kontak" onClick={() => setMenuOpen(false)} className="text-ink/70">Kontak</a>
             <div className="flex gap-2 pt-2">
-              <Link to="/login" className="btn-ghost flex-1">Masuk</Link>
-              <Link to="/register" className="btn-primary flex-1">Daftar</Link>
+              <Link to="/login" className="btn-primary flex-1">Masuk</Link>
             </div>
           </div>
         )}
