@@ -36,19 +36,29 @@ def _tokens_for(user: User) -> Token:
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register_member(payload: MemberRegister, db: AsyncSession = Depends(get_db)):
-    """Registrasi mandiri member baru. Selalu dibuat dengan role MEMBER."""
-    existing = (
-        await db.execute(select(User).where(User.email == payload.email.lower()))
-    ).scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email sudah terdaftar")
+    """Registrasi mandiri member baru. Selalu dibuat dengan role MEMBER.
+    Email opsional — bila kosong dibuat otomatis dari No. WA (login tetap pakai No. WA)."""
+    from app.services.whatsapp import phone_taken, normalize_phone
 
-    from app.services.whatsapp import phone_taken
-    if payload.phone and await phone_taken(db, payload.phone):
+    norm = normalize_phone(payload.phone)
+    if not norm:
+        raise HTTPException(status_code=400, detail="Nomor WhatsApp tidak valid")
+    if await phone_taken(db, payload.phone):
         raise HTTPException(status_code=400, detail="Nomor WhatsApp sudah terdaftar")
 
+    # Email: pakai yang diisi, atau buat placeholder unik dari No. WA
+    if payload.email:
+        email = payload.email.lower()
+        if (await db.execute(select(User).where(User.email == email))).scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Email sudah terdaftar")
+    else:
+        base = f"{norm}@reformeryourbody.com"
+        email, i = base, 1
+        while (await db.execute(select(User).where(User.email == email))).scalar_one_or_none():
+            email = f"{norm}-{i}@reformeryourbody.com"; i += 1
+
     user = User(
-        email=payload.email.lower(),
+        email=email,
         hashed_password=get_password_hash(payload.password),
         full_name=payload.full_name.strip(),
         phone=payload.phone,

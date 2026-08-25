@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react'
 
 export default function Register() {
   const { register } = useAuth()
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '' })
+  const [form, setForm] = useState({ full_name: '', phone: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -15,8 +15,7 @@ export default function Register() {
     try {
       await register({
         full_name: form.full_name.trim(),
-        email: form.email.trim().toLowerCase(),
-        phone: form.phone || undefined,
+        phone: form.phone.trim(),
         password: form.password,
       })
     } catch (err: any) {
@@ -51,15 +50,10 @@ export default function Register() {
                 onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
             </div>
             <div>
-              <label className="label">Email</label>
-              <input className="input" type="email" required autoComplete="email" value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="nama@email.com" />
-            </div>
-            <div>
               <label className="label">Nomor WhatsApp</label>
-              <input className="input" value={form.phone}
+              <input className="input" type="tel" required autoComplete="tel" value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08123456789" />
-              <p className="text-[11px] text-ink/40 mt-1">Untuk pengingat kelas via WhatsApp.</p>
+              <p className="text-[11px] text-ink/40 mt-1">Dipakai untuk login & pengingat kelas via WhatsApp.</p>
             </div>
             <div>
               <label className="label">Password</label>

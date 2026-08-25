@@ -8,10 +8,10 @@ from app.models.payment import PaymentMethod
 
 class MemberRegister(BaseModel):
     """Registrasi mandiri oleh member baru (self sign-up dari HP)."""
-    email: EmailStr
+    email: Optional[EmailStr] = None            # opsional — dibuat otomatis dari No. WA bila kosong
     password: str = Field(min_length=6)
     full_name: str = Field(min_length=2, max_length=200)
-    phone: Optional[str] = None
+    phone: str = Field(min_length=6, max_length=30)  # WAJIB — dipakai untuk login & email placeholder
     # Self-enrollment: pilih kategori + (opsional) paket yang dibeli sekaligus
     member_category: Optional[MemberCategory] = None
     package_id: Optional[uuid.UUID] = None

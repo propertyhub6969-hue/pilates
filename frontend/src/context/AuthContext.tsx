@@ -11,7 +11,7 @@ interface AuthState {
   loading: boolean
   login: (identifier: string, password: string) => Promise<void>
   register: (data: {
-    email: string; password: string; full_name: string; phone?: string
+    email?: string; password: string; full_name: string; phone?: string
     member_category?: string; package_id?: string; payment_method?: string
   }) => Promise<void>
   logout: () => void
@@ -48,11 +48,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function register(data: {
-    email: string; password: string; full_name: string; phone?: string
+    email?: string; password: string; full_name: string; phone?: string
     member_category?: string; package_id?: string; payment_method?: string
   }) {
     await api.post('/auth/register', data)
-    await login(data.email, data.password)
+    await login(data.phone || data.email || '', data.password)
   }
 
   function logout() {
