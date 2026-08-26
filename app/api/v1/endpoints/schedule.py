@@ -249,6 +249,10 @@ async def list_sessions(
             ClassSession.status == ClassSessionStatus.SCHEDULED,
             ClassSession.category == SessionCategory.UMUM,
         )
+        # Batas bawah tanggal jadwal untuk member (bila di-set di Pengaturan)
+        studio = await booking_svc.get_studio(db)
+        if studio and getattr(studio, "member_schedule_start", None):
+            stmt = stmt.where(ClassSession.session_date >= studio.member_schedule_start)
     stmt = stmt.order_by(ClassSession.session_date, ClassSession.start_time)
     rows = (await db.execute(stmt)).scalars().all()
 

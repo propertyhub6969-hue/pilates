@@ -26,6 +26,7 @@ interface StudioSettings {
   booking_url: string
   announcement?: string | null
   announcement_active?: boolean
+  member_schedule_start?: string | null
 }
 
 export default function Settings() {
@@ -74,6 +75,7 @@ export default function Settings() {
       booking_url: f.booking_url || 'https://reformeryourbody.com/jadwal',
       announcement: f.announcement || null,
       announcement_active: !!f.announcement_active,
+      member_schedule_start: f.member_schedule_start || null,
     })).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['studio-settings'] })
@@ -116,6 +118,11 @@ export default function Settings() {
           <textarea className="input" rows={3} value={f.announcement ?? ''} onChange={(e) => setF({ ...f, announcement: e.target.value })}
             placeholder="mis. Malam ini kita coba pilih jadwal langsung lewat web! Buka menu Jadwal → pilih kelas → booking. Yuk dicoba 🧘" />
           <p className="text-[11px] text-ink/40">Muncul sbg banner di halaman utama member (yang login). Kosongkan / matikan centang untuk menyembunyikan.</p>
+          <div className="pt-2 border-t border-sand">
+            <label className="label">Tampilkan jadwal member mulai tanggal</label>
+            <input type="date" className="input !w-48" value={f.member_schedule_start ?? ''} onChange={(e) => setF({ ...f, member_schedule_start: e.target.value })} />
+            <p className="text-[11px] text-ink/40 mt-1">Member hanya lihat jadwal sejak tanggal ini. Kosongkan untuk tampilkan semua (sejak hari ini).</p>
+          </div>
         </div>
 
         <div className="card space-y-4">

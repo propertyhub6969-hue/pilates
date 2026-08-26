@@ -1,4 +1,5 @@
-from sqlalchemy import String, Integer, Text, Numeric, Boolean
+from datetime import date
+from sqlalchemy import String, Integer, Text, Numeric, Boolean, Date
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import BaseModel
 
@@ -51,3 +52,6 @@ class StudioSettings(BaseModel):
     # Pengumuman untuk member — tampil sbg banner di dashboard member saat aktif.
     announcement: Mapped[str] = mapped_column(Text, nullable=True)
     announcement_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Member hanya lihat jadwal mulai tanggal ini (batas bawah). NULL = tampil semua sejak hari ini.
+    member_schedule_start: Mapped[date] = mapped_column(Date, nullable=True)

@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -27,6 +28,7 @@ class StudioSettingsResponse(BaseModel):
     booking_url: str = "https://reformeryourbody.com/jadwal"
     announcement: Optional[str] = None
     announcement_active: bool = False
+    member_schedule_start: Optional[date] = None
 
     class Config:
         from_attributes = True
@@ -55,6 +57,7 @@ class StudioSettingsUpdate(BaseModel):
     booking_url: Optional[str] = Field(default=None, max_length=200)
     announcement: Optional[str] = None
     announcement_active: Optional[bool] = None
+    member_schedule_start: Optional[date] = None
 
 
 class ChangePassword(BaseModel):
