@@ -284,11 +284,13 @@ async def commit(db: AsyncSession, file_bytes: bytes, default_password: str, act
         user = phone_to_user.get(norm)
 
         gabung = date.fromisoformat(row["gabung"]) if row["gabung"] else None
+        # Simpan No. WA dalam format lokal ber-0 (mis. 62812… → 0812…) agar rapi & konsisten.
+        phone_local = ("0" + row["norm_phone"][2:]) if (row["norm_phone"] or "").startswith("62") else (row["no_wa"] or None)
         if user is None:
             email = (row["email"] if row["email"] and "@" in row["email"] else None) or gen_email(norm)
             user = User(
                 email=email, hashed_password=get_password_hash(default_password),
-                full_name=row["nama"], phone=row["no_wa"],
+                full_name=row["nama"], phone=phone_local,
                 role=UserRole.MEMBER, member_category=MemberCategory(row["kategori"]),
                 join_date=gabung or now.date(), is_active=True,
             )
