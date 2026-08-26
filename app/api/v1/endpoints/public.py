@@ -4,10 +4,14 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
+from sqlalchemy import func
 from app.models.studio import StudioSettings
 from app.models.package import Package
 from app.models.branch import Branch
+from app.models.user import User, UserRole
+from app.models.schedule import ClassSession, ClassSessionStatus
 from app.services import landing_media as lm
+from app.services import booking as booking_svc
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 import uuid
@@ -66,6 +70,33 @@ async def public_studio(db: AsyncSession = Depends(get_db)):
         return StudioPublic(name="Reformer Your Body", media=media)
     ann = s.announcement if getattr(s, "announcement_active", False) and (s.announcement or "").strip() else None
     return StudioPublic(name=s.name, tagline=s.tagline, address=s.address, phone=s.phone, announcement=ann, media=media)
+
+
+class PublicStats(BaseModel):
+    members_active: int   # member aktif (role member, is_active)
+    branches: int         # cabang aktif
+    capacity: int         # kapasitas maks / kelas (kelas kecil)
+    sessions_done: int    # sesi kelas yang sudah terlaksana (tanggal lewat, tidak dibatalkan)
+
+
+@router.get("/stats", response_model=PublicStats)
+async def public_stats(db: AsyncSession = Depends(get_db)):
+    """Statistik nyata untuk landing (tanpa autentikasi)."""
+    members = (await db.execute(
+        select(func.count()).select_from(User).where(User.role == UserRole.MEMBER, User.is_active.is_(True))
+    )).scalar_one()
+    branches = (await db.execute(
+        select(func.count()).select_from(Branch).where(Branch.is_active.is_(True))
+    )).scalar_one()
+    s = (await db.execute(select(StudioSettings))).scalars().first()
+    capacity = s.default_capacity if s else 14
+    sessions_done = (await db.execute(
+        select(func.count()).select_from(ClassSession).where(
+            ClassSession.session_date < booking_svc.today_local(),
+            ClassSession.status != ClassSessionStatus.CANCELLED,
+        )
+    )).scalar_one()
+    return PublicStats(members_active=members, branches=branches, capacity=capacity, sessions_done=sessions_done)
 
 
 @router.get("/media/{slot}")

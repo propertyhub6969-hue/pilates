@@ -12,6 +12,10 @@ import {
 interface StudioInfo { name: string; tagline?: string | null; address?: string | null; phone?: string | null; media?: Record<string, string> }
 interface Pkg { id: string; name: string; description?: string | null; is_unlimited: boolean; session_count?: number | null; price: number }
 interface BranchInfo { id: string; name: string; address?: string | null; phone?: string | null }
+interface Stats { members_active: number; branches: number; capacity: number; sessions_done: number }
+
+// Angka besar dibulatkan ke bawah + "+" (mis. 312 → "310+"); kecil ditampilkan apa adanya
+const nf = (n?: number) => (n == null ? '…' : n < 10 ? String(n) : `${Math.floor(n / 10) * 10}+`)
 
 const CLASSES = [
   { slot: 'class1', icon: Wind, title: 'Reformer Flow', level: 'Semua level', desc: 'Gerakan mengalir di atas reformer untuk kekuatan inti, mobilitas, dan postur.', grad: 'from-[#e9c9b4] to-[#cf9880]' },
@@ -69,6 +73,7 @@ export default function Landing() {
   const { data: studio } = useQuery({ queryKey: ['public-studio'], queryFn: async () => (await api.get<StudioInfo>('/public/studio')).data })
   const { data: packages } = useQuery({ queryKey: ['public-packages'], queryFn: async () => (await api.get<Pkg[]>('/public/packages')).data })
   const { data: branches } = useQuery({ queryKey: ['public-branches'], queryFn: async () => (await api.get<BranchInfo[]>('/public/branches')).data })
+  const { data: stats } = useQuery({ queryKey: ['public-stats'], queryFn: async () => (await api.get<Stats>('/public/stats')).data })
 
   const name = studio?.name ?? 'Reformer Your Body'
   const media = studio?.media ?? {}
@@ -133,17 +138,22 @@ export default function Landing() {
             </div>
             <div className="text-left">
               <div className="flex gap-0.5 text-[#F3D9A6]">{[0, 1, 2, 3, 4].map((i) => <Star key={i} size={15} fill="currentColor" stroke="none" />)}</div>
-              <small className="block text-white/80 text-[13px]"><b className="text-white">300+ member aktif</b> · dipercaya sejak 2023</small>
+              <small className="block text-white/80 text-[13px]"><b className="text-white">{nf(stats?.members_active)} member aktif</b> berlatih bersama kami</small>
             </div>
           </div>
         </div>
         <a href="#kenapa" className="absolute left-1/2 -translate-x-1/2 bottom-6 z-10 text-white/75 animate-bounce"><ChevronDown size={24} /></a>
       </section>
 
-      {/* PITA STATISTIK */}
+      {/* PITA STATISTIK — angka nyata dari database */}
       <div className="bg-sand border-b border-sand">
         <div className="mx-auto max-w-6xl px-5 grid grid-cols-2 sm:grid-cols-4 gap-6 py-7 text-center">
-          {[['300+', 'Member aktif'], [String(branches?.length ?? 2), 'Cabang studio'], ['maks 14', 'Peserta / kelas'], ['4,9★', 'Rating member']].map(([n, l]) => (
+          {[
+            [nf(stats?.members_active), 'Member aktif'],
+            [stats ? String(stats.branches) : '…', 'Cabang studio'],
+            [stats ? `maks ${stats.capacity}` : '…', 'Peserta / kelas'],
+            [nf(stats?.sessions_done), 'Sesi terlaksana'],
+          ].map(([n, l]) => (
             <div key={l}><div className="font-display text-3xl font-semibold text-copper-700 tabular-nums">{n}</div><div className="text-[13px] text-ink/60 mt-0.5">{l}</div></div>
           ))}
         </div>
