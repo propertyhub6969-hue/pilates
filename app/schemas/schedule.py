@@ -105,6 +105,7 @@ class SessionResponse(BaseModel):
     # Konteks utk pemanggil (member): status booking dia di sesi ini
     my_booking_status: Optional[BookingStatus] = None
     my_booking_id: Optional[uuid.UUID] = None
+    my_can_cancel: bool = False   # member boleh batalkan booking-nya (> batas jam sblm mulai)
     # Status jendela booking utk pemanggil
     slots_remaining: int = 0
     booking_state: str = "open"          # not_open | open | full | closed | cancelled

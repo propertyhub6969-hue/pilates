@@ -290,6 +290,7 @@ export interface ClassSession {
   waitlist_count: number
   my_booking_status?: BookingStatus | null
   my_booking_id?: string | null
+  my_can_cancel?: boolean
   slots_remaining: number
   booking_state: 'not_open' | 'open' | 'full' | 'closed' | 'cancelled'
   booking_opens_at?: string | null

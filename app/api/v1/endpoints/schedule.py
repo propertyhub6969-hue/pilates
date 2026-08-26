@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -198,6 +198,11 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
         if b:
             r.my_booking_status = b.status
             r.my_booking_id = b.id
+            # Boleh batal/ganti sendiri bila sesi terjadwal & masih > batas jam sblm mulai
+            if b.status in (BookingStatus.BOOKED, BookingStatus.WAITLIST) and s.status == ClassSessionStatus.SCHEDULED:
+                window = (studio.cancellation_window_hours or 12) if studio else 12
+                start_dt = datetime.combine(s.session_date, s.start_time, tzinfo=booking_svc.TZ)
+                r.my_can_cancel = now < start_dt - timedelta(hours=window)
 
         r.bulanan_count = bulanan.get(s.id, 0)
         r.is_underfilled = (

@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, time, datetime, timezone
+from datetime import date, time, datetime, timezone, timedelta
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -57,15 +57,22 @@ async def create_booking(payload: BookRequest, db: AsyncSession = Depends(get_db
 
 @router.post("/{booking_id}/cancel", response_model=SessionResponse)
 async def cancel_booking(booking_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
-    # Member TIDAK boleh membatalkan sepihak — hanya staf/admin (semua kategori member).
-    if not user.is_staff():
-        raise HTTPException(403, "Pembatalan hanya bisa dilakukan admin. Hubungi admin studio.")
     booking = (await db.execute(select(Booking).where(Booking.id == booking_id))).scalar_one_or_none()
     if not booking:
         raise HTTPException(404, "Booking tidak ditemukan")
+    session = (await db.execute(select(ClassSession).where(ClassSession.id == booking.session_id))).scalar_one()
+
+    # Member boleh batalkan booking SENDIRI, tapi hanya bila > batas jam sebelum kelas mulai.
+    if not user.is_staff():
+        if booking.member_id != user.id:
+            raise HTTPException(403, "Hanya bisa membatalkan booking sendiri.")
+        studio = await booking_svc.get_studio(db)
+        window = (studio.cancellation_window_hours if studio else 12) or 12
+        start_dt = datetime.combine(session.session_date, session.start_time, tzinfo=booking_svc.TZ)
+        if booking_svc.now_local() >= start_dt - timedelta(hours=window):
+            raise HTTPException(403, f"Booking terkunci — tak bisa dibatalkan/ganti dalam {window} jam sebelum kelas mulai. Hubungi admin bila perlu.")
 
     await booking_svc.cancel_booking(db, booking)
-    session = (await db.execute(select(ClassSession).where(ClassSession.id == booking.session_id))).scalar_one()
     return (await _serialize_sessions(db, [session], user))[0]
 
 

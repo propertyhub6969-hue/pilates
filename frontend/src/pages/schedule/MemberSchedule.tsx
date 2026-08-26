@@ -58,6 +58,11 @@ export default function MemberSchedule() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] }) },
     onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal booking'),
   })
+  const cancelBooking = useMutation({
+    mutationFn: async (booking_id: string) => api.post(`/bookings/${booking_id}/cancel`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] }) },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal membatalkan'),
+  })
 
   const groups = groupByDate(shown)
 
@@ -142,10 +147,14 @@ export default function MemberSchedule() {
                       </div>
                       <div className="shrink-0">
                         {mine === 'booked' || mine === 'waitlist' ? (
-                          <div className="text-right">
+                          <div className="text-right flex flex-col items-end gap-1">
                             {mine === 'waitlist'
                               ? <span className="text-xs rounded-full px-3 py-1.5 bg-clay/10 text-clay-dark font-medium">Waitlist</span>
                               : <span className="inline-flex items-center gap-1 text-xs rounded-full px-3 py-1.5 bg-copper-100 text-copper-700 font-medium"><Check size={13} /> Terdaftar</span>}
+                            {s.my_can_cancel && s.my_booking_id
+                              ? <button onClick={() => { if (confirm('Batalkan sesi ini? Kamu bisa pilih jadwal lain.')) cancelBooking.mutate(s.my_booking_id!) }} disabled={cancelBooking.isPending}
+                                  className="text-[11px] text-clay-dark hover:underline">Batalkan / ganti</button>
+                              : <span className="text-[10px] text-ink/35 inline-flex items-center gap-0.5"><Clock size={10} /> Terkunci (&lt;12 jam)</span>}
                           </div>
                         ) : st === 'open' ? (
                           <button onClick={() => book.mutate(s.id)} disabled={book.isPending}
