@@ -208,7 +208,7 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
                       <tr key={s.id} onClick={() => setRosterFor(s)}
                         className={`border-b border-sand/60 hover:bg-sand/40 cursor-pointer transition ${s.status === 'cancelled' ? 'opacity-50' : ''}`}>
                         <td className="px-4 py-3 font-display font-semibold text-copper-700 whitespace-nowrap">{formatTime(s.start_time)}</td>
-                        <td className="px-4 py-3 font-semibold">{s.title}</td>
+                        <td className="px-4 py-3 font-semibold">{s.title}{s.category === 'private' && <span className="ml-1.5 text-[10px] rounded-full px-2 py-0.5 bg-clay/15 text-clay-dark align-middle">Private</span>}</td>
                         <td className="px-4 py-3 text-ink/60 hidden sm:table-cell">{s.instructor_name ?? '—'}</td>
                         <td className="px-4 py-3 text-ink/60 hidden md:table-cell">{s.room ?? '—'}</td>
                         <td className="px-4 py-3 whitespace-nowrap">
@@ -242,13 +242,14 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 function SessionForm({ qc, onClose }: { qc: ReturnType<typeof useQueryClient>; onClose: () => void }) {
   const { activeId } = useBranch()
   const { data: instructors } = useInstructors()
-  const [f, setF] = useState({ title: '', instructor_id: '', session_date: todayISO(), start_time: '07:00', duration_minutes: '55', capacity: '8', room: '' })
+  const [f, setF] = useState({ title: '', instructor_id: '', session_date: todayISO(), start_time: '07:00', duration_minutes: '55', capacity: '8', room: '', category: 'umum' as 'umum' | 'private' })
   const [err, setErr] = useState('')
   const save = useMutation({
     mutationFn: async () => api.post('/schedule/sessions', {
       branch_id: activeId,
       title: f.title, instructor_id: f.instructor_id || null, session_date: f.session_date,
       start_time: f.start_time, duration_minutes: Number(f.duration_minutes), capacity: Number(f.capacity), room: f.room || null,
+      category: f.category,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['staff-sessions'] }); onClose() },
     onError: (e: any) => setErr(e?.response?.data?.detail ?? 'Gagal menyimpan'),
@@ -257,6 +258,12 @@ function SessionForm({ qc, onClose }: { qc: ReturnType<typeof useQueryClient>; o
     <Modal open onClose={onClose} title="Tambah Sesi">
       <form onSubmit={(e) => { e.preventDefault(); setErr(''); save.mutate() }} className="space-y-4">
         <div><label className="label">Nama kelas</label><input className="input" required value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></div>
+        <div><label className="label">Kategori jadwal</label>
+          <select className="input" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value as 'umum' | 'private' })}>
+            <option value="umum">Umum (tampil di aplikasi member)</option>
+            <option value="private">Private Group (tak tampil di aplikasi member; info via WA)</option>
+          </select>
+        </div>
         <div><label className="label">Instruktur</label>
           <select className="input" value={f.instructor_id} onChange={(e) => setF({ ...f, instructor_id: e.target.value })}>
             <option value="">— tanpa instruktur —</option>
@@ -475,7 +482,7 @@ function TemplateForm({ qc, instructors, tpl, onClose }: {
   const [f, setF] = useState({
     name: tpl?.name ?? '', instructor_id: tpl?.instructor_id ?? '', day_of_week: String(tpl?.day_of_week ?? 0),
     start_time: tpl ? formatTime(tpl.start_time) : '07:00', duration_minutes: String(tpl?.duration_minutes ?? 55),
-    capacity: String(tpl?.capacity ?? 8), room: tpl?.room ?? '',
+    capacity: String(tpl?.capacity ?? 8), room: tpl?.room ?? '', category: (tpl?.category ?? 'umum') as 'umum' | 'private',
   })
   const [err, setErr] = useState('')
   const save = useMutation({
@@ -483,6 +490,7 @@ function TemplateForm({ qc, instructors, tpl, onClose }: {
       const body: any = {
         name: f.name, instructor_id: f.instructor_id || null, day_of_week: Number(f.day_of_week),
         start_time: f.start_time, duration_minutes: Number(f.duration_minutes), capacity: Number(f.capacity), room: f.room || null,
+        category: f.category,
       }
       if (tpl) return api.patch(`/schedule/templates/${tpl.id}`, body)
       return api.post('/schedule/templates', { ...body, branch_id: activeId })
@@ -494,6 +502,12 @@ function TemplateForm({ qc, instructors, tpl, onClose }: {
     <Modal open onClose={onClose} title={tpl ? 'Ubah Template' : 'Tambah Template'}>
       <form onSubmit={(e) => { e.preventDefault(); setErr(''); save.mutate() }} className="space-y-4">
         <div><label className="label">Nama kelas</label><input className="input" required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></div>
+        <div><label className="label">Kategori jadwal</label>
+          <select className="input" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value as 'umum' | 'private' })}>
+            <option value="umum">Umum (tampil di aplikasi member)</option>
+            <option value="private">Private Group (tak tampil di aplikasi member)</option>
+          </select>
+        </div>
         <div><label className="label">Instruktur</label>
           <select className="input" value={f.instructor_id} onChange={(e) => setF({ ...f, instructor_id: e.target.value })}>
             <option value="">— tanpa instruktur —</option>

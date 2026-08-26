@@ -374,6 +374,7 @@ async def generate_sessions(db: AsyncSession, weeks: int, branch_id=None) -> tup
                         duration_minutes=tpl.duration_minutes,
                         capacity=tpl.capacity,
                         room=tpl.room,
+                        category=tpl.category,
                         status=ClassSessionStatus.SCHEDULED,
                     ))
                     created += 1

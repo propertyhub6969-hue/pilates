@@ -250,6 +250,7 @@ export interface Branch {
 
 // ── Jadwal & Booking ──
 export type ClassSessionStatus = 'scheduled' | 'cancelled' | 'completed'
+export type SessionCategory = 'umum' | 'private'
 export type BookingStatus = 'booked' | 'waitlist' | 'attended' | 'cancelled' | 'no_show'
 
 export interface ClassTemplate {
@@ -264,6 +265,7 @@ export interface ClassTemplate {
   duration_minutes: number
   capacity: number
   room?: string | null
+  category?: SessionCategory
   is_active: boolean
 }
 
@@ -281,6 +283,7 @@ export interface ClassSession {
   duration_minutes: number
   capacity: number
   room?: string | null
+  category?: SessionCategory
   status: ClassSessionStatus
   notes?: string | null
   booked_count: number

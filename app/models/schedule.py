@@ -7,6 +7,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import BaseModel
 
 
+class SessionCategory(str, enum.Enum):
+    UMUM = "umum"        # kelas umum — tampil di dashboard/jadwal member
+    PRIVATE = "private"  # private group — TIDAK tampil di aplikasi member (info via WA saja)
+
+
 class ClassTemplate(BaseModel):
     """
     Template jadwal BERULANG mingguan (mis. "Reformer Basic — Senin 07:00, kapasitas 8").
@@ -29,6 +34,9 @@ class ClassTemplate(BaseModel):
     duration_minutes: Mapped[int] = mapped_column(Integer, default=55, nullable=False)
     capacity: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
     room: Mapped[str] = mapped_column(String(80), nullable=True)
+    category: Mapped[SessionCategory] = mapped_column(
+        SAEnum(SessionCategory, name="sessioncategory"), default=SessionCategory.UMUM, nullable=False
+    )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
@@ -70,6 +78,9 @@ class ClassSession(BaseModel):
         SAEnum(ClassSessionStatus), default=ClassSessionStatus.SCHEDULED, nullable=False, index=True
     )
     notes: Mapped[str] = mapped_column(Text, nullable=True)
+    category: Mapped[SessionCategory] = mapped_column(
+        SAEnum(SessionCategory, name="sessioncategory"), default=SessionCategory.UMUM, nullable=False, index=True
+    )
     # Karyawan pendamping (dibayar per sesi) yang hadir mendampingi instruktur di sesi ini
     assistant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True

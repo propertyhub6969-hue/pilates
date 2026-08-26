@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.deps import get_current_user, require_staff, require_owner
 from app.models.user import User, UserRole, MemberCategory
-from app.models.schedule import ClassTemplate, ClassSession, ClassSessionStatus
+from app.models.schedule import ClassTemplate, ClassSession, ClassSessionStatus, SessionCategory
 from app.models.booking import Booking, BookingStatus
 from app.models.package import MemberPackage
 from app.models.branch import Branch
@@ -242,9 +242,13 @@ async def list_sessions(
     )
     if branch_id is not None:
         stmt = stmt.where(ClassSession.branch_id == branch_id)
-    # Member hanya lihat sesi terjadwal (bukan yg dibatalkan), kecuali minta punyanya
+    # Member hanya lihat sesi terjadwal (bukan yg dibatalkan) & kategori UMUM, kecuali minta punyanya.
+    # Sesi PRIVATE tak tampil di aplikasi member (info via WA saja).
     if viewer.role == UserRole.MEMBER and not mine:
-        stmt = stmt.where(ClassSession.status == ClassSessionStatus.SCHEDULED)
+        stmt = stmt.where(
+            ClassSession.status == ClassSessionStatus.SCHEDULED,
+            ClassSession.category == SessionCategory.UMUM,
+        )
     stmt = stmt.order_by(ClassSession.session_date, ClassSession.start_time)
     rows = (await db.execute(stmt)).scalars().all()
 

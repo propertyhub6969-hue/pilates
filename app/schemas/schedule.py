@@ -2,7 +2,7 @@ import uuid
 from datetime import date, time, datetime
 from typing import Optional
 from pydantic import BaseModel, Field
-from app.models.schedule import ClassSessionStatus
+from app.models.schedule import ClassSessionStatus, SessionCategory
 from app.models.booking import BookingStatus
 
 
@@ -17,6 +17,7 @@ class TemplateBase(BaseModel):
     duration_minutes: int = Field(default=55, ge=15, le=240)
     capacity: int = Field(default=14, ge=1, le=100)
     room: Optional[str] = None
+    category: SessionCategory = SessionCategory.UMUM
     is_active: bool = True
 
 
@@ -33,6 +34,7 @@ class TemplateUpdate(BaseModel):
     duration_minutes: Optional[int] = Field(default=None, ge=15, le=240)
     capacity: Optional[int] = Field(default=None, ge=1, le=100)
     room: Optional[str] = None
+    category: Optional[SessionCategory] = None
     is_active: Optional[bool] = None
 
 
@@ -65,6 +67,7 @@ class SessionCreate(BaseModel):
     duration_minutes: int = Field(default=55, ge=15, le=240)
     capacity: int = Field(default=14, ge=1, le=100)
     room: Optional[str] = None
+    category: SessionCategory = SessionCategory.UMUM
     notes: Optional[str] = None
 
 
@@ -94,6 +97,7 @@ class SessionResponse(BaseModel):
     duration_minutes: int
     capacity: int
     room: Optional[str] = None
+    category: SessionCategory = SessionCategory.UMUM
     status: ClassSessionStatus
     notes: Optional[str] = None
     booked_count: int = 0
