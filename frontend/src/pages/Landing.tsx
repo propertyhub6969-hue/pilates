@@ -5,7 +5,7 @@ import { api } from '@/services/api'
 import Brand from '@/components/Brand'
 import { formatRupiah } from '@/utils/format'
 import {
-  Infinity as InfinityIcon, Sparkles, HeartPulse, Wind, Users2, Star, Clock,
+  Infinity as InfinityIcon, Sparkles, HeartPulse, Wind, Users2, Star, Clock, Check,
   MapPin, Phone, ArrowRight, Menu, Building2, ChevronDown, MessageCircle,
 } from 'lucide-react'
 
@@ -263,7 +263,17 @@ export default function Landing() {
                 </div>
                 <div className="font-display text-4xl font-semibold text-copper-700 mt-4">{formatRupiah(p.price)}</div>
                 {p.description && <p className="text-ink/55 text-sm mt-3">{p.description}</p>}
-                <Link to="/register" className={`mt-auto pt-6 ${popular ? 'btn-primary' : 'btn-ghost border border-sand'} w-full justify-center`}>Pilih paket</Link>
+                <ul className="mt-5 mb-6 space-y-2.5">
+                  {[
+                    p.is_unlimited ? 'Ikut kelas tanpa batas' : `${p.session_count} sesi kelas`,
+                    'Bebas pilih & atur jadwal sendiri',
+                    'Batal / reschedule mandiri (>12 jam)',
+                    'Sisa kuota & masa aktif terpantau',
+                  ].map((t) => (
+                    <li key={t} className="flex gap-2.5 text-[14.5px]"><Check size={16} className="text-copper-600 mt-0.5 shrink-0" /> {t}</li>
+                  ))}
+                </ul>
+                <Link to="/register" className={`mt-auto ${popular ? 'btn-primary' : 'btn-ghost border border-sand'} w-full justify-center`}>Pilih paket</Link>
               </div>
             )
           })}
