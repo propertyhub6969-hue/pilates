@@ -70,10 +70,16 @@ async def announce_bulanan(db: AsyncSession, target_date: date) -> dict:
     sessions = await _sessions_on(db, target_date)
     if not sessions:
         return {"ok": False, "reason": f"tidak ada sesi pada {target_date}"}
+    from app.models.schedule import SessionCategory
     lines = []
     for s in sessions:
-        slots = max(0, s.capacity - await _booked(db, s.id))
-        lines.append(f"• {_hhmm(s.start_time)} {s.title}" + (f" — sisa {slots} slot" if slots > 0 else " — PENUH"))
+        is_private = getattr(s, "category", None) == SessionCategory.PRIVATE
+        if is_private:
+            # Private group tak bisa dibooking member via aplikasi → tampilkan berlabel, tanpa info slot
+            lines.append(f"• {_hhmm(s.start_time)} {s.title} 🔒 (Private Group)")
+        else:
+            slots = max(0, s.capacity - await _booked(db, s.id))
+            lines.append(f"• {_hhmm(s.start_time)} {s.title}" + (f" — sisa {slots} slot" if slots > 0 else " — PENUH"))
     msg = (
         f"*Jadwal {_date_label(target_date)}* — {studio.name}\n"
         f"Booking dibuka untuk member *bulanan & private* 🎯\n\n"
