@@ -44,6 +44,8 @@ Aplikasi manajemen **studio pilates "Reformer Your Body"** (Coach Ade). Single-s
 
 ## 3. Deploy & Operasional
 
+> **★★ PRODUKSI PINDAH VPS (26 Agu 2026):** live di **VPS BARU `72.62.71.1`** (`srv1931251`). VPS LAMA `72.60.43.158` (vps.nadinata.org) **pilates DIMATIKAN** (`down`, volume tetap). Sesi Claude default = VPS lama → deploy ke produksi via SSH: `ssh -i ~/.ssh/nexist_migrate_ed25519 root@72.62.71.1` → `cd /opt/pilates && git pull && docker compose -f docker-compose.prod.yml up -d --build`. VPS baru pull pakai `core.sshCommand`=`/root/.ssh/pilates_pull_key` (key sementara; idealnya daftarkan `github_ed25519.pub` VPS baru sbg deploy key). Atau jalankan `claude` LANGSUNG di VPS baru. ★ Backup harian pilates di VPS lama kini redundan — pastikan VPS baru punya backup pilates.
+
 ```bash
 cd /opt/pilates
 # deploy penuh
