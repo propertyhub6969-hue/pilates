@@ -137,7 +137,7 @@ export default function MemberSchedule() {
                         {/* Status jendela booking */}
                         {!mine && st === 'not_open' && <div className="text-[11px] text-ink/45 mt-1 inline-flex items-center gap-1"><Clock size={11} /> Dibuka {openLabel(s.booking_opens_at)}</div>}
                         {!mine && st === 'open' && <div className="text-[11px] text-copper-600 mt-1">Sisa {s.slots_remaining} slot</div>}
-                        {!mine && st === 'full' && <div className="text-[11px] text-clay-dark mt-1">Penuh — bisa gabung waitlist</div>}
+                        {!mine && st === 'full' && <div className="text-[11px] text-clay-dark mt-1">{s.can_book ? 'Penuh — bisa gabung waitlist' : 'Penuh — kelas terkunci'}</div>}
                         {!mine && st === 'closed' && <div className="text-[11px] text-ink/40 mt-1">Booking ditutup</div>}
                       </div>
                       <div className="shrink-0">
@@ -153,8 +153,12 @@ export default function MemberSchedule() {
                             {book.isPending ? <Loader2 size={15} className="animate-spin" /> : 'Booking'}
                           </button>
                         ) : st === 'full' ? (
-                          <button onClick={() => book.mutate(s.id)} disabled={book.isPending}
-                            className="btn-ghost !px-3 !py-1.5 border border-sand">Gabung waitlist</button>
+                          s.can_book ? (
+                            <button onClick={() => book.mutate(s.id)} disabled={book.isPending}
+                              className="btn-ghost !px-3 !py-1.5 border border-sand">Gabung waitlist</button>
+                          ) : (
+                            <span className="text-xs rounded-full px-3 py-1.5 bg-sand text-ink/50 font-medium">Penuh</span>
+                          )
                         ) : st === 'not_open' ? (
                           <button disabled className="btn-ghost !px-3 !py-1.5 border border-sand opacity-50 cursor-not-allowed">Belum dibuka</button>
                         ) : (

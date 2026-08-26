@@ -27,6 +27,7 @@ interface StudioSettings {
   announcement?: string | null
   announcement_active?: boolean
   member_schedule_start?: string | null
+  waitlist_enabled?: boolean
 }
 
 export default function Settings() {
@@ -58,6 +59,7 @@ export default function Settings() {
   const save = useMutation({
     mutationFn: async () => (await api.patch('/studio/settings', {
       name: f.name, tagline: f.tagline || null, address: f.address || null, phone: f.phone || null,
+      waitlist_enabled: f.waitlist_enabled !== false,
       cancellation_window_hours: Number(f.cancellation_window_hours),
       booking_lead_close_hours: Number(f.booking_lead_close_hours),
       drop_in_price: Number(f.drop_in_price ?? 0),
@@ -127,6 +129,10 @@ export default function Settings() {
 
         <div className="card space-y-4">
           <h2 className="font-semibold">Aturan booking</h2>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={f.waitlist_enabled !== false} onChange={(e) => setF({ ...f, waitlist_enabled: e.target.checked })} />
+            <span>Aktifkan <b>waitlist</b> saat kelas penuh. <span className="text-ink/50">Jika dimatikan, kelas penuh (mis. 14/14) langsung <b>terkunci</b> — member tak bisa gabung daftar tunggu.</span></span>
+          </label>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Batas batal (jam)</label>
               <input className="input" type="number" min={0} value={f.cancellation_window_hours ?? 12}

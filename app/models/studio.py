@@ -19,6 +19,8 @@ class StudioSettings(BaseModel):
     logo_url: Mapped[str] = mapped_column(String(500), nullable=True)
 
     # Aturan bisnis
+    # Waitlist: bila False, kelas penuh (14/14) langsung TERKUNCI (member tak bisa gabung waitlist).
+    waitlist_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     # Batas jam batal booking agar kuota dikembalikan. Batal < jam ini → kuota hangus (no-show).
     cancellation_window_hours: Mapped[int] = mapped_column(Integer, default=12, nullable=False)
     # Berapa jam sebelum kelas mulai member masih boleh booking (0 = sampai mulai).

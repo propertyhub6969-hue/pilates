@@ -221,7 +221,11 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
                 r.booking_state = "full"
             else:
                 r.booking_state = "open"
-            r.can_book = r.booking_state in ("open", "full")
+            # Penuh: bisa gabung waitlist HANYA bila waitlist diaktifkan; kalau tidak → terkunci
+            if r.booking_state == "full":
+                r.can_book = bool(getattr(studio, "waitlist_enabled", True))
+            else:
+                r.can_book = r.booking_state == "open"
         out.append(r)
     return out
 

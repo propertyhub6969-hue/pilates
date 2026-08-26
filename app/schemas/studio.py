@@ -11,6 +11,7 @@ class StudioSettingsResponse(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
     logo_url: Optional[str] = None
+    waitlist_enabled: bool = True
     cancellation_window_hours: int
     booking_lead_close_hours: int
     drop_in_price: float = 0
@@ -40,6 +41,7 @@ class StudioSettingsUpdate(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = Field(default=None, max_length=30)
     logo_url: Optional[str] = None
+    waitlist_enabled: Optional[bool] = None
     cancellation_window_hours: Optional[int] = Field(default=None, ge=0, le=168)
     booking_lead_close_hours: Optional[int] = Field(default=None, ge=0, le=168)
     drop_in_price: Optional[float] = Field(default=None, ge=0)

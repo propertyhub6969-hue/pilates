@@ -275,6 +275,11 @@ async def book_session(db: AsyncSession, session: ClassSession, member_id, bypas
     taken = await booked_count(db, session.id)
     go_waitlist = taken >= session.capacity
 
+    if go_waitlist:
+        studio = await get_studio(db)
+        if studio and not studio.waitlist_enabled:
+            raise HTTPException(400, "Kelas sudah penuh — pendaftaran ditutup untuk sesi ini.")
+
     booking = existing or Booking(session_id=session.id, member_id=member_id)
     booking.booked_at = now_local()
     booking.cancelled_at = None
