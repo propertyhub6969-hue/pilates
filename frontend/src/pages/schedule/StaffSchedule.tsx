@@ -315,6 +315,12 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
     onSuccess: () => { setAddId(''); inval() },
     onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menambah'),
   })
+  const [guestName, setGuestName] = useState('')
+  const addGuest = useMutation({
+    mutationFn: async () => api.post(`/schedule/sessions/${session.id}/add-guest`, { name: guestName.trim() }),
+    onSuccess: () => { setGuestName(''); inval() },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menambah nama'),
+  })
   const cancelBooking = useMutation({
     mutationFn: async (bid: string) => api.post(`/bookings/${bid}/cancel`),
     onSuccess: inval,
@@ -351,6 +357,18 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
               {addable.map((m) => <option key={m.id} value={m.id}>{m.full_name}{m.has_unlimited ? ' · ∞' : ` · sisa ${m.active_sessions_remaining ?? 0}`}</option>)}
             </select>
             <button className="btn-primary" disabled={!addId || addMember.isPending} onClick={() => addMember.mutate()}>Tambah</button>
+          </div>
+        )}
+
+        {session.status !== 'cancelled' && (
+          <div className="flex gap-2">
+            <input className="input flex-1" placeholder="+ Tambah nama manual (tamu/walk-in)…" value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && guestName.trim().length >= 2) { e.preventDefault(); addGuest.mutate() } }} />
+            <button className="btn-ghost border border-sand" disabled={guestName.trim().length < 2 || addGuest.isPending}
+              onClick={() => addGuest.mutate()}>
+              {addGuest.isPending ? <Loader2 size={15} className="animate-spin" /> : 'Tambah nama'}
+            </button>
           </div>
         )}
 

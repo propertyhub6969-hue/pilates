@@ -388,6 +388,38 @@ async def set_assistant(session_id: uuid.UUID, payload: AssistantSet, db: AsyncS
     return (await _serialize_sessions(db, [s], staff))[0]
 
 
+class AddGuest(BaseModel):
+    name: str
+
+
+@router.post("/sessions/{session_id}/add-guest", response_model=SessionResponse)
+async def add_guest(session_id: uuid.UUID, payload: AddGuest, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)):
+    """Tambah peserta MANUAL (nama saja) ke sesi → dibuat sebagai member Per-Datang lalu
+    dimasukkan ke roster. Berguna utk private class / walk-in yang bukan member terdaftar."""
+    import secrets
+    from app.core.security import get_password_hash
+    s = (await db.execute(select(ClassSession).where(ClassSession.id == session_id))).scalar_one_or_none()
+    if not s:
+        raise HTTPException(404, "Sesi tidak ditemukan")
+    if s.status != ClassSessionStatus.SCHEDULED:
+        raise HTTPException(400, "Sesi sudah dibatalkan")
+    name = (payload.name or "").strip()
+    if len(name) < 2:
+        raise HTTPException(400, "Nama minimal 2 karakter")
+    guest = User(
+        email=f"tamu-{uuid.uuid4().hex[:10]}@reformeryourbody.com",
+        hashed_password=get_password_hash(secrets.token_urlsafe(12)),
+        full_name=name, phone=None, role=UserRole.MEMBER,
+        member_category=MemberCategory.PER_DATANG, join_date=booking_svc.today_local(), is_active=True,
+    )
+    db.add(guest)
+    await db.flush()
+    db.add(Booking(session_id=s.id, member_id=guest.id, status=BookingStatus.BOOKED, booked_at=_quota_now()))
+    await db.flush()
+    await db.refresh(s)
+    return (await _serialize_sessions(db, [s], staff))[0]
+
+
 async def _notify_reschedule(db: AsyncSession, session: ClassSession, old_date, old_time) -> int:
     """Kirim WA ke peserta terdaftar (booked+waitlist) bahwa sesi dijadwalkan ulang. Best-effort."""
     from app.services.whatsapp import send_whatsapp
