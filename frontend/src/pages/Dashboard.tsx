@@ -9,7 +9,7 @@ import type { MemberDetail, MyBooking, PaymentStatus } from '@/types'
 import { formatRupiah, formatDate, formatDayDate, formatTime, formatDateTime } from '@/utils/format'
 import {
   CalendarDays, Users, Wallet, Infinity as InfinityIcon, ShoppingBag,
-  TrendingUp, Clock, UserRound, Landmark, Upload, Loader2, Check, Zap, CircleDollarSign, Plus, Receipt, X, ArrowUpCircle,
+  TrendingUp, Clock, UserRound, Landmark, Upload, Loader2, Check, Zap, CircleDollarSign, Plus, Receipt, X, ArrowUpCircle, Megaphone,
 } from 'lucide-react'
 
 /* ═══════════════ STAF ═══════════════ */
@@ -70,6 +70,7 @@ function MemberHome() {
   const qc = useQueryClient()
   const { data: m } = useQuery({ queryKey: ['me-detail'], queryFn: async () => (await api.get<MemberDetail>('/members/me')).data })
   const { data: bookings } = useQuery({ queryKey: ['my-bookings'], queryFn: async () => (await api.get<MyBooking[]>('/bookings/me')).data })
+  const { data: studio } = useQuery({ queryKey: ['public-studio'], queryFn: async () => (await api.get<{ announcement?: string | null }>('/public/studio')).data })
 
   if (!m) return <div className="text-ink/40 py-10 text-center">Memuat…</div>
 
@@ -79,6 +80,15 @@ function MemberHome() {
 
   return (
     <div className="space-y-5">
+      {studio?.announcement && (
+        <div className="rounded-xl2 border border-copper-200 bg-copper-50 p-4 flex items-start gap-3">
+          <Megaphone size={20} className="text-copper-600 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-copper-700 uppercase tracking-wide mb-0.5">Pengumuman</div>
+            <p className="text-sm text-ink/80 whitespace-pre-line">{studio.announcement}</p>
+          </div>
+        </div>
+      )}
       {!enrolled && pending.length === 0 && <EnrollCard qc={qc} />}
       {pending.length > 0 && <PendingSection payments={pending} m={m} qc={qc} />}
       {enrolled && <ActiveMemberView m={m} bookings={bookings} />}

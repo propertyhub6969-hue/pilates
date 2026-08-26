@@ -24,6 +24,8 @@ interface StudioSettings {
   wa_broadcast_enabled: boolean
   wa_group_bulanan?: string | null
   booking_url: string
+  announcement?: string | null
+  announcement_active?: boolean
 }
 
 export default function Settings() {
@@ -70,6 +72,8 @@ export default function Settings() {
       wa_broadcast_enabled: !!f.wa_broadcast_enabled,
       wa_group_bulanan: f.wa_group_bulanan || null,
       booking_url: f.booking_url || 'https://reformeryourbody.com/jadwal',
+      announcement: f.announcement || null,
+      announcement_active: !!f.announcement_active,
     })).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['studio-settings'] })
@@ -101,6 +105,17 @@ export default function Settings() {
           <div><label className="label">No. WhatsApp Admin <span className="text-copper-600">· terima notifikasi</span></label>
             <input className="input" value={f.admin_whatsapp ?? ''} onChange={(e) => setF({ ...f, admin_whatsapp: e.target.value })} placeholder="08123456789" />
             <p className="text-[11px] text-ink/40 mt-1">Nomor ini dapat notif WhatsApp saat member mengirim bukti transfer.</p></div>
+        </div>
+
+        <div className="card space-y-3">
+          <h2 className="font-semibold">Pengumuman Member</h2>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={!!f.announcement_active} onChange={(e) => setF({ ...f, announcement_active: e.target.checked })} />
+            Tampilkan pengumuman di dashboard member
+          </label>
+          <textarea className="input" rows={3} value={f.announcement ?? ''} onChange={(e) => setF({ ...f, announcement: e.target.value })}
+            placeholder="mis. Malam ini kita coba pilih jadwal langsung lewat web! Buka menu Jadwal → pilih kelas → booking. Yuk dicoba 🧘" />
+          <p className="text-[11px] text-ink/40">Muncul sbg banner di halaman utama member (yang login). Kosongkan / matikan centang untuk menyembunyikan.</p>
         </div>
 
         <div className="card space-y-4">

@@ -38,6 +38,7 @@ class StudioPublic(BaseModel):
     tagline: Optional[str] = None
     address: Optional[str] = None
     phone: Optional[str] = None
+    announcement: Optional[str] = None  # hanya diisi bila pengumuman aktif
 
 
 class PackagePublic(BaseModel):
@@ -58,7 +59,8 @@ async def public_studio(db: AsyncSession = Depends(get_db)):
     s = (await db.execute(select(StudioSettings))).scalars().first()
     if not s:
         return StudioPublic(name="Reformer Your Body")
-    return StudioPublic(name=s.name, tagline=s.tagline, address=s.address, phone=s.phone)
+    ann = s.announcement if getattr(s, "announcement_active", False) and (s.announcement or "").strip() else None
+    return StudioPublic(name=s.name, tagline=s.tagline, address=s.address, phone=s.phone, announcement=ann)
 
 
 @router.get("/packages", response_model=List[PackagePublic])

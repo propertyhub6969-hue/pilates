@@ -25,6 +25,8 @@ class StudioSettingsResponse(BaseModel):
     wa_broadcast_enabled: bool = False
     wa_group_bulanan: Optional[str] = None
     booking_url: str = "https://reformeryourbody.com/jadwal"
+    announcement: Optional[str] = None
+    announcement_active: bool = False
 
     class Config:
         from_attributes = True
@@ -51,6 +53,8 @@ class StudioSettingsUpdate(BaseModel):
     wa_broadcast_enabled: Optional[bool] = None
     wa_group_bulanan: Optional[str] = Field(default=None, max_length=120)
     booking_url: Optional[str] = Field(default=None, max_length=200)
+    announcement: Optional[str] = None
+    announcement_active: Optional[bool] = None
 
 
 class ChangePassword(BaseModel):

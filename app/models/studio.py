@@ -47,3 +47,7 @@ class StudioSettings(BaseModel):
 
     # Nomor WhatsApp admin yang menerima notifikasi (mis. bukti transfer masuk).
     admin_whatsapp: Mapped[str] = mapped_column(String(30), nullable=True)
+
+    # Pengumuman untuk member — tampil sbg banner di dashboard member saat aktif.
+    announcement: Mapped[str] = mapped_column(Text, nullable=True)
+    announcement_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
