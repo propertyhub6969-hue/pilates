@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import { Loader2, Check, Send, RefreshCw } from 'lucide-react'
+import { Loader2, Check, Send, RefreshCw, Upload, Trash2, Image as ImageIcon } from 'lucide-react'
 
 interface StudioSettings {
   id: string
@@ -94,6 +94,8 @@ export default function Settings() {
         <h1 className="font-display text-2xl font-semibold">Pengaturan Studio</h1>
         <p className="text-ink/50 text-sm">Identitas &amp; aturan booking. Info ini tampil di halaman publik.</p>
       </div>
+
+      <LandingPhotos />
 
       <form onSubmit={(e) => { e.preventDefault(); save.mutate() }} className="space-y-5">
         <div className="card space-y-4">
@@ -232,6 +234,78 @@ export default function Settings() {
           {saved ? 'Tersimpan' : 'Simpan'}
         </button>
       </form>
+    </div>
+  )
+}
+
+const LANDING_SLOTS: [string, string, string][] = [
+  ['hero', 'Foto hero (latar utama)', 'Landscape lebar & resolusi tinggi — tampil penuh di bagian atas landing.'],
+  ['about', 'Foto seksi "Kenapa reformer"', 'Potret suasana kelas / instruktur.'],
+  ['class1', 'Foto kelas — Reformer Flow', ''],
+  ['class2', 'Foto kelas — Reformer Basic', ''],
+  ['class3', 'Foto kelas — Private Session', ''],
+]
+
+function LandingPhotos() {
+  const qc = useQueryClient()
+  const [busy, setBusy] = useState<string | null>(null)
+  const { data: media } = useQuery({
+    queryKey: ['landing-media'],
+    queryFn: async () => (await api.get<Record<string, string>>('/studio/landing-media')).data,
+  })
+
+  async function upload(slot: string, file: File) {
+    setBusy(slot)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      await api.post(`/studio/landing-media/${slot}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      qc.invalidateQueries({ queryKey: ['landing-media'] })
+      qc.invalidateQueries({ queryKey: ['public-studio'] })
+    } catch (e: any) { alert(e?.response?.data?.detail ?? 'Gagal mengunggah foto') }
+    finally { setBusy(null) }
+  }
+  async function remove(slot: string) {
+    if (!confirm('Hapus foto ini? Bagian itu kembali ke placeholder.')) return
+    setBusy(slot)
+    try {
+      await api.delete(`/studio/landing-media/${slot}`)
+      qc.invalidateQueries({ queryKey: ['landing-media'] })
+      qc.invalidateQueries({ queryKey: ['public-studio'] })
+    } catch (e: any) { alert(e?.response?.data?.detail ?? 'Gagal menghapus foto') }
+    finally { setBusy(null) }
+  }
+
+  return (
+    <div className="card space-y-4">
+      <div>
+        <h2 className="font-semibold">Foto Landing Page</h2>
+        <p className="text-[11px] text-ink/45 mt-0.5">Foto ini tampil di halaman publik. Slot kosong memakai placeholder. Format JPG/PNG/WebP, maks 8 MB.</p>
+      </div>
+      <div className="space-y-2.5">
+        {LANDING_SLOTS.map(([slot, label, hint]) => {
+          const url = media?.[slot]
+          return (
+            <div key={slot} className="flex items-center gap-3 border border-sand rounded-xl p-3">
+              <div className="w-20 h-16 rounded-lg overflow-hidden bg-sand grid place-items-center shrink-0">
+                {url ? <img src={url} alt={label} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-ink/30" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">{label}</div>
+                {hint && <div className="text-[11px] text-ink/45 mt-0.5">{hint}</div>}
+              </div>
+              <div className="flex gap-1.5 shrink-0">
+                <label className="btn-ghost border border-sand !px-2.5 !py-1.5 cursor-pointer" title="Unggah / ganti">
+                  {busy === slot ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(slot, f); e.target.value = '' }} />
+                </label>
+                {url && <button type="button" onClick={() => remove(slot)} disabled={busy === slot}
+                  className="btn-ghost border border-sand !px-2.5 !py-1.5 text-clay-dark" title="Hapus"><Trash2 size={15} /></button>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

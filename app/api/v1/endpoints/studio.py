@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
@@ -6,6 +6,7 @@ from app.api.deps import require_staff, require_owner
 from app.models.user import User
 from app.models.studio import StudioSettings
 from app.schemas.studio import StudioSettingsResponse, StudioSettingsUpdate
+from app.services import landing_media as lm
 
 router = APIRouter()
 
@@ -44,3 +45,34 @@ async def update_settings(
     await db.flush()
     await db.refresh(s)
     return s
+
+
+# ── Gambar landing page (hero, foto kelas, dll) ──
+@router.get("/landing-media")
+async def list_landing_media(_: User = Depends(require_staff)):
+    """Slot gambar landing yang sudah terisi → {slot: url}."""
+    return lm.present_slots()
+
+
+@router.post("/landing-media/{slot}")
+async def upload_landing_media(slot: str, file: UploadFile = File(...), _: User = Depends(require_staff)):
+    """Unggah/ganti gambar landing untuk sebuah slot (hero, about, class1-3)."""
+    if slot not in lm.SLOTS:
+        raise HTTPException(404, "Slot tidak dikenal")
+    ext = lm.ALLOWED_EXT.get(file.content_type or "")
+    if not ext:
+        raise HTTPException(400, "Format tidak didukung. Unggah gambar JPG, PNG, atau WebP.")
+    data = await file.read()
+    if len(data) > lm.MAX_BYTES:
+        raise HTTPException(400, "Ukuran gambar maksimal 8 MB")
+    lm.save_slot(slot, ext, data)
+    return {"ok": True, "media": lm.present_slots()}
+
+
+@router.delete("/landing-media/{slot}", status_code=204)
+async def delete_landing_media(slot: str, _: User = Depends(require_staff)):
+    """Hapus gambar landing sebuah slot (kembali ke placeholder)."""
+    if slot not in lm.SLOTS:
+        raise HTTPException(404, "Slot tidak dikenal")
+    lm.remove_slot(slot)
+    return None
