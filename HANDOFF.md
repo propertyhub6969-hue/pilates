@@ -238,3 +238,8 @@ Menu **Laporan Member** (staf) — TAB + tabel paginasi:
 4. Cabang: sesuaikan/ tambah.
 5. Daftarkan instruktur & member (atau member daftar sendiri via web).
 6. Buat Template kelas → Generate jadwal.
+
+## Update 26 Agu 2026 — Hapus sesi
+- `DELETE /api/v1/schedule/sessions/{id}` (require_staff): hapus sesi PERMANEN + booking-nya (cascade). Beda dari "batalkan sesi".
+- FE: tombol trash di tiap baris daftar sesi (StaffSchedule → tab Sesi), ada konfirmasi, stopPropagation dari roster.
+- Live di produksi (72.62.71.1).
