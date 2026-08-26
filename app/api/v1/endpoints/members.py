@@ -7,13 +7,13 @@ from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.api.deps import get_current_user, require_staff, require_owner
 from app.models.user import User, UserRole, MemberCategory
-from app.models.package import Package, MemberPackage, MemberPackageStatus
+from app.models.package import Package, MemberPackage, MemberPackageStatus, SessionAdjustment
 from app.models.payment import Payment, PaymentStatus, PaymentMethod
 from app.schemas.common import Page
 from app.schemas.member import (
     UserCreate, UserUpdate, UserBrief, MemberDetail,
     MemberPackageResponse, PaymentResponse, PurchaseCreate, EnrollRequest, DropinTicketCreate,
-    PackageUsageRow, UpgradeRequest,
+    PackageUsageRow, UpgradeRequest, SessionAdjustRequest, SessionAdjustmentRow,
 )
 from app.models.schedule import ClassSession
 from app.models.booking import Booking, BookingStatus
@@ -224,6 +224,45 @@ async def package_usage(mp_id: uuid.UUID, db: AsyncSession = Depends(get_db), _:
         )
     ).all()
     return [PackageUsageRow(session_date=d, start_time=t, title=ti, status=s, booked_at=ba) for d, t, ti, s, ba in rows]
+
+
+@router.post("/packages/{mp_id}/adjust-sessions", response_model=MemberPackageResponse)
+async def adjust_sessions(mp_id: uuid.UUID, payload: SessionAdjustRequest, db: AsyncSession = Depends(get_db), actor: User = Depends(require_staff)):
+    """Admin menambah/mengurangi sisa sesi paket (delta +/-), dicatat di riwayat."""
+    mp = (await db.execute(select(MemberPackage).where(MemberPackage.id == mp_id))).scalar_one_or_none()
+    if not mp:
+        raise HTTPException(404, "Paket member tidak ditemukan")
+    if mp.is_unlimited:
+        raise HTTPException(400, "Paket unlimited tak punya jumlah sesi untuk disesuaikan")
+    if payload.delta == 0:
+        raise HTTPException(400, "Jumlah penyesuaian tidak boleh 0")
+
+    before = mp.sessions_remaining or 0
+    after = max(0, before + payload.delta)
+    mp.sessions_remaining = after
+    if (mp.sessions_total or 0) < after:
+        mp.sessions_total = after  # kalau ditambah melebihi total, total ikut naik (X ≤ Y)
+    refresh_status(mp)
+    db.add(SessionAdjustment(
+        member_package_id=mp.id, delta=payload.delta,
+        before_remaining=before, after_remaining=after,
+        reason=(payload.reason or None), adjusted_by_id=actor.id, adjusted_by_name=actor.full_name,
+    ))
+    await db.flush()
+    await db.refresh(mp)
+    return mp
+
+
+@router.get("/packages/{mp_id}/adjustments", response_model=list[SessionAdjustmentRow])
+async def package_adjustments(mp_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    """Riwayat penyesuaian sisa sesi (oleh admin) untuk sebuah paket."""
+    rows = (
+        await db.execute(
+            select(SessionAdjustment).where(SessionAdjustment.member_package_id == mp_id)
+            .order_by(SessionAdjustment.created_at.desc())
+        )
+    ).scalars().all()
+    return rows
 
 
 @router.get("/staff", response_model=list[UserBrief])

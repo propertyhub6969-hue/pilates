@@ -81,3 +81,20 @@ class MemberPackage(BaseModel):
         "User", back_populates="member_packages", foreign_keys=[member_id]
     )
     payments: Mapped[list["Payment"]] = relationship("Payment", back_populates="member_package")
+
+
+class SessionAdjustment(BaseModel):
+    """Riwayat penyesuaian sisa sesi paket oleh admin (+/-): siapa, kapan, sebelum→sesudah, alasan."""
+    __tablename__ = "session_adjustments"
+
+    member_package_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("member_packages.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    delta: Mapped[int] = mapped_column(Integer, nullable=False)            # +tambah / -kurang
+    before_remaining: Mapped[int] = mapped_column(Integer, nullable=True)
+    after_remaining: Mapped[int] = mapped_column(Integer, nullable=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=True)
+    adjusted_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    adjusted_by_name: Mapped[str] = mapped_column(String(200), nullable=True)  # denormalisasi

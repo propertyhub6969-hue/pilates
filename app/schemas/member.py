@@ -126,6 +126,25 @@ class UpgradeRequest(BaseModel):
     package_id: uuid.UUID
 
 
+class SessionAdjustRequest(BaseModel):
+    """Admin +/- sisa sesi paket member."""
+    delta: int  # +tambah / -kurang (tidak boleh 0)
+    reason: Optional[str] = None
+
+
+class SessionAdjustmentRow(BaseModel):
+    id: uuid.UUID
+    delta: int
+    before_remaining: Optional[int] = None
+    after_remaining: Optional[int] = None
+    reason: Optional[str] = None
+    adjusted_by_name: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class PurchaseCreate(BaseModel):
     package_id: uuid.UUID
     price_paid: Optional[float] = Field(default=None, ge=0)  # default: harga katalog

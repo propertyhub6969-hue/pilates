@@ -402,6 +402,24 @@ function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }
     enabled: open,
     queryFn: async () => (await api.get<PackageUsage[]>(`/members/packages/${p.id}/usage`)).data,
   })
+
+  // Penyesuaian sisa sesi oleh admin + riwayatnya
+  const qc = useQueryClient()
+  const [adjQty, setAdjQty] = useState(1)
+  const [adjReason, setAdjReason] = useState('')
+  const [adjErr, setAdjErr] = useState('')
+  const canAdjust = !p.is_unlimited && p.status !== 'cancelled'
+  const { data: adjustments } = useQuery({
+    queryKey: ['pkg-adjust', p.id],
+    enabled: open && canAdjust,
+    queryFn: async () => (await api.get<AdjRow[]>(`/members/packages/${p.id}/adjustments`)).data,
+  })
+  const adjust = useMutation({
+    mutationFn: async (delta: number) => api.post(`/members/packages/${p.id}/adjust-sessions`, { delta, reason: adjReason || null }),
+    onSuccess: () => { setAdjReason(''); setAdjErr(''); qc.invalidateQueries({ queryKey: ['member'] }); qc.invalidateQueries({ queryKey: ['pkg-adjust', p.id] }) },
+    onError: (e: any) => setAdjErr(e?.response?.data?.detail ?? 'Gagal menyesuaikan'),
+  })
+
   return (
     <div className="card !p-0 overflow-hidden">
       <div className="flex items-center gap-3 p-3">
@@ -453,8 +471,42 @@ function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }
                 )}
               </>
             )}
+
+          {canAdjust && (
+            <div className="mt-3 pt-3 border-t border-sand">
+              <div className="text-xs font-semibold text-ink/60 mb-2">Sesuaikan sisa sesi</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input type="number" min={1} value={adjQty} onChange={(e) => setAdjQty(Math.max(1, Number(e.target.value) || 1))}
+                  className="input !w-16 !py-1.5 text-center" />
+                <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)} placeholder="alasan (opsional)"
+                  className="input !py-1.5 flex-1 min-w-[120px]" />
+                <button onClick={() => adjust.mutate(-adjQty)} disabled={adjust.isPending}
+                  className="btn-ghost !px-3 !py-1.5 border border-clay/30 text-clay-dark">− Kurangi</button>
+                <button onClick={() => adjust.mutate(adjQty)} disabled={adjust.isPending}
+                  className="btn-primary !px-3 !py-1.5">＋ Tambah</button>
+              </div>
+              {adjErr && <p className="text-[11px] text-clay-dark mt-1">{adjErr}</p>}
+              {(adjustments?.length ?? 0) > 0 && (
+                <div className="mt-3">
+                  <div className="text-[11px] uppercase tracking-wide text-ink/40 mb-1">Riwayat perubahan</div>
+                  <ul className="space-y-1">
+                    {adjustments!.map((a) => (
+                      <li key={a.id} className="text-xs text-ink/60 flex items-center gap-2">
+                        <span className={`font-semibold shrink-0 ${a.delta > 0 ? 'text-copper-700' : 'text-clay-dark'}`}>{a.delta > 0 ? `+${a.delta}` : a.delta}</span>
+                        <span className="text-ink/40 shrink-0">{a.before_remaining}→{a.after_remaining}</span>
+                        <span className="flex-1 min-w-0 truncate">{a.adjusted_by_name}{a.reason ? ` · ${a.reason}` : ''}</span>
+                        <span className="text-ink/35 shrink-0">{formatDate(a.created_at)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
   )
 }
+
+type AdjRow = { id: string; delta: number; before_remaining: number | null; after_remaining: number | null; reason: string | null; adjusted_by_name: string | null; created_at: string }
