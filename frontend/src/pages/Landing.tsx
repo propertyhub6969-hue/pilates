@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 
 interface StudioInfo { name: string; tagline?: string | null; address?: string | null; phone?: string | null; media?: Record<string, string> }
-interface Pkg { id: string; name: string; description?: string | null; is_unlimited: boolean; session_count?: number | null; price: number }
+interface Pkg { id: string; name: string; description?: string | null; is_unlimited: boolean; session_count?: number | null; price: number; is_popular?: boolean }
 interface BranchInfo { id: string; name: string; address?: string | null; phone?: string | null }
 interface Stats { members_active: number; branches: number; capacity: number; sessions_done: number }
 
@@ -252,8 +252,8 @@ export default function Landing() {
           <p className="text-ink/60 mt-3">Pilih yang pas dengan ritme latihanmu. Bisa upgrade kapan saja.</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
-          {(packages ?? []).map((p, i) => {
-            const popular = (packages?.length ?? 0) >= 3 && i === 1
+          {(packages ?? []).map((p) => {
+            const popular = !!p.is_popular
             return (
               <div key={p.id} className={`relative rounded-[22px] p-8 flex flex-col shadow-soft ${popular ? 'bg-gradient-to-b from-white to-copper-50 border-2 border-copper-600 shadow-card' : 'bg-cream border border-sand'}`}>
                 {popular && <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-copper-600 text-white text-[11.5px] font-bold tracking-wider uppercase px-4 py-1.5 rounded-full whitespace-nowrap">Paling populer</span>}

@@ -56,6 +56,7 @@ class PackagePublic(BaseModel):
     is_unlimited: bool
     session_count: Optional[int] = None
     price: float
+    is_popular: bool = False
 
     class Config:
         from_attributes = True

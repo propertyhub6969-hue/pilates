@@ -34,6 +34,8 @@ class Package(BaseModel):
     monthly_expiry: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Ditandai "Paling Populer" di landing page. Idealnya hanya satu paket aktif.
+    is_popular: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class MemberPackageStatus(str, enum.Enum):

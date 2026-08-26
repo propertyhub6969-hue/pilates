@@ -61,6 +61,7 @@ export interface Package {
   validity_days?: number | null
   monthly_expiry?: boolean
   is_active: boolean
+  is_popular?: boolean
   created_at: string
 }
 

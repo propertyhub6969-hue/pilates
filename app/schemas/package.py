@@ -15,6 +15,7 @@ class PackageBase(BaseModel):
     validity_days: Optional[int] = Field(default=None, ge=1)
     monthly_expiry: bool = False
     is_active: bool = True
+    is_popular: bool = False
 
     @field_validator("session_count")
     @classmethod
@@ -40,6 +41,7 @@ class PackageUpdate(BaseModel):
     validity_days: Optional[int] = Field(default=None, ge=1)
     monthly_expiry: Optional[bool] = None
     is_active: Optional[bool] = None
+    is_popular: Optional[bool] = None
 
 
 class PackageResponse(PackageBase):

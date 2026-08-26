@@ -18,11 +18,12 @@ interface FormState {
   validity_days: string
   monthly_expiry: boolean
   is_active: boolean
+  is_popular: boolean
 }
 
 const EMPTY: FormState = {
   name: '', description: '', is_unlimited: false,
-  session_count: '', price: '', renewal_discount: '', upgrade_price: '', validity_days: '', monthly_expiry: false, is_active: true,
+  session_count: '', price: '', renewal_discount: '', upgrade_price: '', validity_days: '', monthly_expiry: false, is_active: true, is_popular: false,
 }
 
 export default function Packages() {
@@ -49,6 +50,7 @@ export default function Packages() {
         validity_days: f.monthly_expiry ? null : (f.validity_days ? Number(f.validity_days) : null),
         monthly_expiry: f.monthly_expiry,
         is_active: f.is_active,
+        is_popular: f.is_popular,
       }
       if (f.id) return (await api.patch(`/packages/${f.id}`, body)).data
       return (await api.post('/packages', body)).data
@@ -72,6 +74,7 @@ export default function Packages() {
       validity_days: p.validity_days?.toString() ?? '',
       monthly_expiry: p.monthly_expiry ?? false,
       is_active: p.is_active,
+      is_popular: p.is_popular ?? false,
     })
     setError(''); setOpen(true)
   }
@@ -93,7 +96,9 @@ export default function Packages() {
           {data?.items.map((p) => (
             <div key={p.id} className={`card ${!p.is_active ? 'opacity-60' : ''}`}>
               <div className="flex items-start justify-between">
-                <h3 className="font-semibold text-ink">{p.name}</h3>
+                <h3 className="font-semibold text-ink flex items-center gap-2">{p.name}
+                  {p.is_popular && <span className="text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 bg-copper-600 text-white">Populer</span>}
+                </h3>
                 <div className="flex gap-1">
                   <button onClick={() => openEdit(p)} className="btn-ghost !px-2 !py-1.5" title="Ubah"><Pencil size={15} /></button>
                   {p.is_active && (
@@ -181,6 +186,11 @@ export default function Packages() {
             <textarea className="input" rows={2} value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </div>
+          <label className="flex items-start gap-2 text-sm border-t border-sand pt-4">
+            <input type="checkbox" className="mt-1" checked={form.is_popular}
+              onChange={(e) => setForm({ ...form, is_popular: e.target.checked })} />
+            <span>Tandai <b>“Paling Populer”</b> di landing page. <span className="text-ink/50">Kartu paket ini ditonjolkan. Hanya satu paket bisa aktif — menandai ini otomatis melepas paket lain.</span></span>
+          </label>
           {error && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{error}</div>}
           <button type="submit" disabled={save.isPending} className="btn-primary w-full">
             {save.isPending && <Loader2 size={16} className="animate-spin" />} Simpan

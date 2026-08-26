@@ -1,6 +1,6 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.deps import get_current_user, require_staff
@@ -10,6 +10,14 @@ from app.schemas.common import Page
 from app.schemas.package import PackageCreate, PackageUpdate, PackageResponse
 
 router = APIRouter()
+
+
+async def _clear_other_popular(db: AsyncSession, keep_id: uuid.UUID | None) -> None:
+    """Pastikan hanya satu paket bertanda 'Paling Populer'."""
+    stmt = update(Package).where(Package.is_popular.is_(True)).values(is_popular=False)
+    if keep_id is not None:
+        stmt = stmt.where(Package.id != keep_id)
+    await db.execute(stmt)
 
 
 @router.get("", response_model=Page[PackageResponse])
@@ -38,6 +46,8 @@ async def create_package(
         pkg.session_count = None
     db.add(pkg)
     await db.flush()
+    if pkg.is_popular:
+        await _clear_other_popular(db, keep_id=pkg.id)
     await db.refresh(pkg)
     return pkg
 
@@ -70,6 +80,8 @@ async def update_package(
     if pkg.is_unlimited:
         pkg.session_count = None
     await db.flush()
+    if data.get("is_popular"):
+        await _clear_other_popular(db, keep_id=pkg.id)
     await db.refresh(pkg)
     return pkg
 
