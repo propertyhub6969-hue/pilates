@@ -149,6 +149,11 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
     mutationFn: async () => (await api.post('/schedule/generate', { weeks: 4, branch_id: activeId })).data,
     onSuccess: (r: any) => { qc.invalidateQueries({ queryKey: ['staff-sessions'] }); alert(`Selesai: ${r.created} sesi dibuat, ${r.skipped} dilewati.`) },
   })
+  const deleteSession = useMutation({
+    mutationFn: async (id: string) => api.delete(`/schedule/sessions/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff-sessions'] }),
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menghapus sesi'),
+  })
 
   const groups = new Map<string, ClassSession[]>()
   for (const s of sessions ?? []) { if (!groups.has(s.session_date)) groups.set(s.session_date, []); groups.get(s.session_date)!.push(s) }
@@ -222,7 +227,13 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
                             : <span className="text-xs rounded-full px-2 py-0.5 bg-copper-100 text-copper-700">Terjadwal</span>}
                           {s.is_underfilled && <span className="text-xs rounded-full px-2 py-0.5 bg-clay/15 text-clay-dark ml-1" title="Bulanan di bawah target minimal">Sepi</span>}
                         </td>
-                        <td className="px-2"><ChevronRight size={16} className="text-ink/30" /></td>
+                        <td className="px-2">
+                          <div className="flex items-center justify-end gap-0.5">
+                            <button title="Hapus sesi" onClick={(e) => { e.stopPropagation(); if (confirm(`Hapus sesi "${s.title}" (${formatTime(s.start_time)})? Booking peserta ikut terhapus. Tak bisa dibatalkan.`)) deleteSession.mutate(s.id) }}
+                              className="btn-ghost !px-2 !py-1.5 text-clay-dark"><Trash2 size={15} /></button>
+                            <ChevronRight size={16} className="text-ink/30" />
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </Fragment>

@@ -305,6 +305,18 @@ async def update_session(session_id: uuid.UUID, payload: SessionUpdate, db: Asyn
     return (await _serialize_sessions(db, [s], staff))[0]
 
 
+@router.delete("/sessions/{session_id}", status_code=204)
+async def delete_session(session_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    """Hapus sesi secara PERMANEN beserta booking-nya (mis. sesi keliru / sudah dibatalkan)."""
+    from sqlalchemy import delete as _sqldelete
+    s = (await db.execute(select(ClassSession).where(ClassSession.id == session_id))).scalar_one_or_none()
+    if not s:
+        raise HTTPException(404, "Sesi tidak ditemukan")
+    await db.execute(_sqldelete(Booking).where(Booking.session_id == session_id))
+    await db.execute(_sqldelete(ClassSession).where(ClassSession.id == session_id))
+    return None
+
+
 async def _notify_cancel(db: AsyncSession, session: ClassSession, recipients: list) -> int:
     """Kirim WA ke peserta bahwa sesi DIBATALKAN. recipients = list[(nama, phone)]. Best-effort."""
     from app.services.whatsapp import send_whatsapp
