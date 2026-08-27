@@ -53,12 +53,14 @@ class User(BaseModel):
     emergency_contact: Mapped[str] = mapped_column(String(120), nullable=True)
     notes: Mapped[str] = mapped_column(Text, nullable=True)  # catatan medis/preferensi
 
-    # Relationships
+    # Relationships — hapus member ikut menghapus paket & booking-nya (andalkan ON DELETE CASCADE di DB)
     member_packages: Mapped[list["MemberPackage"]] = relationship(
-        "MemberPackage", back_populates="member", foreign_keys="MemberPackage.member_id"
+        "MemberPackage", back_populates="member", foreign_keys="MemberPackage.member_id",
+        cascade="all, delete-orphan", passive_deletes=True,
     )
     bookings: Mapped[list["Booking"]] = relationship(
-        "Booking", back_populates="member", foreign_keys="Booking.member_id"
+        "Booking", back_populates="member", foreign_keys="Booking.member_id",
+        cascade="all, delete-orphan", passive_deletes=True,
     )
 
     def is_staff(self) -> bool:
