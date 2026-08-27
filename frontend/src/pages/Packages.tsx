@@ -4,7 +4,7 @@ import { api } from '@/services/api'
 import type { Package, Page } from '@/types'
 import { formatRupiah } from '@/utils/format'
 import Modal from '@/components/Modal'
-import { Plus, Pencil, Archive, Infinity as InfinityIcon, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Archive, Trash2, Infinity as InfinityIcon, Loader2 } from 'lucide-react'
 
 interface FormState {
   id?: string
@@ -63,6 +63,11 @@ export default function Packages() {
     mutationFn: async (id: string) => api.delete(`/packages/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['packages'] }),
   })
+  const destroy = useMutation({
+    mutationFn: async (id: string) => api.delete(`/packages/${id}`, { params: { hard: true } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['packages'] }),
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menghapus paket'),
+  })
 
   function openNew() { setForm(EMPTY); setError(''); setOpen(true) }
   function openEdit(p: Package) {
@@ -104,6 +109,8 @@ export default function Packages() {
                   {p.is_active && (
                     <button onClick={() => archive.mutate(p.id)} className="btn-ghost !px-2 !py-1.5" title="Arsipkan"><Archive size={15} /></button>
                   )}
+                  <button onClick={() => { if (confirm(`Hapus paket "${p.name}" secara PERMANEN? Riwayat member yang sudah beli tetap tersimpan. Tak bisa dibatalkan.`)) destroy.mutate(p.id) }}
+                    disabled={destroy.isPending} className="btn-ghost !px-2 !py-1.5 text-clay-dark" title="Hapus permanen"><Trash2 size={15} /></button>
                 </div>
               </div>
               <div className="mt-2 flex items-center gap-2 text-sm text-ink/60">

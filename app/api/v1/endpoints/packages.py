@@ -89,10 +89,13 @@ async def update_package(
 @router.delete("/{package_id}", status_code=204)
 async def delete_package(
     package_id: uuid.UUID,
+    hard: bool = Query(False, description="True = hapus permanen walau sudah pernah dibeli"),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_staff),
 ):
-    """Hapus paket bila belum pernah dibeli; kalau sudah, cukup non-aktifkan (arsip)."""
+    """Hapus paket. `hard=false`: bila sudah pernah dibeli cukup diarsipkan (jaga riwayat).
+    `hard=true`: hapus permanen — riwayat member tetap utuh (data paket sudah di-snapshot,
+    FK package_id di member_packages jadi NULL)."""
     pkg = (await db.execute(select(Package).where(Package.id == package_id))).scalar_one_or_none()
     if not pkg:
         raise HTTPException(404, "Paket tidak ditemukan")
@@ -101,7 +104,7 @@ async def delete_package(
             select(func.count()).select_from(MemberPackage).where(MemberPackage.package_id == package_id)
         )
     ).scalar_one()
-    if used:
+    if used and not hard:
         pkg.is_active = False  # arsipkan, jangan hapus — jaga riwayat pembelian
     else:
         await db.delete(pkg)
