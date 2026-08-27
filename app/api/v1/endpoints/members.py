@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, time as dtime
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,7 @@ from app.schemas.common import Page
 from app.schemas.member import (
     UserCreate, UserUpdate, UserBrief, MemberDetail,
     MemberPackageResponse, PaymentResponse, PurchaseCreate, EnrollRequest, DropinTicketCreate,
-    PackageUsageRow, UpgradeRequest, SessionAdjustRequest, SessionAdjustmentRow,
+    PackageUsageRow, UpgradeRequest, SessionAdjustRequest, SessionAdjustmentRow, PackageEditRequest,
 )
 from app.models.schedule import ClassSession
 from app.models.booking import Booking, BookingStatus
@@ -248,6 +248,42 @@ async def adjust_sessions(mp_id: uuid.UUID, payload: SessionAdjustRequest, db: A
         before_remaining=before, after_remaining=after,
         reason=(payload.reason or None), adjusted_by_id=actor.id, adjusted_by_name=actor.full_name,
     ))
+    await db.flush()
+    await db.refresh(mp)
+    return mp
+
+
+@router.patch("/packages/{mp_id}", response_model=MemberPackageResponse)
+async def edit_package(mp_id: uuid.UUID, payload: PackageEditRequest, db: AsyncSession = Depends(get_db), actor: User = Depends(require_staff)):
+    """Admin ubah tanggal kedaluwarsa & jumlah sesi paket member langsung.
+    Perubahan sisa sesi tetap dicatat di riwayat penyesuaian."""
+    mp = (await db.execute(select(MemberPackage).where(MemberPackage.id == mp_id))).scalar_one_or_none()
+    if not mp:
+        raise HTTPException(404, "Paket member tidak ditemukan")
+    data = payload.model_dump(exclude_unset=True)
+
+    if "expires_at" in data:
+        d = data["expires_at"]
+        mp.expires_at = datetime.combine(d, dtime(23, 59), tzinfo=timezone.utc) if d else None
+
+    if not mp.is_unlimited:
+        if "sessions_total" in data and data["sessions_total"] is not None:
+            mp.sessions_total = max(0, data["sessions_total"])
+        if "sessions_remaining" in data and data["sessions_remaining"] is not None:
+            before = mp.sessions_remaining or 0
+            after = max(0, data["sessions_remaining"])
+            if after != before:
+                mp.sessions_remaining = after
+                db.add(SessionAdjustment(
+                    member_package_id=mp.id, delta=after - before,
+                    before_remaining=before, after_remaining=after,
+                    reason="set manual (edit paket)", adjusted_by_id=actor.id, adjusted_by_name=actor.full_name,
+                ))
+        # jaga total ≥ sisa
+        if (mp.sessions_total or 0) < (mp.sessions_remaining or 0):
+            mp.sessions_total = mp.sessions_remaining
+
+    refresh_status(mp)
     await db.flush()
     await db.refresh(mp)
     return mp

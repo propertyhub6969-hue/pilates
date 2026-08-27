@@ -132,6 +132,16 @@ class SessionAdjustRequest(BaseModel):
     reason: Optional[str] = None
 
 
+class PackageEditRequest(BaseModel):
+    """Admin ubah tanggal kedaluwarsa & jumlah sesi paket member secara langsung.
+
+    Kirim hanya field yang ingin diubah (exclude_unset). `expires_at: null` = hapus kedaluwarsa.
+    """
+    expires_at: Optional[date] = None
+    sessions_total: Optional[int] = Field(default=None, ge=0)
+    sessions_remaining: Optional[int] = Field(default=None, ge=0)
+
+
 class SessionAdjustmentRow(BaseModel):
     id: uuid.UUID
     delta: int

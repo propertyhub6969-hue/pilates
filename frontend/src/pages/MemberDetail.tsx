@@ -408,10 +408,20 @@ function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }
   const [adjQty, setAdjQty] = useState(1)
   const [adjReason, setAdjReason] = useState('')
   const [adjErr, setAdjErr] = useState('')
-  const canAdjust = !p.is_unlimited && p.status !== 'cancelled'
+  const canAdjust = p.status !== 'cancelled'  // paket unlimited tetap bisa ubah expired
+  const canAdjustSessions = !p.is_unlimited && p.status !== 'cancelled'
+
+  // Ubah tanggal kedaluwarsa (admin)
+  const [expVal, setExpVal] = useState(p.expires_at ? p.expires_at.slice(0, 10) : '')
+  const [expErr, setExpErr] = useState('')
+  const editPkg = useMutation({
+    mutationFn: async (body: { expires_at?: string | null }) => api.patch(`/members/packages/${p.id}`, body),
+    onSuccess: () => { setExpErr(''); qc.invalidateQueries({ queryKey: ['member'] }) },
+    onError: (e: any) => setExpErr(e?.response?.data?.detail ?? 'Gagal menyimpan'),
+  })
   const { data: adjustments } = useQuery({
     queryKey: ['pkg-adjust', p.id],
-    enabled: open && canAdjust,
+    enabled: open && canAdjustSessions,
     queryFn: async () => (await api.get<AdjRow[]>(`/members/packages/${p.id}/adjustments`)).data,
   })
   const adjust = useMutation({
@@ -451,6 +461,21 @@ function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }
           <div className="text-xs text-ink/50 mb-2">
             {used !== null ? <>Terpakai <b>{used}</b> sesi{p.is_unlimited ? '' : ` dari ${p.sessions_total}`}</> : 'Paket unlimited'}
           </div>
+
+          {canAdjust && (
+            <div className="mb-3 pb-3 border-b border-sand">
+              <div className="text-xs font-semibold text-ink/60 mb-2">Tanggal kedaluwarsa</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input type="date" value={expVal} onChange={(e) => setExpVal(e.target.value)} className="input !py-1.5 !w-auto" />
+                <button onClick={() => editPkg.mutate({ expires_at: expVal || null })} disabled={editPkg.isPending}
+                  className="btn-primary !px-3 !py-1.5">Simpan</button>
+                {p.expires_at && <button onClick={() => { setExpVal(''); editPkg.mutate({ expires_at: null }) }} disabled={editPkg.isPending}
+                  className="btn-ghost !px-3 !py-1.5 border border-sand text-ink/60">Tanpa batas</button>}
+              </div>
+              {expErr && <p className="text-[11px] text-clay-dark mt-1">{expErr}</p>}
+              <p className="text-[11px] text-ink/40 mt-1">Kosongkan lalu "Tanpa batas" untuk paket tanpa masa berlaku.</p>
+            </div>
+          )}
           {isLoading ? <div className="text-ink/40 text-sm py-2 text-center">Memuat…</div>
             : (usage?.length ?? 0) === 0 ? <div className="text-ink/40 text-sm py-2 text-center">Belum ada sesi terpakai dari paket ini.</div>
             : (
@@ -472,7 +497,7 @@ function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }
               </>
             )}
 
-          {canAdjust && (
+          {canAdjustSessions && (
             <div className="mt-3 pt-3 border-t border-sand">
               <div className="text-xs font-semibold text-ink/60 mb-2">Sesuaikan sisa sesi</div>
               <div className="flex items-center gap-2 flex-wrap">
