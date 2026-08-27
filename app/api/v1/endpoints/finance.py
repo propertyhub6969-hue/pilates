@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Optional
 from app.core.database import get_db
 from app.api.deps import require_staff, require_owner, get_current_user
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.finance import (
     FinancialAccount, AccountType, Expense, ExpenseEdit, ExpenseCategoryDef, CATEGORY_LABEL,
     AccountTransfer,
@@ -120,13 +120,21 @@ async def _account_out(db: AsyncSession, acc: FinancialAccount) -> AccountRespon
 @router.get("/accounts", response_model=list[AccountResponse])
 async def list_accounts(
     include_inactive: bool = Query(False),
-    db: AsyncSession = Depends(get_db), _: User = Depends(require_staff),
+    db: AsyncSession = Depends(get_db), user: User = Depends(require_staff),
 ):
     stmt = select(FinancialAccount)
     if not include_inactive:
         stmt = stmt.where(FinancialAccount.is_active.is_(True))
     rows = (await db.execute(stmt.order_by(FinancialAccount.type, FinancialAccount.created_at))).scalars().all()
-    return [await _account_out(db, a) for a in rows]
+    is_owner = user.role == UserRole.OWNER
+    out = []
+    for a in rows:
+        r = await _account_out(db, a)
+        # Non-owner hanya boleh lihat saldo KAS studio; saldo rekening bank disembunyikan.
+        if not is_owner and a.type != AccountType.CASH:
+            r.balance = None
+        out.append(r)
+    return out
 
 
 @router.post("/accounts", response_model=AccountResponse, status_code=201)

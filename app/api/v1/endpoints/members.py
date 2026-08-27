@@ -228,7 +228,7 @@ async def package_usage(mp_id: uuid.UUID, db: AsyncSession = Depends(get_db), _:
 
 
 @router.post("/packages/{mp_id}/adjust-sessions", response_model=MemberPackageResponse)
-async def adjust_sessions(mp_id: uuid.UUID, payload: SessionAdjustRequest, db: AsyncSession = Depends(get_db), actor: User = Depends(require_staff)):
+async def adjust_sessions(mp_id: uuid.UUID, payload: SessionAdjustRequest, db: AsyncSession = Depends(get_db), actor: User = Depends(require_owner)):
     """Admin menambah/mengurangi sisa sesi paket (delta +/-), dicatat di riwayat."""
     mp = (await db.execute(select(MemberPackage).where(MemberPackage.id == mp_id))).scalar_one_or_none()
     if not mp:
@@ -255,7 +255,7 @@ async def adjust_sessions(mp_id: uuid.UUID, payload: SessionAdjustRequest, db: A
 
 
 @router.post("/{user_id}/grant-sessions", response_model=MemberDetail, status_code=201)
-async def grant_sessions(user_id: uuid.UUID, payload: GrantSessionsRequest, db: AsyncSession = Depends(get_db), actor: User = Depends(require_staff)):
+async def grant_sessions(user_id: uuid.UUID, payload: GrantSessionsRequest, db: AsyncSession = Depends(get_db), actor: User = Depends(require_owner)):
     """Beri saldo sesi langsung ke member tanpa mencatat penjualan (mis. koreksi data impor).
     Membuat paket baru harga Rp0, tercatat di riwayat penyesuaian."""
     user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
@@ -281,7 +281,7 @@ async def grant_sessions(user_id: uuid.UUID, payload: GrantSessionsRequest, db: 
 
 
 @router.patch("/packages/{mp_id}", response_model=MemberPackageResponse)
-async def edit_package(mp_id: uuid.UUID, payload: PackageEditRequest, db: AsyncSession = Depends(get_db), actor: User = Depends(require_staff)):
+async def edit_package(mp_id: uuid.UUID, payload: PackageEditRequest, db: AsyncSession = Depends(get_db), actor: User = Depends(require_owner)):
     """Admin ubah tanggal kedaluwarsa & jumlah sesi paket member langsung.
     Perubahan sisa sesi tetap dicatat di riwayat penyesuaian."""
     mp = (await db.execute(select(MemberPackage).where(MemberPackage.id == mp_id))).scalar_one_or_none()

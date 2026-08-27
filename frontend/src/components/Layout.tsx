@@ -44,10 +44,10 @@ const STAFF_NAV: NavEntry[] = [
     { icon: Contact, label: 'Data Karyawan', short: 'Karyawan', to: '/karyawan', roles: 'owner' },
     { icon: Banknote, label: 'Payroll', short: 'Payroll', to: '/payroll', roles: 'owner' },
   ] },
-  { icon: SettingsIcon, label: 'Pengaturan', roles: 'staff', children: [
-    { icon: Building2, label: 'Cabang', short: 'Cabang', to: '/cabang', roles: 'staff' },
+  { icon: SettingsIcon, label: 'Pengaturan', roles: 'owner', children: [
+    { icon: Building2, label: 'Cabang', short: 'Cabang', to: '/cabang', roles: 'owner' },
     { icon: ShieldCheck, label: 'Pengguna Sistem', short: 'User', to: '/pengguna', roles: 'owner' },
-    { icon: SettingsIcon, label: 'Pengaturan Studio', short: 'Set', to: '/pengaturan', roles: 'staff' },
+    { icon: SettingsIcon, label: 'Pengaturan Studio', short: 'Set', to: '/pengaturan', roles: 'owner' },
   ] },
 ]
 
@@ -104,7 +104,7 @@ export default function Layout() {
 function UserMenu() {
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
-  const staff = isStaff(user?.role)
+  const owner = isOwner(user?.role)
   return (
     <div className="relative shrink-0">
       <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 rounded-full hover:bg-sand px-2 py-1.5 transition">
@@ -123,7 +123,7 @@ function UserMenu() {
             <Link to="/profil" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-sand">
               <UserRound size={16} /> Profil
             </Link>
-            {staff && (
+            {owner && (
               <Link to="/pengaturan" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-sand">
                 <SettingsIcon size={16} /> Pengaturan
               </Link>

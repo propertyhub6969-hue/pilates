@@ -67,13 +67,13 @@ export default function App() {
           {staff && <Route path="laporan-member" element={<MemberReport />} />}
           {staff && <Route path="paket" element={<Packages />} />}
           {staff && <Route path="pembayaran" element={<Payments />} />}
-          {staff && <Route path="cabang" element={<Branches />} />}
+          {owner && <Route path="cabang" element={<Branches />} />}
           {staff && <Route path="keuangan" element={<Keuangan />} />}
           {owner && <Route path="laporan" element={<Laporan />} />}
           {owner && <Route path="pengguna" element={<Pengguna />} />}
           {owner && <Route path="karyawan" element={<Karyawan />} />}
           {owner && <Route path="payroll" element={<Payroll />} />}
-          {staff && <Route path="pengaturan" element={<Settings />} />}
+          {owner && <Route path="pengaturan" element={<Settings />} />}
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
 import type { MemberDetail as TDetail, Package, Page, PaymentMethod, MemberCategory, MemberPackage, PackageUsage } from '@/types'
-import { PAY_STATUS_LABEL, METHOD_LABEL, ROLE_LABEL, CATEGORY_LABEL, BOOKING_STATUS_LABEL, packageStatusLabel, packageStatusStyle } from '@/types'
+import { PAY_STATUS_LABEL, METHOD_LABEL, ROLE_LABEL, CATEGORY_LABEL, BOOKING_STATUS_LABEL, packageStatusLabel, packageStatusStyle, isOwner } from '@/types'
 import { formatRupiah, formatDate, formatDateTime, formatTime } from '@/utils/format'
+import { useAuth } from '@/context/AuthContext'
 import Modal from '@/components/Modal'
 import {
   ArrowLeft, Plus, Loader2, Snowflake, Infinity as InfinityIcon,
@@ -16,6 +17,8 @@ export default function MemberDetail() {
   const { id = '' } = useParams()
   const nav = useNavigate()
   const qc = useQueryClient()
+  const { user: authUser } = useAuth()
+  const owner = isOwner(authUser?.role)
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
   const [sale, setSale] = useState<{ package_id: string; price_paid: string; method: PaymentMethod; mark_paid: boolean }>(
@@ -180,7 +183,7 @@ export default function MemberDetail() {
         {m.role === 'member' && (
           <div className="flex gap-2 mt-4 flex-wrap">
             <button onClick={() => { setError(''); setOpen(true) }} className="btn-primary"><Plus size={16} /> Jual Paket</button>
-            <button onClick={() => { setGrantErr(''); setGrantOpen(true) }} className="btn-ghost border border-sand"><Plus size={16} /> Beri Sesi Langsung</button>
+            {owner && <button onClick={() => { setGrantErr(''); setGrantOpen(true) }} className="btn-ghost border border-sand"><Plus size={16} /> Beri Sesi Langsung</button>}
             {m.member_category === 'per_datang' && (
               <button onClick={() => { setTicketErr(''); setTicketOpen(true) }} className="btn-ghost border border-sand"><Plus size={16} /> Tambah Tiket Drop-in</button>
             )}
@@ -442,8 +445,10 @@ function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }
   const [adjQty, setAdjQty] = useState(1)
   const [adjReason, setAdjReason] = useState('')
   const [adjErr, setAdjErr] = useState('')
-  const canAdjust = p.status !== 'cancelled'  // paket unlimited tetap bisa ubah expired
-  const canAdjustSessions = !p.is_unlimited && p.status !== 'cancelled'
+  const { user: authUser } = useAuth()
+  const owner = isOwner(authUser?.role)
+  const canAdjust = owner && p.status !== 'cancelled'  // ubah expired — hanya owner
+  const canAdjustSessions = owner && !p.is_unlimited && p.status !== 'cancelled'  // ubah sisa sesi — hanya owner
 
   // Ubah tanggal kedaluwarsa (admin)
   const [expVal, setExpVal] = useState(p.expires_at ? p.expires_at.slice(0, 10) : '')

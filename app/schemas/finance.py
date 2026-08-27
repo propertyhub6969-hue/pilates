@@ -30,7 +30,7 @@ class AccountResponse(BaseModel):
     account_number: Optional[str] = None
     opening_balance: float
     is_active: bool
-    balance: float = 0  # dihitung
+    balance: Optional[float] = 0  # dihitung; None = disembunyikan (non-owner utk rekening bank)
 
     class Config:
         from_attributes = True

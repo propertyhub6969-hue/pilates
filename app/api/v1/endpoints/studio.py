@@ -37,7 +37,7 @@ async def get_settings(db: AsyncSession = Depends(get_db), _: User = Depends(req
 async def update_settings(
     payload: StudioSettingsUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_staff),
+    _: User = Depends(require_owner),
 ):
     s = await _get_or_create(db)
     for k, v in payload.model_dump(exclude_unset=True).items():
@@ -55,7 +55,7 @@ async def list_landing_media(_: User = Depends(require_staff)):
 
 
 @router.post("/landing-media/{slot}")
-async def upload_landing_media(slot: str, file: UploadFile = File(...), _: User = Depends(require_staff)):
+async def upload_landing_media(slot: str, file: UploadFile = File(...), _: User = Depends(require_owner)):
     """Unggah/ganti gambar landing untuk sebuah slot (hero, about, class1-3)."""
     if slot not in lm.SLOTS:
         raise HTTPException(404, "Slot tidak dikenal")
@@ -70,7 +70,7 @@ async def upload_landing_media(slot: str, file: UploadFile = File(...), _: User 
 
 
 @router.delete("/landing-media/{slot}", status_code=204)
-async def delete_landing_media(slot: str, _: User = Depends(require_staff)):
+async def delete_landing_media(slot: str, _: User = Depends(require_owner)):
     """Hapus gambar landing sebuah slot (kembali ke placeholder)."""
     if slot not in lm.SLOTS:
         raise HTTPException(404, "Slot tidak dikenal")

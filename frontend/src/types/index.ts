@@ -152,7 +152,7 @@ export interface FinancialAccount {
   account_number?: string | null
   opening_balance: number
   is_active: boolean
-  balance: number
+  balance: number | null  // null = disembunyikan (non-owner utk rekening bank)
 }
 
 export interface ExpenseRow {

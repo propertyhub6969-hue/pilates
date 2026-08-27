@@ -48,7 +48,7 @@ export default function Laporan() {
 
   function printReport() {
     if (!data) return
-    const totalBalance = data.accounts.reduce((s, a) => s + a.balance, 0)
+    const totalBalance = data.accounts.reduce((s, a) => s + (a.balance ?? 0), 0)
     const today = formatDate(todayISO())
     const rows = (arr: [string, number][]) =>
       arr.map(([k, v]) => `<tr><td>${k}</td><td class="amt">${formatRupiah(v)}</td></tr>`).join('')

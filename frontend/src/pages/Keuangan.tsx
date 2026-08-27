@@ -499,7 +499,9 @@ function AccountsTab() {
                 <button onClick={() => openEdit(a)} className="btn-ghost !px-2 !py-1.5"><Pencil size={15} /></button>
               </div>
               <div className="mt-3 text-xs text-ink/45">Saldo saat ini</div>
-              <div className="font-display text-2xl font-semibold text-copper-700">{formatRupiah(a.balance)}</div>
+              {a.balance == null
+                ? <div className="font-display text-2xl font-semibold text-ink/30" title="Hanya owner yang bisa melihat saldo rekening bank">••••••</div>
+                : <div className="font-display text-2xl font-semibold text-copper-700">{formatRupiah(a.balance)}</div>}
               {!a.is_active && <span className="text-xs text-clay">non-aktif</span>}
             </div>
           ))}
