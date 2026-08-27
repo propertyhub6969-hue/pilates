@@ -401,13 +401,35 @@ async def buy_package_me(payload: MemberBuyRequest, db: AsyncSession = Depends(g
     )).scalar_one_or_none()
     if not pkg:
         raise HTTPException(404, "Paket tidak ditemukan")
-    from app.services.purchase import create_purchase
+    from app.services.purchase import create_purchase, price_quote
+    quote = await price_quote(db, user.id, pkg)  # terapkan diskon perpanjangan / harga upgrade bila berhak
     await create_purchase(
         db, member_id=user.id, package_id=payload.package_id,
-        method=PaymentMethod.TRANSFER, mark_paid=False, activate=False,
+        method=PaymentMethod.TRANSFER, mark_paid=False, activate=False, price_paid=quote["total"],
         note="Perpanjang/ambil paket (menunggu pembayaran)",
     )
     return await _load_detail(db, user)
+
+
+@router.get("/me/package-quotes")
+async def my_package_quotes(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """Harga efektif tiap paket aktif untuk member ini (diskon perpanjangan / harga upgrade sudah dihitung)."""
+    if user.role != UserRole.MEMBER:
+        raise HTTPException(403, "Hanya untuk member")
+    from app.services.purchase import price_quote
+    pkgs = (await db.execute(
+        select(Package).where(Package.is_active.is_(True)).order_by(Package.price.asc())
+    )).scalars().all()
+    out = []
+    for pkg in pkgs:
+        q = await price_quote(db, user.id, pkg)
+        out.append({
+            "package_id": str(pkg.id), "name": pkg.name, "description": pkg.description,
+            "is_unlimited": pkg.is_unlimited, "session_count": pkg.session_count,
+            "base_price": q["base_price"], "total": q["total"],
+            "renewal_discount": q["renewal_discount"], "kind": q["kind"],
+        })
+    return out
 
 
 @router.post("/me/dropin-ticket", response_model=MemberDetail)

@@ -213,16 +213,17 @@ function daysUntil(iso?: string | null): number | null {
 }
 
 /* CTA perpanjang/ambil paket — kontekstual: menonjol saat hampir habis / mendekati kedaluwarsa */
+type Quote = { package_id: string; name: string; description?: string | null; is_unlimited: boolean; session_count?: number | null; base_price: number; total: number; renewal_discount: number; kind: string }
 function RenewSection({ m }: { m: MemberDetail }) {
   const qc = useQueryClient()
   const [openList, setOpenList] = useState(false)
-  const { data: packages } = useQuery({ queryKey: ['public-packages'], queryFn: async () => (await api.get<Pkg[]>('/public/packages')).data })
+  const { data: quotes } = useQuery({ queryKey: ['me-package-quotes'], queryFn: async () => (await api.get<Quote[]>('/members/me/package-quotes')).data })
   const buy = useMutation({
     mutationFn: async (pid: string) => api.post('/members/me/buy-package', { package_id: pid }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['me-detail'] }),
     onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal memproses'),
   })
-  if (!packages?.length) return null
+  if (!quotes?.length) return null
 
   const remaining = m.active_sessions_remaining ?? 0
   const low = !m.has_unlimited && remaining <= 2
@@ -233,21 +234,28 @@ function RenewSection({ m }: { m: MemberDetail }) {
 
   const options = (
     <div className="space-y-2 mt-3">
-      {packages.map((p) => (
-        <div key={p.id} className="flex items-center gap-3 rounded-xl border border-sand p-3">
+      {quotes.map((p) => {
+        const discounted = p.total < p.base_price
+        return (
+        <div key={p.package_id} className="flex items-center gap-3 rounded-xl border border-sand p-3">
           <div className="flex-1 min-w-0">
-            <div className="font-semibold">{p.name}</div>
+            <div className="font-semibold flex items-center gap-2">{p.name}
+              {p.kind === 'renewal' && <span className="text-[10px] rounded-full px-2 py-0.5 bg-copper-100 text-copper-700">Diskon perpanjangan</span>}
+              {p.kind === 'upgrade' && <span className="text-[10px] rounded-full px-2 py-0.5 bg-copper-100 text-copper-700">Harga upgrade</span>}
+            </div>
             <div className="text-xs text-ink/50">{p.is_unlimited ? 'Unlimited' : `${p.session_count} sesi`}{p.description ? ` · ${p.description}` : ''}</div>
           </div>
           <div className="text-right shrink-0">
-            <div className="font-display font-semibold text-copper-700 text-sm mb-1">{formatRupiah(p.price)}</div>
-            <button onClick={() => { if (confirm(`Ambil paket ${p.name} seharga ${formatRupiah(p.price)}? Kamu akan diarahkan untuk transfer & unggah bukti.`)) buy.mutate(p.id) }}
+            <div className="font-display font-semibold text-copper-700 text-sm mb-1">
+              {formatRupiah(p.total)}{discounted && <s className="text-ink/35 font-sans font-normal ml-1">{formatRupiah(p.base_price)}</s>}
+            </div>
+            <button onClick={() => { if (confirm(`Ambil paket ${p.name} seharga ${formatRupiah(p.total)}? Kamu akan diarahkan untuk transfer & unggah bukti.`)) buy.mutate(p.package_id) }}
               disabled={buy.isPending} className="btn-primary !px-4 !py-1.5 text-sm">
               {buy.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Pilih'}
             </button>
           </div>
         </div>
-      ))}
+      )})}
     </div>
   )
 
