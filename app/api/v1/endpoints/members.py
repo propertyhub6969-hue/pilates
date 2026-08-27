@@ -50,7 +50,10 @@ async def list_users(
         stmt = stmt.where(User.role == role)
     if category:
         stmt = stmt.where(User.member_category == category)
-    if package_name:
+    if package_name == "__none__":
+        # Member yang belum punya paket sama sekali
+        stmt = stmt.where(User.role == UserRole.MEMBER, ~User.id.in_(select(MemberPackage.member_id)))
+    elif package_name:
         stmt = stmt.where(User.id.in_(
             select(MemberPackage.member_id).where(
                 func.lower(MemberPackage.package_name) == package_name.strip().lower(),
@@ -129,7 +132,18 @@ async def package_names(db: AsyncSession = Depends(get_db), _: User = Depends(re
             .order_by(func.count(func.distinct(MemberPackage.member_id)).desc())
         )
     ).all()
-    return [{"name": n, "count": c} for n, c in rows]
+    out = [{"name": n, "count": c} for n, c in rows]
+    # Opsi khusus: member yang belum punya paket sama sekali
+    none_count = (
+        await db.execute(
+            select(func.count()).select_from(User).where(
+                User.role == UserRole.MEMBER, ~User.id.in_(select(MemberPackage.member_id))
+            )
+        )
+    ).scalar_one()
+    if none_count:
+        out.append({"name": "__none__", "label": "Belum ada paket", "count": none_count})
+    return out
 
 
 @router.post("", response_model=UserBrief, status_code=201)

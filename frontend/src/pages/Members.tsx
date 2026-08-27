@@ -53,7 +53,7 @@ export default function Members() {
 
   const { data: pkgNames } = useQuery({
     queryKey: ['member-package-names'],
-    queryFn: async () => (await api.get<{ name: string; count: number }[]>('/members/package-names')).data,
+    queryFn: async () => (await api.get<{ name: string; count: number; label?: string }[]>('/members/package-names')).data,
   })
 
   const create = useMutation({
@@ -130,7 +130,7 @@ export default function Members() {
             <select className="input !w-auto min-w-[160px]" value={packageName} onChange={(e) => setPackageName(e.target.value)}
               title="Filter berdasarkan paket aktif yang dipegang member">
               <option value="">Semua paket</option>
-              {pkgNames?.map((p) => <option key={p.name} value={p.name}>{p.name} ({p.count})</option>)}
+              {pkgNames?.map((p) => <option key={p.name} value={p.name}>{p.label ?? p.name} ({p.count})</option>)}
             </select>
           )}
         </div>
