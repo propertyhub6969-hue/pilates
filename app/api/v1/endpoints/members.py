@@ -14,6 +14,7 @@ from app.schemas.member import (
     UserCreate, UserUpdate, UserBrief, MemberDetail,
     MemberPackageResponse, PaymentResponse, PurchaseCreate, EnrollRequest, DropinTicketCreate,
     PackageUsageRow, UpgradeRequest, SessionAdjustRequest, SessionAdjustmentRow, PackageEditRequest,
+    GrantSessionsRequest,
 )
 from app.models.schedule import ClassSession
 from app.models.booking import Booking, BookingStatus
@@ -251,6 +252,32 @@ async def adjust_sessions(mp_id: uuid.UUID, payload: SessionAdjustRequest, db: A
     await db.flush()
     await db.refresh(mp)
     return mp
+
+
+@router.post("/{user_id}/grant-sessions", response_model=MemberDetail, status_code=201)
+async def grant_sessions(user_id: uuid.UUID, payload: GrantSessionsRequest, db: AsyncSession = Depends(get_db), actor: User = Depends(require_staff)):
+    """Beri saldo sesi langsung ke member tanpa mencatat penjualan (mis. koreksi data impor).
+    Membuat paket baru harga Rp0, tercatat di riwayat penyesuaian."""
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user or user.role != UserRole.MEMBER:
+        raise HTTPException(404, "Member tidak ditemukan")
+    exp = datetime.combine(payload.expires_at, dtime(23, 59), tzinfo=timezone.utc) if payload.expires_at else None
+    mp = MemberPackage(
+        member_id=user.id, package_id=None,
+        package_name=(payload.label or "").strip() or "Sesi (pemberian admin)",
+        is_unlimited=False, monthly_expiry=False,
+        sessions_total=payload.sessions, sessions_remaining=payload.sessions,
+        price_paid=0, purchased_at=datetime.now(timezone.utc), expires_at=exp,
+        status=MemberPackageStatus.ACTIVE,
+    )
+    db.add(mp)
+    await db.flush()
+    db.add(SessionAdjustment(
+        member_package_id=mp.id, delta=payload.sessions, before_remaining=0, after_remaining=payload.sessions,
+        reason="pemberian sesi langsung (tanpa jual paket)", adjusted_by_id=actor.id, adjusted_by_name=actor.full_name,
+    ))
+    await db.flush()
+    return await _load_detail(db, user)
 
 
 @router.patch("/packages/{mp_id}", response_model=MemberPackageResponse)

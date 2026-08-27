@@ -142,6 +142,13 @@ class PackageEditRequest(BaseModel):
     sessions_remaining: Optional[int] = Field(default=None, ge=0)
 
 
+class GrantSessionsRequest(BaseModel):
+    """Admin beri saldo sesi langsung ke member tanpa mencatat penjualan."""
+    sessions: int = Field(ge=1, le=1000)
+    expires_at: Optional[date] = None
+    label: Optional[str] = Field(default=None, max_length=150)
+
+
 class SessionAdjustmentRow(BaseModel):
     id: uuid.UUID
     delta: int

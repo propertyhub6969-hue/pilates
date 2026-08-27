@@ -70,6 +70,19 @@ export default function MemberDetail() {
     onError: (e: any) => setTicketErr(e?.response?.data?.detail ?? 'Gagal menambah tiket'),
   })
 
+  const [grantOpen, setGrantOpen] = useState(false)
+  const [grant, setGrant] = useState<{ sessions: string; expires_at: string; label: string }>({ sessions: '', expires_at: '', label: '' })
+  const [grantErr, setGrantErr] = useState('')
+  const giveSessions = useMutation({
+    mutationFn: async () => api.post(`/members/${id}/grant-sessions`, {
+      sessions: Number(grant.sessions),
+      expires_at: grant.expires_at || null,
+      label: grant.label.trim() || null,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['member', id] }); setGrantOpen(false); setGrant({ sessions: '', expires_at: '', label: '' }) },
+    onError: (e: any) => setGrantErr(e?.response?.data?.detail ?? 'Gagal memberi sesi'),
+  })
+
   const [editOpen, setEditOpen] = useState(false)
   const [editForm, setEditForm] = useState({ full_name: '', phone: '', member_category: '' as MemberCategory | '', date_of_birth: '', emergency_contact: '', notes: '' })
   const edit = useMutation({
@@ -167,6 +180,7 @@ export default function MemberDetail() {
         {m.role === 'member' && (
           <div className="flex gap-2 mt-4 flex-wrap">
             <button onClick={() => { setError(''); setOpen(true) }} className="btn-primary"><Plus size={16} /> Jual Paket</button>
+            <button onClick={() => { setGrantErr(''); setGrantOpen(true) }} className="btn-ghost border border-sand"><Plus size={16} /> Beri Sesi Langsung</button>
             {m.member_category === 'per_datang' && (
               <button onClick={() => { setTicketErr(''); setTicketOpen(true) }} className="btn-ghost border border-sand"><Plus size={16} /> Tambah Tiket Drop-in</button>
             )}
@@ -323,6 +337,26 @@ export default function MemberDetail() {
           {!tk.mark_paid && <p className="text-[11px] text-ink/40">Belum lunas → tiket menunggu; aktif setelah pembayaran diverifikasi di menu Pembayaran.</p>}
           {ticketErr && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{ticketErr}</div>}
           <button className="btn-primary w-full" disabled={addTicket.isPending}>{addTicket.isPending && <Loader2 size={16} className="animate-spin" />} Simpan Tiket</button>
+        </form>
+      </Modal>
+
+      {/* Modal beri sesi langsung */}
+      <Modal open={grantOpen} onClose={() => setGrantOpen(false)} title="Beri Sesi Langsung">
+        <form onSubmit={(e) => { e.preventDefault(); setGrantErr(''); giveSessions.mutate() }} className="space-y-4">
+          <p className="text-sm text-ink/60">Beri saldo sesi ke member <b>tanpa mencatat penjualan</b> (harga Rp0). Cocok untuk koreksi data impor / bonus. Tercatat di riwayat penyesuaian.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">Jumlah sesi</label>
+              <input className="input" type="number" min={1} required value={grant.sessions}
+                onChange={(e) => setGrant({ ...grant, sessions: e.target.value })} placeholder="mis. 5" /></div>
+            <div><label className="label">Kedaluwarsa (opsional)</label>
+              <input className="input" type="date" value={grant.expires_at}
+                onChange={(e) => setGrant({ ...grant, expires_at: e.target.value })} /></div>
+          </div>
+          <div><label className="label">Nama paket (opsional)</label>
+            <input className="input" value={grant.label} onChange={(e) => setGrant({ ...grant, label: e.target.value })} placeholder="Sesi (pemberian admin)" /></div>
+          <p className="text-[11px] text-ink/40">Kosongkan kedaluwarsa untuk paket tanpa masa berlaku. Bisa diubah lagi nanti di kartu paket.</p>
+          {grantErr && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{grantErr}</div>}
+          <button className="btn-primary w-full" disabled={giveSessions.isPending}>{giveSessions.isPending && <Loader2 size={16} className="animate-spin" />} Beri Sesi</button>
         </form>
       </Modal>
 
