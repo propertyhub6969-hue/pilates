@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone, timedelta, time as dtime
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, delete as sqldelete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import get_password_hash
@@ -292,6 +292,22 @@ async def grant_sessions(user_id: uuid.UUID, payload: GrantSessionsRequest, db: 
     ))
     await db.flush()
     return await _load_detail(db, user)
+
+
+@router.delete("/packages/{mp_id}", status_code=204)
+async def delete_member_package(mp_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: User = Depends(require_owner)):
+    """Hapus satu paket milik member (mis. paket keliru / beku hasil tes).
+    Tagihan PENDING terkait ikut dihapus; pembayaran LUNAS tetap tersimpan (di-unlink);
+    booking yang sempat memakai paket ini tetap ada (tautan paket di-kosongkan)."""
+    mp = (await db.execute(select(MemberPackage).where(MemberPackage.id == mp_id))).scalar_one_or_none()
+    if not mp:
+        raise HTTPException(404, "Paket member tidak ditemukan")
+    # Buang tagihan yang belum dibayar untuk paket ini (bill tak berarti lagi)
+    await db.execute(sqldelete(Payment).where(
+        Payment.member_package_id == mp.id, Payment.status == PaymentStatus.PENDING
+    ))
+    await db.delete(mp)  # payment LUNAS & booking -> member_package_id NULL; adjustments -> CASCADE
+    return None
 
 
 @router.patch("/packages/{mp_id}", response_model=MemberPackageResponse)

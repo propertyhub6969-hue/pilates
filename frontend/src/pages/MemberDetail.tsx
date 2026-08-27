@@ -458,6 +458,11 @@ function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }
     onSuccess: () => { setExpErr(''); qc.invalidateQueries({ queryKey: ['member'] }) },
     onError: (e: any) => setExpErr(e?.response?.data?.detail ?? 'Gagal menyimpan'),
   })
+  const del = useMutation({
+    mutationFn: async () => api.delete(`/members/packages/${p.id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['member'] }),
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menghapus paket'),
+  })
   const { data: adjustments } = useQuery({
     queryKey: ['pkg-adjust', p.id],
     enabled: open && canAdjustSessions,
@@ -491,6 +496,12 @@ function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }
           <button onClick={onFreeze} className="btn-ghost !px-2 !py-1.5 shrink-0"
             title={p.status === 'frozen' ? 'Aktifkan' : 'Bekukan'}>
             <Snowflake size={15} className={p.status === 'frozen' ? 'text-clay' : 'text-ink/40'} />
+          </button>
+        )}
+        {owner && (
+          <button onClick={() => { if (confirm(`Hapus paket "${p.package_name}" milik member ini secara PERMANEN? Tagihan yang belum dibayar ikut terhapus; pembayaran lunas tetap tersimpan. Tak bisa dibatalkan.`)) del.mutate() }}
+            disabled={del.isPending} className="btn-ghost !px-2 !py-1.5 shrink-0 text-clay-dark" title="Hapus paket">
+            <Trash2 size={15} />
           </button>
         )}
       </div>
