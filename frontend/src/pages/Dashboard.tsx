@@ -10,6 +10,7 @@ import { formatRupiah, formatDate, formatDayDate, formatTime, formatDateTime } f
 import {
   CalendarDays, Users, Wallet, Infinity as InfinityIcon, ShoppingBag,
   TrendingUp, Clock, UserRound, Landmark, Upload, Loader2, Check, Zap, CircleDollarSign, Plus, Receipt, X, ArrowUpCircle, Megaphone,
+  RefreshCw, AlertTriangle, ChevronDown,
 } from 'lucide-react'
 
 /* ═══════════════ STAF ═══════════════ */
@@ -130,6 +131,7 @@ function ActiveMemberView({ m, bookings }: { m: MemberDetail; bookings?: MyBooki
         </div>
       )}
 
+      {!perDatang && <RenewSection m={m} />}
       <UpgradeSection />
 
       {next && (
@@ -201,6 +203,74 @@ function UpgradeSection() {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function daysUntil(iso?: string | null): number | null {
+  if (!iso) return null
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000)
+}
+
+/* CTA perpanjang/ambil paket — kontekstual: menonjol saat hampir habis / mendekati kedaluwarsa */
+function RenewSection({ m }: { m: MemberDetail }) {
+  const qc = useQueryClient()
+  const [openList, setOpenList] = useState(false)
+  const { data: packages } = useQuery({ queryKey: ['public-packages'], queryFn: async () => (await api.get<Pkg[]>('/public/packages')).data })
+  const buy = useMutation({
+    mutationFn: async (pid: string) => api.post('/members/me/buy-package', { package_id: pid }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me-detail'] }),
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal memproses'),
+  })
+  if (!packages?.length) return null
+
+  const remaining = m.active_sessions_remaining ?? 0
+  const low = !m.has_unlimited && remaining <= 2
+  const expDays = m.packages.filter((p) => p.status === 'active').map((p) => daysUntil(p.expires_at)).filter((d): d is number => d != null)
+  const soonDays = expDays.length ? Math.min(...expDays) : null
+  const soon = soonDays != null && soonDays <= 7
+  const urgent = low || soon
+
+  const options = (
+    <div className="space-y-2 mt-3">
+      {packages.map((p) => (
+        <div key={p.id} className="flex items-center gap-3 rounded-xl border border-sand p-3">
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold">{p.name}</div>
+            <div className="text-xs text-ink/50">{p.is_unlimited ? 'Unlimited' : `${p.session_count} sesi`}{p.description ? ` · ${p.description}` : ''}</div>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="font-display font-semibold text-copper-700 text-sm mb-1">{formatRupiah(p.price)}</div>
+            <button onClick={() => { if (confirm(`Ambil paket ${p.name} seharga ${formatRupiah(p.price)}? Kamu akan diarahkan untuk transfer & unggah bukti.`)) buy.mutate(p.id) }}
+              disabled={buy.isPending} className="btn-primary !px-4 !py-1.5 text-sm">
+              {buy.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Pilih'}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+
+  if (urgent) {
+    const reason = low && soon ? `Sesimu tinggal ${remaining} & paket berakhir ${soonDays} hari lagi`
+      : low ? `Sesimu tinggal ${remaining} sesi`
+      : `Paketmu berakhir ${soonDays} hari lagi`
+    return (
+      <div className="rounded-xl2 border border-clay/40 bg-clay/5 p-5">
+        <div className="flex items-center gap-2 text-clay-dark font-semibold"><AlertTriangle size={18} /> Perpanjang paketmu</div>
+        <p className="text-sm text-ink/60 mt-1">{reason}. Perpanjang sekarang biar latihanmu nggak putus.</p>
+        {options}
+      </div>
+    )
+  }
+  return (
+    <div className="card border-copper-100">
+      <button onClick={() => setOpenList((v) => !v)} className="w-full flex items-center gap-2 text-left">
+        <RefreshCw size={18} className="text-copper-600" />
+        <span className="font-semibold flex-1">Perpanjang / ambil paket</span>
+        <ChevronDown size={16} className={`text-ink/40 transition-transform ${openList ? 'rotate-180' : ''}`} />
+      </button>
+      {openList && options}
     </div>
   )
 }

@@ -149,6 +149,11 @@ class GrantSessionsRequest(BaseModel):
     label: Optional[str] = Field(default=None, max_length=150)
 
 
+class MemberBuyRequest(BaseModel):
+    """Member perpanjang/ambil paket sendiri dari dashboard (self-serve)."""
+    package_id: uuid.UUID
+
+
 class SessionAdjustmentRow(BaseModel):
     id: uuid.UUID
     delta: int

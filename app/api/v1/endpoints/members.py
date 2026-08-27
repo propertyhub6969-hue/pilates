@@ -14,7 +14,7 @@ from app.schemas.member import (
     UserCreate, UserUpdate, UserBrief, MemberDetail,
     MemberPackageResponse, PaymentResponse, PurchaseCreate, EnrollRequest, DropinTicketCreate,
     PackageUsageRow, UpgradeRequest, SessionAdjustRequest, SessionAdjustmentRow, PackageEditRequest,
-    GrantSessionsRequest,
+    GrantSessionsRequest, MemberBuyRequest,
 )
 from app.models.schedule import ClassSession
 from app.models.booking import Booking, BookingStatus
@@ -387,6 +387,26 @@ async def enroll_me(
         # Aktif setelah bukti transfer diverifikasi admin; dipakai saat booking.
         from app.services.purchase import create_dropin_ticket
         await create_dropin_ticket(db, member_id=user.id, method=PaymentMethod.TRANSFER, mark_paid=False)
+    return await _load_detail(db, user)
+
+
+@router.post("/me/buy-package", response_model=MemberDetail)
+async def buy_package_me(payload: MemberBuyRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """Member perpanjang/ambil paket sendiri (self-serve): paket FROZEN + tagihan PENDING,
+    aktif setelah bukti transfer diverifikasi admin. Diskon perpanjangan otomatis diterapkan."""
+    if user.role != UserRole.MEMBER:
+        raise HTTPException(403, "Hanya untuk member")
+    pkg = (await db.execute(
+        select(Package).where(Package.id == payload.package_id, Package.is_active.is_(True))
+    )).scalar_one_or_none()
+    if not pkg:
+        raise HTTPException(404, "Paket tidak ditemukan")
+    from app.services.purchase import create_purchase
+    await create_purchase(
+        db, member_id=user.id, package_id=payload.package_id,
+        method=PaymentMethod.TRANSFER, mark_paid=False, activate=False,
+        note="Perpanjang/ambil paket (menunggu pembayaran)",
+    )
     return await _load_detail(db, user)
 
 
