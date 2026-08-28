@@ -1,6 +1,3 @@
-# Compose PRODUKSI — deploy manual: `docker compose -f docker-compose.prod.yml up -d --build`
-# Routing domain lewat proxy Coolify (Traefik) yang sudah jalan di VPS ini,
-# sama pola dgn NexistHub & POS. Ganti host rule ke domain final saat DNS siap.
 services:
   db:
     image: postgres:16-alpine
@@ -11,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "127.0.0.1:5436:5432"   # localhost saja — DB tak boleh terjangkau dari internet
+      - "127.0.0.1:5436:5432"
     volumes:
       - pilates_pg:/var/lib/postgresql/data
     healthcheck:
@@ -19,8 +16,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - pilates_net
+    networks: [pilates_net]
 
   backend:
     build:
@@ -32,15 +28,14 @@ services:
     environment:
       POSTGRES_HOST: db
     volumes:
-      - pilates_uploads:/app/uploads   # bukti transfer & unggahan lain (persist)
+      - pilates_uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
     command: >
       sh -c "alembic upgrade head &&
              uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2"
-    networks:
-      - pilates_net
+    networks: [pilates_net]
 
   frontend:
     build:
@@ -49,22 +44,12 @@ services:
     container_name: pilates_frontend
     restart: always
     volumes:
-      # Aset brand runtime — taruh logo.png di /opt/pilates/brand, langsung tampil (tanpa build ulang)
       - /opt/pilates/brand:/usr/share/nginx/html/brand:ro
     depends_on:
       - backend
-    # Routing + TLS diatur lewat file dynamic Traefik: /data/coolify/proxy/dynamic/pilates.yaml
-    # (http→https redirect + certResolver letsencrypt), pola sama nexisthub.yaml/pos.yaml.
-    # Container hanya perlu join network `coolify` agar proxy bisa menjangkaunya.
-    networks:
-      - pilates_net
-      - coolify
+    networks: [pilates_net, edge]
 
-  # Gateway WhatsApp khusus studio (nomor sendiri, terpisah dari gowa NexistHub).
-  # Scan QR sekali via UI-nya (127.0.0.1:8057 atau subdomain), sesi tersimpan di volume.
   whatsapp:
-    # Pin ke versi single-akun yg sama dgn gowa NexistHub (API cocok dgn adapter kita).
-    # `:latest` kini multi-akun (butuh device_id) & tak kompatibel.
     image: ghcr.io/aldinokemal/go-whatsapp-web-multidevice@sha256:cdfae0dda4f8a4b36a1a3214e5599a14c6d5b86912aff0574f230af5b5ebe213
     container_name: pilates_whatsapp
     restart: always
@@ -75,12 +60,10 @@ services:
       APP_OS: ReformerYourBody
       TZ: ${TIMEZONE}
     ports:
-      - "127.0.0.1:8057:3000"   # localhost — akses QR via tunnel/subdomain
+      - "127.0.0.1:8057:3000"
     volumes:
       - pilates_wa:/app/storages
-    networks:
-      - pilates_net
-      - coolify   # agar proxy Coolify bisa route wa.reformeryourbody.com ke UI gateway
+    networks: [pilates_net, edge]
 
 volumes:
   pilates_pg:
@@ -90,5 +73,5 @@ volumes:
 networks:
   pilates_net:
     name: pilates_network
-  coolify:
+  edge:
     external: true
