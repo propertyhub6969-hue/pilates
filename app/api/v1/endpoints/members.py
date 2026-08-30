@@ -20,9 +20,30 @@ from app.models.schedule import ClassSession
 from app.models.booking import Booking, BookingStatus
 from app.schemas.auth import SetPassword
 from app.services.quota import refresh_status, is_usable
-from app.services.whatsapp import phone_taken
+from app.services.whatsapp import phone_taken, notify_admin
 
 router = APIRouter()
+
+
+def _fmt_rp(amount) -> str:
+    return f"Rp{int(float(amount or 0)):,}".replace(",", ".")
+
+
+async def _notify_admin_new_bill(db: AsyncSession, member: User, payment, kind: str) -> None:
+    """Notif WA ke admin saat member membuat tagihan self-serve (SEBELUM/ tanpa bukti transfer).
+    Best-effort — jangan gagalkan transaksi bila WA error."""
+    msg = (
+        "🔔 *Tagihan baru menunggu pembayaran*\n\n"
+        f"Member: {member.full_name}\n"
+        f"Jenis: {kind}\n"
+        f"Jumlah: {_fmt_rp(getattr(payment, 'amount', 0))}\n\n"
+        "_Belum ada bukti transfer._ Pantau & verifikasi di:\n"
+        "office.reformeryourbody.com/pembayaran"
+    )
+    try:
+        await notify_admin(db, msg)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _can_manage_role(actor: User, target_role: UserRole) -> None:
@@ -393,16 +414,18 @@ async def enroll_me(
     await db.flush()
     if payload.package_id is not None:
         from app.services.purchase import create_purchase
-        await create_purchase(
+        _, payment = await create_purchase(
             db, member_id=user.id, package_id=payload.package_id,
             method=PaymentMethod.TRANSFER, mark_paid=False, activate=False,
             note="Aktivasi keanggotaan (menunggu pembayaran)",
         )
+        await _notify_admin_new_bill(db, user, payment, "Aktivasi keanggotaan (beli paket)")
     elif payload.member_category == MemberCategory.PER_DATANG:
         # Per datang: buat TIKET drop-in pertama (paket 1 sesi FROZEN + tagihan PENDING).
         # Aktif setelah bukti transfer diverifikasi admin; dipakai saat booking.
         from app.services.purchase import create_dropin_ticket
-        await create_dropin_ticket(db, member_id=user.id, method=PaymentMethod.TRANSFER, mark_paid=False)
+        _, payment = await create_dropin_ticket(db, member_id=user.id, method=PaymentMethod.TRANSFER, mark_paid=False)
+        await _notify_admin_new_bill(db, user, payment, "Aktivasi keanggotaan (tiket drop-in)")
     return await _load_detail(db, user)
 
 
@@ -419,11 +442,12 @@ async def buy_package_me(payload: MemberBuyRequest, db: AsyncSession = Depends(g
         raise HTTPException(404, "Paket tidak ditemukan")
     from app.services.purchase import create_purchase, price_quote
     quote = await price_quote(db, user.id, pkg)  # terapkan diskon perpanjangan / harga upgrade bila berhak
-    await create_purchase(
+    _, payment = await create_purchase(
         db, member_id=user.id, package_id=payload.package_id,
         method=PaymentMethod.TRANSFER, mark_paid=False, activate=False, price_paid=quote["total"],
         note="Perpanjang/ambil paket (menunggu pembayaran)",
     )
+    await _notify_admin_new_bill(db, user, payment, f"Beli/perpanjang paket — {pkg.name}")
     return await _load_detail(db, user)
 
 
@@ -455,7 +479,8 @@ async def buy_dropin_ticket(db: AsyncSession = Depends(get_db), user: User = Dep
     if user.role != UserRole.MEMBER:
         raise HTTPException(403, "Hanya untuk member")
     from app.services.purchase import create_dropin_ticket
-    await create_dropin_ticket(db, member_id=user.id, method=PaymentMethod.TRANSFER, mark_paid=False)
+    _, payment = await create_dropin_ticket(db, member_id=user.id, method=PaymentMethod.TRANSFER, mark_paid=False)
+    await _notify_admin_new_bill(db, user, payment, "Tiket drop-in (1 sesi)")
     return await _load_detail(db, user)
 
 
@@ -493,11 +518,12 @@ async def upgrade_me(payload: UpgradeRequest, db: AsyncSession = Depends(get_db)
     from app.services.purchase import eligible_upgrade, create_purchase
     if not await eligible_upgrade(db, user.id, pkg):
         raise HTTPException(400, "Belum memenuhi syarat upgrade (harus sudah pernah bayar & belum pegang paket ini).")
-    await create_purchase(
+    _, payment = await create_purchase(
         db, member_id=user.id, package_id=pkg.id,
         method=PaymentMethod.TRANSFER, mark_paid=False, activate=False,
         price_paid=float(pkg.upgrade_price), note="Upgrade paket (menunggu pembayaran)",
     )
+    await _notify_admin_new_bill(db, user, payment, f"Upgrade paket — {pkg.name}")
     return await _load_detail(db, user)
 
 

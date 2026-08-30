@@ -100,6 +100,26 @@ async def send_whatsapp(phone: str, message: str) -> tuple[bool, str]:
     return await _post_message(num, message)
 
 
+async def notify_admin(db, message: str) -> tuple[bool, str]:
+    """Kirim notif WA ke admin studio (StudioSettings.admin_whatsapp, fallback nomor owner).
+    Best-effort: no-op bila tak ada tujuan. ★ Bila admin_whatsapp = nomor gateway (sama),
+    WA anggap pesan-ke-diri-sendiri → tak ada notif; set admin_whatsapp ke nomor BERBEDA."""
+    from sqlalchemy import select
+    from app.models.studio import StudioSettings
+    from app.models.user import User, UserRole
+    studio = (await db.execute(select(StudioSettings))).scalars().first()
+    target = studio.admin_whatsapp if studio else None
+    if not target:
+        target = (
+            await db.execute(
+                select(User.phone).where(User.role == UserRole.OWNER, User.phone.isnot(None)).limit(1)
+            )
+        ).scalar_one_or_none()
+    if not target:
+        return False, "tak ada tujuan admin"
+    return await send_whatsapp(target, message)
+
+
 async def send_whatsapp_group(group_jid: str, message: str) -> tuple[bool, str]:
     """Kirim pesan ke GRUP (JID `...@g.us`). Risiko rendah: 1 pesan, aktivitas grup normal."""
     if not group_jid:
