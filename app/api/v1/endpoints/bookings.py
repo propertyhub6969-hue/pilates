@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.deps import get_current_user, require_staff
 from app.models.user import User, UserRole
-from app.models.schedule import ClassSession
+from app.models.schedule import ClassSession, ClassSessionStatus
 from app.models.booking import Booking, BookingStatus
 from app.schemas.schedule import SessionResponse, MyBookingRow, BookingRow
 from app.api.v1.endpoints.schedule import _serialize_sessions
@@ -116,6 +116,14 @@ async def reschedule_booking(
     new_session = (await db.execute(select(ClassSession).where(ClassSession.id == payload.new_session_id))).scalar_one_or_none()
     if not new_session:
         raise HTTPException(404, "Sesi tujuan tidak ditemukan")
+
+    # ── Pengaman: reschedule hanya boleh ke sesi yang bisa memberi slot TERKONFIRMASI. ──
+    # Member tak boleh menukar slot pasti dengan waitlist tanpa sadar. Berlaku untuk semua
+    # (member & staf), independen dari waitlist_enabled. Booking lama TIDAK disentuh bila ditolak.
+    if new_session.status != ClassSessionStatus.SCHEDULED:
+        raise HTTPException(400, "Sesi tujuan tidak tersedia.")
+    if (await booking_svc.booked_count(db, new_session.id)) >= new_session.capacity:
+        raise HTTPException(400, "Sesi tujuan sudah penuh — booking kamu tidak dipindah. Pilih sesi lain.")
 
     member_id = booking.member_id
     # Batalkan yang lama dulu (bebaskan slot & promosikan waitlist), lalu booking sesi baru.
