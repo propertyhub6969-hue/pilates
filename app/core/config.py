@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     WA_DEVICE_ID: str = "studio"           # id device gowa (multi-akun) → header X-Device-Id
     REMINDER_HOUR_LOCAL: int = 17          # jam (zona studio) daemon kirim reminder H-1
     REMINDER_HOURS_BEFORE: int = 2         # reminder kedua: X jam sebelum kelas mulai
-    STUDIO_WA_SIGNATURE: str = "Reformer Your Body"  # nama pengirim di teks pesan
+    STUDIO_WA_SIGNATURE: str = "Reformer Your Body — Coach Ade"  # nama pengirim di teks pesan
 
     class Config:
         env_file = ".env"
