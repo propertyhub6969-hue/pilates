@@ -84,7 +84,7 @@ Detail lengkap keputusan di memori `reformer-jadwal-redesign-plan.md`.
 **Jendela booking berjenjang** (`services/booking.py`, dari `StudioSettings`, zona WITA; staf `bypass_window=True`):
 - Bulanan/Private: buka **H-2 20:00** (`bulanan_open_days_before`/`_time`).
 - Per-datang: buka **H-1 20:00** (`dropin_open_days_before`/`_time`), wajib punya tiket.
-- Tutup: **akhir H-1** (H-0 00:00, `booking_close_days_before`/`_time`).
+- Tutup: **`mulai − booking_lead_close_hours`** (produksi = **2 jam** sebelum kelas mulai; ubah 30 Agu 2026). Bila `booking_lead_close_hours=0` → aturan lama berbasis hari (`booking_close_days_before`/`_time`, mis. akhir H-1). Lihat "Update 30 Agu 2026".
 - Kapasitas maks `default_capacity` (14), target min bulanan `min_bulanan` (10). Semua diatur di Pengaturan.
 - `SessionResponse` bawa `booking_state` (not_open/open/full/closed/cancelled) + `slots_remaining` + `opens_at`/`closes_at` + `can_book` + `bulanan_count` + `is_underfilled` (badge "Sepi"). FE MemberSchedule tampilkan pill status + tombol sadar-jendela.
 
@@ -243,3 +243,13 @@ Menu **Laporan Member** (staf) — TAB + tabel paginasi:
 - `DELETE /api/v1/schedule/sessions/{id}` (require_staff): hapus sesi PERMANEN + booking-nya (cascade). Beda dari "batalkan sesi".
 - FE: tombol trash di tiap baris daftar sesi (StaffSchedule → tab Sesi), ada konfirmasi, stopPropagation dari roster.
 - Live di produksi (72.62.71.1).
+
+## Update 30 Agu 2026 — Tutup booking 2 jam sebelum mulai, Reschedule mandiri member, Waitlist OFF
+Live di produksi (72.62.71.1). Commit `7bd6f68` (fitur) + `9e091b6` (pengaman).
+
+- **★ Tutup booking = `mulai − booking_lead_close_hours`** (bukan lagi berbasis hari): `booking_close_dt` (`services/booking.py`) kini pakai `session_start − lead` bila `booking_lead_close_hours > 0`, jika 0 → aturan lama (`booking_close_days_before`/`_time`). **Set produksi = 2 jam** (`studio_settings` + `branches`). Efek: member yang **belum booking** bisa memesan sampai **2 jam** sebelum kelas mulai (dulu tutup akhir H-1). Berlaku di enforcement `book_session` **dan** `booking_state`/`can_book`. Field ini SUDAH ada di Pengaturan Studio (label diperjelas: "Tutup booking (jam sebelum mulai)"). ★ Ini menjawab: aturan tutup 12 jam untuk yang SUDAH booking tak boleh menghalangi yang BELUM booking — dipisah jadi 2 aturan (lihat di bawah).
+- **★ Reschedule mandiri member** — `POST /bookings/{id}/reschedule {new_session_id}` (`endpoints/bookings.py`). Gerbang **SAMA dengan batal** (`cancellation_window_hours`=12): member hanya boleh pindah bila **>12 jam** sebelum sesi LAMA mulai (else 403 "terkunci"). Prosesnya **atomik**: batalkan sesi lama (bebaskan slot) → booking sesi baru (hormati jendela/kapasitas/kuota; staf bypass jendela). Bila sesi baru gagal → HTTPException → `get_db` rollback → **booking lama utuh**.
+- **★ Pengaman reschedule ke sesi penuh** — sebelum menyentuh booking lama, tolak (400 "Sesi tujuan sudah penuh — booking kamu tidak dipindah") bila sesi tujuan tak SCHEDULED atau `booked_count >= capacity`. **Independen dari `waitlist_enabled`** → member tak pernah menukar slot terkonfirmasi dengan waitlist tanpa sadar. Berlaku member & staf.
+- **FE `MemberSchedule.tsx`**: tombol **Pindah jadwal** (aktif hanya bila `my_can_cancel` = >12 jam) buka **RescheduleModal** yang hanya menampilkan sesi `booking_state='open'` (sesi penuh tak muncul) → panggil endpoint reschedule. Tombol **Batalkan** terpisah. Dalam 12 jam → "Terkunci (<12 jam)". Reuse `my_can_cancel` untuk gerbang tombol (tak ada field schema baru).
+- **★ Waitlist DIMATIKAN** — `studio_settings.waitlist_enabled = false` (tak ada booking WAITLIST aktif saat dimatikan → nol dampak data). Kelas penuh langsung terkunci, tak ada opsi gabung daftar tunggu. Toggle tetap ada di Pengaturan Studio bila mau diaktifkan lagi.
+- **Uji**: 5 skenario reschedule (book, pindah >12j, tolak <12j, tolak sesi-sama, closed <2j) + sesi-penuh (waitlist ON & OFF) — semua LOLOS, data uji dibersihkan (marker `ZZ_TEST_*`). Cara uji: skrip async di container `docker exec -e PYTHONPATH=/app -w /app pilates_backend python3 /tmp/x.py` (import `main` dulu utk registrasi model ORM; localhost:8000 dari host kena proxy).
