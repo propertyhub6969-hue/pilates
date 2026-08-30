@@ -64,7 +64,15 @@ def booking_open_dt(studio: StudioSettings, session: ClassSession, category) -> 
 
 
 def booking_close_dt(studio: StudioSettings, session: ClassSession) -> datetime:
-    """Kapan booking ditutup (default: tengah malam masuk hari-H = akhir H-1)."""
+    """Kapan booking ditutup untuk member yang BELUM booking.
+
+    Bila `booking_lead_close_hours > 0` → tutup `N jam sebelum sesi mulai`
+    (mis. 2 jam → member masih bisa memesan sampai 2 jam sebelum kelas).
+    Bila 0 → pakai aturan berbasis hari (default lama: akhir H-1 = tengah malam masuk hari-H).
+    """
+    lead = getattr(studio, "booking_lead_close_hours", 0) or 0
+    if lead > 0:
+        return session_start_dt(session) - timedelta(hours=lead)
     return _win_dt(session.session_date, studio.booking_close_days_before, studio.booking_close_time)
 
 

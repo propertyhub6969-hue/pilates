@@ -4,7 +4,7 @@ import { api } from '@/services/api'
 import { useBranch } from '@/context/BranchContext'
 import type { ClassSession } from '@/types'
 import { formatTime, formatDayDate } from '@/utils/format'
-import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays, Building2, Check, ArrowRight } from 'lucide-react'
+import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays, Building2, Check, ArrowRight, Repeat, X } from 'lucide-react'
 
 function endTime(start: string, mins: number): string {
   const [h, m] = start.split(':').map(Number)
@@ -37,6 +37,7 @@ export default function MemberSchedule() {
   const [tab, setTab] = useState<'all' | 'mine'>('all')
   const [range, setRange] = useState({ from: todayISO(), to: plusDays(14) })
   const [instructorId, setInstructorId] = useState('')
+  const [rescheduleFrom, setRescheduleFrom] = useState<ClassSession | null>(null)
 
   const { data: sessions, isLoading } = useQuery({
     queryKey: ['sessions', tab, activeId, range.from, range.to],
@@ -62,6 +63,15 @@ export default function MemberSchedule() {
     mutationFn: async (booking_id: string) => api.post(`/bookings/${booking_id}/cancel`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] }) },
     onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal membatalkan'),
+  })
+  const reschedule = useMutation({
+    mutationFn: async ({ booking_id, new_session_id }: { booking_id: string; new_session_id: string }) =>
+      api.post(`/bookings/${booking_id}/reschedule`, { new_session_id }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] })
+      setRescheduleFrom(null)
+    },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal memindah jadwal'),
   })
 
   const groups = groupByDate(shown)
@@ -152,8 +162,13 @@ export default function MemberSchedule() {
                               ? <span className="text-xs rounded-full px-3 py-1.5 bg-clay/10 text-clay-dark font-medium">Waitlist</span>
                               : <span className="inline-flex items-center gap-1 text-xs rounded-full px-3 py-1.5 bg-copper-100 text-copper-700 font-medium"><Check size={13} /> Terdaftar</span>}
                             {s.my_can_cancel && s.my_booking_id
-                              ? <button onClick={() => { if (confirm('Batalkan sesi ini? Kamu bisa pilih jadwal lain.')) cancelBooking.mutate(s.my_booking_id!) }} disabled={cancelBooking.isPending}
-                                  className="text-[11px] text-clay-dark hover:underline">Batalkan / ganti</button>
+                              ? <div className="flex items-center gap-2">
+                                  <button onClick={() => setRescheduleFrom(s)}
+                                    className="text-[11px] text-copper-700 hover:underline inline-flex items-center gap-0.5"><Repeat size={11} /> Pindah jadwal</button>
+                                  <span className="text-ink/20">·</span>
+                                  <button onClick={() => { if (confirm('Batalkan booking sesi ini?')) cancelBooking.mutate(s.my_booking_id!) }} disabled={cancelBooking.isPending}
+                                    className="text-[11px] text-clay-dark hover:underline">Batalkan</button>
+                                </div>
                               : <span className="text-[10px] text-ink/35 inline-flex items-center gap-0.5"><Clock size={10} /> Terkunci (&lt;12 jam)</span>}
                           </div>
                         ) : st === 'open' ? (
@@ -182,7 +197,81 @@ export default function MemberSchedule() {
           ))}
         </div>
       )}
-      <p className="text-xs text-ink/40 flex items-center gap-1"><Clock size={12} /> Untuk membatalkan/mengubah booking, hubungi admin studio.</p>
+      <p className="text-xs text-ink/40 flex items-center gap-1"><Clock size={12} /> Booking bisa dibatalkan/dipindah selama lebih dari 12 jam sebelum kelas mulai.</p>
+
+      {rescheduleFrom && (
+        <RescheduleModal
+          from={rescheduleFrom}
+          branchId={rescheduleFrom.branch_id ?? activeId}
+          onClose={() => setRescheduleFrom(null)}
+          onPick={(new_session_id) => reschedule.mutate({ booking_id: rescheduleFrom.my_booking_id!, new_session_id })}
+          pending={reschedule.isPending}
+        />
+      )}
+    </div>
+  )
+}
+
+function RescheduleModal({ from, branchId, onClose, onPick, pending }: {
+  from: ClassSession
+  branchId?: string
+  onClose: () => void
+  onPick: (sessionId: string) => void
+  pending: boolean
+}) {
+  const { data: sessions, isLoading } = useQuery({
+    queryKey: ['reschedule-sessions', branchId, todayISO()],
+    enabled: !!branchId,
+    queryFn: async () =>
+      (await api.get<ClassSession[]>('/schedule/sessions', {
+        params: { branch_id: branchId, from: todayISO(), to: plusDays(21) },
+      })).data,
+  })
+  const options = (sessions ?? []).filter((s) => s.id !== from.id && s.can_book && s.booking_state === 'open')
+  const groups = groupByDate(options)
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-sand">
+          <div>
+            <h3 className="font-display font-semibold">Pindah jadwal</h3>
+            <p className="text-xs text-ink/50">Dari {formatDayDate(from.session_date)} · {formatTime(from.start_time)}</p>
+          </div>
+          <button onClick={onClose} className="btn-ghost !p-1.5"><X size={18} /></button>
+        </div>
+        <div className="overflow-y-auto p-4 space-y-4">
+          {isLoading ? (
+            <div className="text-center text-ink/40 py-8">Memuat kelas…</div>
+          ) : groups.length === 0 ? (
+            <div className="text-center text-ink/50 py-8">Tidak ada kelas lain yang bisa dipilih saat ini.</div>
+          ) : (
+            groups.map(([day, list]) => (
+              <div key={day}>
+                <h4 className="text-xs font-semibold text-ink/50 mb-1.5 capitalize">{formatDayDate(day)}</h4>
+                <div className="space-y-1.5">
+                  {list.map((s) => (
+                    <button key={s.id} disabled={pending} onClick={() => onPick(s.id)}
+                      className="w-full text-left card !p-3 flex items-center gap-3 hover:border-copper-300 disabled:opacity-50">
+                      <div className="text-center shrink-0 w-14">
+                        <div className="font-display font-semibold text-copper-700">{formatTime(s.start_time)}</div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{s.title}</div>
+                        <div className="text-[11px] text-ink/50 flex flex-wrap gap-x-2">
+                          {s.instructor_name && <span>{s.instructor_name}</span>}
+                          <span>Sisa {s.slots_remaining} slot</span>
+                        </div>
+                      </div>
+                      {pending ? <Loader2 size={16} className="animate-spin text-copper-600" /> : <ArrowRight size={16} className="text-copper-500" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   )
 }

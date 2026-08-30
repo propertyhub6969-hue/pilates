@@ -141,10 +141,10 @@ export default function Settings() {
                 onChange={(e) => setF({ ...f, cancellation_window_hours: Number(e.target.value) })} />
               <p className="text-[11px] text-ink/40 mt-1">Batal lebih awal dari ini → kuota kembali.</p>
             </div>
-            <div><label className="label">Tutup booking (jam)</label>
+            <div><label className="label">Tutup booking (jam sebelum mulai)</label>
               <input className="input" type="number" min={0} value={f.booking_lead_close_hours ?? 0}
                 onChange={(e) => setF({ ...f, booking_lead_close_hours: Number(e.target.value) })} />
-              <p className="text-[11px] text-ink/40 mt-1">0 = boleh booking sampai kelas mulai.</p>
+              <p className="text-[11px] text-ink/40 mt-1">Member yang belum booking bisa memesan sampai sekian jam sebelum kelas mulai (0 = sampai kelas mulai).</p>
             </div>
           </div>
           <div>

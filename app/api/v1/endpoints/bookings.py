@@ -76,6 +76,56 @@ async def cancel_booking(booking_id: uuid.UUID, db: AsyncSession = Depends(get_d
     return (await _serialize_sessions(db, [session], user))[0]
 
 
+class RescheduleRequest(BaseModel):
+    new_session_id: uuid.UUID
+
+
+@router.post("/{booking_id}/reschedule", response_model=SessionResponse)
+async def reschedule_booking(
+    booking_id: uuid.UUID,
+    payload: RescheduleRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Pindahkan booking member ke sesi lain.
+
+    Gerbang sama dengan pembatalan: member hanya boleh memindah SENDIRI bila masih
+    > `cancellation_window_hours` (12 jam) sebelum sesi LAMA mulai. Sesi baru harus
+    memenuhi aturan jendela/kapasitas/kuota normal (staf bypass jendela). Bila booking
+    sesi baru gagal, transaksi di-rollback → booking lama tetap utuh.
+    """
+    booking = (await db.execute(select(Booking).where(Booking.id == booking_id))).scalar_one_or_none()
+    if not booking:
+        raise HTTPException(404, "Booking tidak ditemukan")
+    if booking.status not in (BookingStatus.BOOKED, BookingStatus.WAITLIST):
+        raise HTTPException(400, "Hanya booking aktif yang bisa dipindah.")
+    if booking.session_id == payload.new_session_id:
+        raise HTTPException(400, "Sesi tujuan sama dengan sesi saat ini.")
+
+    old_session = (await db.execute(select(ClassSession).where(ClassSession.id == booking.session_id))).scalar_one()
+
+    if not user.is_staff():
+        if booking.member_id != user.id:
+            raise HTTPException(403, "Hanya bisa memindah booking sendiri.")
+        studio = await booking_svc.get_studio(db)
+        window = (studio.cancellation_window_hours if studio else 12) or 12
+        start_dt = datetime.combine(old_session.session_date, old_session.start_time, tzinfo=booking_svc.TZ)
+        if booking_svc.now_local() >= start_dt - timedelta(hours=window):
+            raise HTTPException(403, f"Booking terkunci — tak bisa dipindah dalam {window} jam sebelum kelas mulai. Hubungi admin bila perlu.")
+
+    new_session = (await db.execute(select(ClassSession).where(ClassSession.id == payload.new_session_id))).scalar_one_or_none()
+    if not new_session:
+        raise HTTPException(404, "Sesi tujuan tidak ditemukan")
+
+    member_id = booking.member_id
+    # Batalkan yang lama dulu (bebaskan slot & promosikan waitlist), lalu booking sesi baru.
+    # Bila booking baru gagal (penuh/ditutup/kuota) → HTTPException → get_db rollback → lama utuh.
+    await booking_svc.cancel_booking(db, booking)
+    await booking_svc.book_session(db, new_session, member_id, bypass_window=user.is_staff())
+    await db.refresh(new_session)
+    return (await _serialize_sessions(db, [new_session], user))[0]
+
+
 @router.patch("/{booking_id}/attendance", response_model=BookingRow)
 async def set_attendance(
     booking_id: uuid.UUID,
