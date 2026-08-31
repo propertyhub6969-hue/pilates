@@ -131,7 +131,7 @@ function ActiveMemberView({ m, bookings }: { m: MemberDetail; bookings?: MyBooki
         </div>
       )}
 
-      {!perDatang && <RenewSection m={m} />}
+      <RenewSection m={m} perDatang={perDatang} />
       <UpgradeSection />
 
       {next && (
@@ -214,9 +214,9 @@ function daysUntil(iso?: string | null): number | null {
 
 /* CTA perpanjang/ambil paket — kontekstual: menonjol saat hampir habis / mendekati kedaluwarsa */
 type Quote = { package_id: string; name: string; description?: string | null; is_unlimited: boolean; session_count?: number | null; base_price: number; total: number; renewal_discount: number; kind: string }
-function RenewSection({ m }: { m: MemberDetail }) {
+function RenewSection({ m, perDatang = false }: { m: MemberDetail; perDatang?: boolean }) {
   const qc = useQueryClient()
-  const [openList, setOpenList] = useState(false)
+  const [openList, setOpenList] = useState(true)
   const { data: quotes } = useQuery({ queryKey: ['me-package-quotes'], queryFn: async () => (await api.get<Quote[]>('/members/me/package-quotes')).data })
   const buy = useMutation({
     mutationFn: async (pid: string) => api.post('/members/me/buy-package', { package_id: pid }),
@@ -230,7 +230,7 @@ function RenewSection({ m }: { m: MemberDetail }) {
   const expDays = m.packages.filter((p) => p.status === 'active').map((p) => daysUntil(p.expires_at)).filter((d): d is number => d != null)
   const soonDays = expDays.length ? Math.min(...expDays) : null
   const soon = soonDays != null && soonDays <= 7
-  const urgent = low || soon
+  const urgent = !perDatang && (low || soon)  // per-datang tak punya paket utk "perpanjang"
 
   const options = (
     <div className="space-y-2 mt-3">
@@ -275,7 +275,7 @@ function RenewSection({ m }: { m: MemberDetail }) {
     <div className="card border-copper-100">
       <button onClick={() => setOpenList((v) => !v)} className="w-full flex items-center gap-2 text-left">
         <RefreshCw size={18} className="text-copper-600" />
-        <span className="font-semibold flex-1">Perpanjang / ambil paket</span>
+        <span className="font-semibold flex-1">{perDatang ? 'Ambil paket (bulanan / private)' : 'Perpanjang / ambil paket'}</span>
         <ChevronDown size={16} className={`text-ink/40 transition-transform ${openList ? 'rotate-180' : ''}`} />
       </button>
       {openList && options}
