@@ -76,6 +76,21 @@ def booking_close_dt(studio: StudioSettings, session: ClassSession) -> datetime:
     return _win_dt(session.session_date, studio.booking_close_days_before, studio.booking_close_time)
 
 
+def dropin_price_for(studio: StudioSettings, session: ClassSession, now: datetime | None = None) -> float:
+    """Harga tiket drop-in untuk sesi ini (early-bird).
+    Bila `dropin_early_bird_price > 0` DAN sesi masih > `dropin_early_bird_hours` jam lagi
+    → harga early-bird; selain itu → harga normal `drop_in_price`."""
+    normal = float(studio.drop_in_price or 0)
+    eb = float(getattr(studio, "dropin_early_bird_price", 0) or 0)
+    hours = getattr(studio, "dropin_early_bird_hours", 12) or 0
+    if eb <= 0:
+        return normal
+    now = now or now_local()
+    if session_start_dt(session) - now > timedelta(hours=hours):
+        return eb
+    return normal
+
+
 async def get_studio(db: AsyncSession) -> StudioSettings:
     s = (await db.execute(select(StudioSettings))).scalars().first()
     if s is None:

@@ -12,6 +12,8 @@ interface StudioSettings {
   cancellation_window_hours: number
   booking_lead_close_hours: number
   drop_in_price: number
+  dropin_early_bird_price: number
+  dropin_early_bird_hours: number
   admin_whatsapp?: string | null
   bulanan_open_days_before: number
   bulanan_open_time: string
@@ -63,6 +65,8 @@ export default function Settings() {
       cancellation_window_hours: Number(f.cancellation_window_hours),
       booking_lead_close_hours: Number(f.booking_lead_close_hours),
       drop_in_price: Number(f.drop_in_price ?? 0),
+      dropin_early_bird_price: Number(f.dropin_early_bird_price ?? 0),
+      dropin_early_bird_hours: Number(f.dropin_early_bird_hours ?? 12),
       admin_whatsapp: f.admin_whatsapp || null,
       bulanan_open_days_before: Number(f.bulanan_open_days_before ?? 2),
       bulanan_open_time: f.bulanan_open_time || '20:00',
@@ -152,6 +156,20 @@ export default function Settings() {
             <input className="input" type="number" min={0} value={f.drop_in_price ?? 0}
               onChange={(e) => setF({ ...f, drop_in_price: Number(e.target.value) })} placeholder="75000" />
             <p className="text-[11px] text-ink/40 mt-1">Harga 1 tiket (1 sesi) untuk member "Per Datang". Wajib lunas sebelum bisa booking.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Harga early-bird drop-in (Rp)</label>
+              <input className="input" type="number" min={0} value={f.dropin_early_bird_price ?? 0}
+                onChange={(e) => setF({ ...f, dropin_early_bird_price: Number(e.target.value) })} placeholder="90000" />
+              <p className="text-[11px] text-ink/40 mt-1">Harga lebih murah bila member pesan jauh hari. <b>0 = matikan</b> (selalu harga normal).</p>
+            </div>
+            <div>
+              <label className="label">Ambang early-bird (jam)</label>
+              <input className="input" type="number" min={0} value={f.dropin_early_bird_hours ?? 12}
+                onChange={(e) => setF({ ...f, dropin_early_bird_hours: Number(e.target.value) })} placeholder="12" />
+              <p className="text-[11px] text-ink/40 mt-1">Pesan <b>lebih dari</b> sekian jam sebelum sesi → harga early-bird; ≤ ambang → harga normal.</p>
+            </div>
           </div>
         </div>
 

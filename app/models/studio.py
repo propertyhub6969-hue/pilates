@@ -28,6 +28,11 @@ class StudioSettings(BaseModel):
 
     # Harga sekali datang (drop-in) untuk member kategori "per datang" tanpa paket.
     drop_in_price: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+    # Early-bird drop-in: bila member pesan LEBIH dari `dropin_early_bird_hours` jam sebelum
+    # sesi mulai, harga = `dropin_early_bird_price` (lebih murah). ≤ ambang → harga normal
+    # (`drop_in_price`). Bila early_bird_price = 0 → fitur mati (selalu harga normal).
+    dropin_early_bird_price: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+    dropin_early_bird_hours: Mapped[int] = mapped_column(Integer, default=12, nullable=False)
 
     # ── Jendela booking berjenjang (semua waktu zona studio / WITA) ──
     # Bulanan/Private booking dibuka H-<days> pukul <time>. Default: H-2 20:00.

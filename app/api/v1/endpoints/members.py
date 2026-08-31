@@ -21,8 +21,15 @@ from app.models.booking import Booking, BookingStatus
 from app.schemas.auth import SetPassword
 from app.services.quota import refresh_status, is_usable
 from app.services.whatsapp import phone_taken, notify_admin
+from pydantic import BaseModel
 
 router = APIRouter()
+
+
+class MemberDropinRequest(BaseModel):
+    """Body opsional utk beli tiket drop-in self-serve. Bila `session_id` diisi, harga
+    dihitung early-bird sesuai jarak waktu ke sesi itu (dikunci saat ini)."""
+    session_id: uuid.UUID | None = None
 
 
 def _fmt_rp(amount) -> str:
@@ -473,13 +480,37 @@ async def my_package_quotes(db: AsyncSession = Depends(get_db), user: User = Dep
 
 
 @router.post("/me/dropin-ticket", response_model=MemberDetail)
-async def buy_dropin_ticket(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+async def buy_dropin_ticket(
+    payload: MemberDropinRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """Member per-datang beli tiket drop-in 1 sesi (self-serve): tiket FROZEN + tagihan PENDING,
-    aktif setelah bukti transfer diverifikasi admin."""
+    aktif setelah bukti transfer diverifikasi admin.
+
+    Bila `session_id` diisi → harga early-bird sadar-waktu (dikunci saat ini): >ambang jam
+    sebelum sesi mulai = harga early-bird, selain itu = harga normal. Tanpa session_id →
+    harga normal (drop_in_price)."""
     if user.role != UserRole.MEMBER:
         raise HTTPException(403, "Hanya untuk member")
     from app.services.purchase import create_dropin_ticket
-    _, payment = await create_dropin_ticket(db, member_id=user.id, method=PaymentMethod.TRANSFER, mark_paid=False)
+    from app.services.booking import get_studio, dropin_price_for, now_local
+
+    price: float | None = None
+    note: str | None = None
+    if payload and payload.session_id:
+        session = (await db.execute(
+            select(ClassSession).where(ClassSession.id == payload.session_id)
+        )).scalar_one_or_none()
+        if not session:
+            raise HTTPException(404, "Sesi tidak ditemukan")
+        studio = await get_studio(db)
+        price = dropin_price_for(studio, session, now_local())
+        note = f"Tiket Drop-in — {session.title} {session.session_date:%d/%m} {session.start_time:%H:%M}"
+
+    _, payment = await create_dropin_ticket(
+        db, member_id=user.id, method=PaymentMethod.TRANSFER, mark_paid=False, price=price, note=note,
+    )
     await _notify_admin_new_bill(db, user, payment, "Tiket drop-in (1 sesi)")
     return await _load_detail(db, user)
 

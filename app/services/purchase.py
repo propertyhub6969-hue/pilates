@@ -243,6 +243,7 @@ async def create_dropin_ticket(
     mark_paid: bool = True,
     price: float | None = None,
     recorded_by=None,
+    note: str | None = None,
 ) -> tuple[MemberPackage, Payment]:
     """Tiket drop-in = paket 1 sesi prepaid untuk member per-datang.
     mark_paid=True (admin catat lunas) → tiket langsung AKTIF.
@@ -280,7 +281,7 @@ async def create_dropin_ticket(
         method=method,
         status=PaymentStatus.PAID if mark_paid else PaymentStatus.PENDING,
         paid_at=now if mark_paid else None,
-        note="Tiket Drop-in (1 sesi)",
+        note=note or "Tiket Drop-in (1 sesi)",
         recorded_by_id=recorded_by,
         account_id=account_id,
     )

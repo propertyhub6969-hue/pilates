@@ -113,6 +113,8 @@ class SessionResponse(BaseModel):
     booking_opens_at: Optional[datetime] = None
     booking_closes_at: Optional[datetime] = None
     can_book: bool = False
+    dropin_price: Optional[float] = None  # harga drop-in sesi ini (diisi utk viewer per-datang; early-bird sadar-waktu)
+    dropin_early_bird: bool = False       # True bila harga di atas = harga early-bird (lebih murah dari normal)
     bulanan_count: int = 0               # jumlah bulanan yang sudah booking (staf)
     is_underfilled: bool = False         # bulanan < target minimal → "sesi sepi"
 

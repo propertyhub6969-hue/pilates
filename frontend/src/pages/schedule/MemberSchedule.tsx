@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import { useBranch } from '@/context/BranchContext'
 import type { ClassSession } from '@/types'
-import { formatTime, formatDayDate } from '@/utils/format'
-import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays, Building2, Check, ArrowRight, Repeat, X } from 'lucide-react'
+import { formatTime, formatDayDate, formatRupiah } from '@/utils/format'
+import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays, Building2, Check, ArrowRight, Repeat, X, Ticket } from 'lucide-react'
 
 function endTime(start: string, mins: number): string {
   const [h, m] = start.split(':').map(Number)
@@ -63,6 +63,14 @@ export default function MemberSchedule() {
     mutationFn: async (booking_id: string) => api.post(`/bookings/${booking_id}/cancel`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] }) },
     onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal membatalkan'),
+  })
+  const buyTicket = useMutation({
+    mutationFn: async (session_id: string) => api.post('/members/me/dropin-ticket', { session_id }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] })
+      alert('Tiket dibuat & harga terkunci. Upload bukti transfer di Dashboard, lalu booking sesi ini setelah admin verifikasi.')
+    },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal beli tiket'),
   })
   const reschedule = useMutation({
     mutationFn: async ({ booking_id, new_session_id }: { booking_id: string; new_session_id: string }) =>
@@ -154,6 +162,16 @@ export default function MemberSchedule() {
                         {!mine && st === 'open' && <div className="text-[11px] text-copper-600 mt-1">Sisa {s.slots_remaining} slot</div>}
                         {!mine && st === 'full' && <div className="text-[11px] text-clay-dark mt-1">{s.can_book ? 'Penuh — bisa gabung waitlist' : 'Penuh — kelas terkunci'}</div>}
                         {!mine && st === 'closed' && <div className="text-[11px] text-ink/40 mt-1">Booking ditutup</div>}
+                        {/* Harga drop-in sadar-waktu (early-bird) — hanya utk member per-datang */}
+                        {s.dropin_price != null && (
+                          <div className="text-[11px] mt-1 inline-flex items-center gap-1.5">
+                            <Ticket size={11} className="text-copper-500" />
+                            <span className="font-semibold text-copper-700">{formatRupiah(s.dropin_price)}</span>
+                            {s.dropin_early_bird
+                              ? <span className="rounded-full bg-green-100 text-green-700 px-1.5 py-0.5 text-[10px] font-medium">🐤 Early-bird</span>
+                              : <span className="text-ink/40 text-[10px]">harga normal</span>}
+                          </div>
+                        )}
                         {/* Daftar member yang sudah booking di sesi ini */}
                         {s.participants && s.participants.length > 0 && (
                           <div className="text-[11px] text-ink/55 mt-1.5 flex items-start gap-1">
@@ -177,6 +195,17 @@ export default function MemberSchedule() {
                                     className="text-[11px] text-clay-dark hover:underline">Batalkan</button>
                                 </div>
                               : <span className="text-[10px] text-ink/35 inline-flex items-center gap-0.5"><Clock size={10} /> Terkunci (&lt;12 jam)</span>}
+                          </div>
+                        ) : st === 'open' && s.dropin_price != null ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <button
+                              onClick={() => { if (confirm(`Beli tiket drop-in untuk sesi ini seharga ${formatRupiah(s.dropin_price)}? Harga akan terkunci.`)) buyTicket.mutate(s.id) }}
+                              disabled={buyTicket.isPending}
+                              className="btn-primary !px-3 !py-1.5 whitespace-nowrap">
+                              {buyTicket.isPending ? <Loader2 size={15} className="animate-spin" /> : <span className="inline-flex items-center gap-1"><Ticket size={14} /> Beli {formatRupiah(s.dropin_price)}</span>}
+                            </button>
+                            <button onClick={() => book.mutate(s.id)} disabled={book.isPending}
+                              className="text-[11px] text-copper-700 hover:underline">Punya tiket? Booking</button>
                           </div>
                         ) : st === 'open' ? (
                           <button onClick={() => book.mutate(s.id)} disabled={book.isPending}

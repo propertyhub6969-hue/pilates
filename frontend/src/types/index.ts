@@ -298,6 +298,8 @@ export interface ClassSession {
   booking_opens_at?: string | null
   booking_closes_at?: string | null
   can_book: boolean
+  dropin_price?: number | null
+  dropin_early_bird?: boolean
   bulanan_count: number
   is_underfilled: boolean
 }

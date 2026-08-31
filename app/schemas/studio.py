@@ -15,6 +15,8 @@ class StudioSettingsResponse(BaseModel):
     cancellation_window_hours: int
     booking_lead_close_hours: int
     drop_in_price: float = 0
+    dropin_early_bird_price: float = 0
+    dropin_early_bird_hours: int = 12
     admin_whatsapp: Optional[str] = None
     bulanan_open_days_before: int = 2
     bulanan_open_time: str = "20:00"
@@ -45,6 +47,8 @@ class StudioSettingsUpdate(BaseModel):
     cancellation_window_hours: Optional[int] = Field(default=None, ge=0, le=168)
     booking_lead_close_hours: Optional[int] = Field(default=None, ge=0, le=168)
     drop_in_price: Optional[float] = Field(default=None, ge=0)
+    dropin_early_bird_price: Optional[float] = Field(default=None, ge=0)
+    dropin_early_bird_hours: Optional[int] = Field(default=None, ge=0, le=168)
     admin_whatsapp: Optional[str] = Field(default=None, max_length=30)
     bulanan_open_days_before: Optional[int] = Field(default=None, ge=0, le=30)
     bulanan_open_time: Optional[str] = Field(default=None, max_length=5)

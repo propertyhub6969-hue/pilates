@@ -247,6 +247,11 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
                 r.can_book = bool(getattr(studio, "waitlist_enabled", True))
             else:
                 r.can_book = r.booking_state == "open"
+        # Harga drop-in sadar-waktu (early-bird) — hanya utk member per-datang & sesi terjadwal
+        if viewer_cat == MemberCategory.PER_DATANG and s.status == ClassSessionStatus.SCHEDULED:
+            p = booking_svc.dropin_price_for(studio, s, now)
+            r.dropin_price = p
+            r.dropin_early_bird = p < float(studio.drop_in_price or 0)
         out.append(r)
     return out
 
