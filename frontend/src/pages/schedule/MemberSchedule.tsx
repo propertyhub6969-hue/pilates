@@ -154,6 +154,13 @@ export default function MemberSchedule() {
                         {!mine && st === 'open' && <div className="text-[11px] text-copper-600 mt-1">Sisa {s.slots_remaining} slot</div>}
                         {!mine && st === 'full' && <div className="text-[11px] text-clay-dark mt-1">{s.can_book ? 'Penuh — bisa gabung waitlist' : 'Penuh — kelas terkunci'}</div>}
                         {!mine && st === 'closed' && <div className="text-[11px] text-ink/40 mt-1">Booking ditutup</div>}
+                        {/* Daftar member yang sudah booking di sesi ini */}
+                        {s.participants && s.participants.length > 0 && (
+                          <div className="text-[11px] text-ink/55 mt-1.5 flex items-start gap-1">
+                            <Users size={12} className="mt-[1px] shrink-0 text-copper-500" />
+                            <span><span className="text-ink/40">Peserta:</span> {s.participants.join(', ')}</span>
+                          </div>
+                        )}
                       </div>
                       <div className="shrink-0">
                         {mine === 'booked' || mine === 'waitlist' ? (

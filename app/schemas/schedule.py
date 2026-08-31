@@ -102,6 +102,7 @@ class SessionResponse(BaseModel):
     notes: Optional[str] = None
     booked_count: int = 0
     waitlist_count: int = 0
+    participants: list[str] = []          # nama member yang mengambil slot (booked/hadir/tidak-hadir)
     # Konteks utk pemanggil (member): status booking dia di sesi ini
     my_booking_status: Optional[BookingStatus] = None
     my_booking_id: Optional[uuid.UUID] = None

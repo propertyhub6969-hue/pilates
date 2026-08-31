@@ -289,6 +289,7 @@ export interface ClassSession {
   notes?: string | null
   booked_count: number
   waitlist_count: number
+  participants?: string[]
   my_booking_status?: BookingStatus | null
   my_booking_id?: string | null
   my_can_cancel?: boolean

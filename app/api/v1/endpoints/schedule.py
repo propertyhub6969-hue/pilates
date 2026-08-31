@@ -136,6 +136,21 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
             booked[sid] = booked.get(sid, 0) + c
         elif status == BookingStatus.WAITLIST:
             waits[sid] = c
+    # Nama peserta yang mengambil slot (utk ditampilkan di kartu sesi), urut waktu booking
+    part_rows = (
+        await db.execute(
+            select(Booking.session_id, User.full_name)
+            .join(User, Booking.member_id == User.id)
+            .where(
+                Booking.session_id.in_(ids),
+                Booking.status.in_([BookingStatus.BOOKED, BookingStatus.ATTENDED, BookingStatus.NO_SHOW]),
+            )
+            .order_by(Booking.booked_at.asc())
+        )
+    ).all()
+    participants: dict = {}
+    for sid, name in part_rows:
+        participants.setdefault(sid, []).append(name or "Member")
     # jumlah booking bulanan per sesi (utk deteksi "sesi sepi")
     bul_rows = (
         await db.execute(
@@ -193,6 +208,7 @@ async def _serialize_sessions(db: AsyncSession, rows, viewer: User) -> list[Sess
         bc = booked.get(s.id, 0)
         r.booked_count = bc
         r.waitlist_count = waits.get(s.id, 0)
+        r.participants = participants.get(s.id, [])
         r.slots_remaining = max(0, s.capacity - bc)
         b = mine.get(s.id)
         if b:
