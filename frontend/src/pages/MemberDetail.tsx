@@ -631,14 +631,14 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
   const manual = rows.filter((h) => h.source === 'manual').length
   const totalDiikuti = attended + manual
 
-  const renderRow = (h: HistoryRow, i: number) => (
-    <div key={h.id ?? `auto-${i}`} className="card flex items-center justify-between">
+  const renderRow = (h: HistoryRow, i: number, compact = false) => (
+    <div key={h.id ?? `auto-${i}`} className={compact ? 'flex items-center justify-between py-2.5' : 'card flex items-center justify-between'}>
       <div className="min-w-0">
-        <div className="font-semibold flex items-center gap-2 truncate">
+        <div className={`flex items-center gap-1.5 truncate ${compact ? 'text-sm font-medium' : 'font-semibold gap-2'}`}>
           {h.title}
           {h.source === 'manual' && <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-copper-50 text-copper-600 border border-copper-100 shrink-0">Manual</span>}
         </div>
-        <div className="text-xs text-ink/50">
+        <div className={`text-ink/50 ${compact ? 'text-[11px]' : 'text-xs'}`}>
           {formatDate(h.entry_date)}{h.start_time ? ` · ${formatTime(h.start_time)}` : ''}{h.note ? ` · ${h.note}` : ''}
         </div>
       </div>
@@ -678,8 +678,8 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
 
       {/* Modal daftar lengkap riwayat kelas (scroll di dalam modal) */}
       <Modal open={listOpen} onClose={() => setListOpen(false)} title={`Riwayat Kelas (${rows.length})`}>
-        <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-          {rows.map((h, i) => renderRow(h, i))}
+        <div className="max-h-[60vh] overflow-y-auto divide-y divide-sand -my-1">
+          {rows.map((h, i) => renderRow(h, i, true))}
         </div>
       </Modal>
 
