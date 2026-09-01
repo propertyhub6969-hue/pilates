@@ -150,6 +150,7 @@ export interface FinancialAccount {
   type: AccountType
   bank_name?: string | null
   account_number?: string | null
+  account_holder?: string | null
   opening_balance: number
   is_active: boolean
   balance: number | null  // null = disembunyikan (non-owner utk rekening bank)

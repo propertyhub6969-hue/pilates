@@ -461,11 +461,11 @@ function AccountsTab() {
   const { data: accounts, isLoading } = useAccounts()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
-  const [f, setF] = useState<{ id?: string; name: string; type: AccountType; bank_name: string; account_number: string; opening_balance: string }>({ name: '', type: 'cash', bank_name: '', account_number: '', opening_balance: '0' })
+  const [f, setF] = useState<{ id?: string; name: string; type: AccountType; bank_name: string; account_number: string; account_holder: string; opening_balance: string }>({ name: '', type: 'cash', bank_name: '', account_number: '', account_holder: '', opening_balance: '0' })
 
   const save = useMutation({
     mutationFn: async () => {
-      const body = { name: f.name, type: f.type, bank_name: f.bank_name || null, account_number: f.account_number || null, opening_balance: Number(f.opening_balance || 0) }
+      const body = { name: f.name, type: f.type, bank_name: f.bank_name || null, account_number: f.account_number || null, account_holder: f.account_holder || null, opening_balance: Number(f.opening_balance || 0) }
       if (f.id) return api.patch(`/finance/accounts/${f.id}`, body)
       return api.post('/finance/accounts', body)
     },
@@ -473,9 +473,9 @@ function AccountsTab() {
     onError: (e: any) => setError(e?.response?.data?.detail ?? 'Gagal menyimpan'),
   })
 
-  function openNew() { setF({ name: '', type: 'cash', bank_name: '', account_number: '', opening_balance: '0' }); setError(''); setOpen(true) }
+  function openNew() { setF({ name: '', type: 'cash', bank_name: '', account_number: '', account_holder: '', opening_balance: '0' }); setError(''); setOpen(true) }
   function openEdit(a: FinancialAccount) {
-    setF({ id: a.id, name: a.name, type: a.type, bank_name: a.bank_name ?? '', account_number: a.account_number ?? '', opening_balance: String(a.opening_balance) })
+    setF({ id: a.id, name: a.name, type: a.type, bank_name: a.bank_name ?? '', account_number: a.account_number ?? '', account_holder: a.account_holder ?? '', opening_balance: String(a.opening_balance) })
     setError(''); setOpen(true)
   }
 
@@ -521,10 +521,13 @@ function AccountsTab() {
             </div>
           )}
           {f.type === 'bank' && (
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="label">Nama bank</label><input className="input" value={f.bank_name} onChange={(e) => setF({ ...f, bank_name: e.target.value })} placeholder="BCA" /></div>
-              <div><label className="label">No. rekening</label><input className="input" value={f.account_number} onChange={(e) => setF({ ...f, account_number: e.target.value })} /></div>
-            </div>
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">Nama bank</label><input className="input" value={f.bank_name} onChange={(e) => setF({ ...f, bank_name: e.target.value })} placeholder="BCA" /></div>
+                <div><label className="label">No. rekening</label><input className="input" value={f.account_number} onChange={(e) => setF({ ...f, account_number: e.target.value })} /></div>
+              </div>
+              <div><label className="label">Atas nama (pemilik rekening)</label><input className="input" value={f.account_holder} onChange={(e) => setF({ ...f, account_holder: e.target.value })} placeholder="mis. Ade Ermawaty, S.Hut" /><p className="text-[11px] text-ink/40 mt-1">Tampil di dashboard member sebagai "a/n …" untuk transfer.</p></div>
+            </>
           )}
           <div><label className="label">Saldo awal (Rp)</label><input type="number" min={0} className="input" value={f.opening_balance} onChange={(e) => setF({ ...f, opening_balance: e.target.value })} /></div>
           {error && <div className="text-sm text-clay-dark bg-clay/10 border border-clay/20 rounded-lg px-3 py-2">{error}</div>}

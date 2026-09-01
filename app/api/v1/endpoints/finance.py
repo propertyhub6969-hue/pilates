@@ -92,6 +92,7 @@ class TransferAccount(BaseModel):
     name: str
     bank_name: Optional[str] = None
     account_number: Optional[str] = None
+    account_holder: Optional[str] = None
 
     class Config:
         from_attributes = True

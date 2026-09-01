@@ -11,6 +11,7 @@ class AccountCreate(BaseModel):
     type: AccountType
     bank_name: Optional[str] = None
     account_number: Optional[str] = None
+    account_holder: Optional[str] = Field(default=None, max_length=120)
     opening_balance: float = Field(default=0, ge=0)
 
 
@@ -18,6 +19,7 @@ class AccountUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=120)
     bank_name: Optional[str] = None
     account_number: Optional[str] = None
+    account_holder: Optional[str] = Field(default=None, max_length=120)
     opening_balance: Optional[float] = Field(default=None, ge=0)
     is_active: Optional[bool] = None
 
@@ -28,6 +30,7 @@ class AccountResponse(BaseModel):
     type: AccountType
     bank_name: Optional[str] = None
     account_number: Optional[str] = None
+    account_holder: Optional[str] = None
     opening_balance: float
     is_active: bool
     balance: Optional[float] = 0  # dihitung; None = disembunyikan (non-owner utk rekening bank)

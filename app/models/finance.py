@@ -27,6 +27,7 @@ class FinancialAccount(BaseModel):
     type: Mapped[AccountType] = mapped_column(SAEnum(AccountType, name="accounttype"), nullable=False)
     bank_name: Mapped[str] = mapped_column(String(80), nullable=True)       # utk bank
     account_number: Mapped[str] = mapped_column(String(60), nullable=True)  # no rekening
+    account_holder: Mapped[str] = mapped_column(String(120), nullable=True) # atas nama (pemilik rekening)
     opening_balance: Mapped[float] = mapped_column(Numeric(14, 2), default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
