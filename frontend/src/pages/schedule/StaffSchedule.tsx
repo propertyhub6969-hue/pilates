@@ -307,7 +307,12 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
     queryFn: async () => (await api.get<Page<User>>('/members', { params: { role: 'member', limit: 200 } })).data.items,
   })
   const [addId, setAddId] = useState('')
-  const inval = () => { qc.invalidateQueries({ queryKey: ['roster', session.id] }); qc.invalidateQueries({ queryKey: ['staff-sessions'] }) }
+  const inval = () => {
+    qc.invalidateQueries({ queryKey: ['roster', session.id] })
+    qc.invalidateQueries({ queryKey: ['staff-sessions'] })
+    qc.invalidateQueries({ queryKey: ['member-history'] })  // total sesi diikuti di detail member
+    qc.invalidateQueries({ queryKey: ['member'] })          // sisa kuota di detail member
+  }
 
   // Karyawan pendamping (dibayar per sesi) — admin tandai kehadiran di sesi ini
   const { data: assistants } = useQuery({
