@@ -10,6 +10,7 @@ import Modal from '@/components/Modal'
 import {
   ArrowLeft, Plus, Loader2, Snowflake, Infinity as InfinityIcon,
   Wallet, ShoppingBag, Phone, Mail, Pencil, Trash2, Power, KeyRound, Check, ChevronDown, UserRoundX,
+  History, CalendarPlus,
 } from 'lucide-react'
 
 
@@ -226,6 +227,9 @@ export default function MemberDetail() {
           {m.payments.length === 0 && <div className="text-ink/40 text-sm py-4 text-center">Belum ada pembayaran.</div>}
         </div>
       </div>
+
+      {/* Riwayat Kelas */}
+      <ClassHistorySection memberId={id} />
 
       {/* Hapus member */}
       <div className="pt-2">
@@ -585,3 +589,91 @@ function PackageCard({ p, onFreeze }: { p: MemberPackage; onFreeze: () => void }
 }
 
 type AdjRow = { id: string; delta: number; before_remaining: number | null; after_remaining: number | null; reason: string | null; adjusted_by_name: string | null; created_at: string }
+
+type HistoryRow = {
+  id?: string | null
+  source: 'auto' | 'manual'
+  entry_date: string
+  start_time?: string | null
+  title: string
+  status?: 'booked' | 'attended' | 'no_show' | 'cancelled' | 'waitlist' | null
+  note?: string | null
+}
+
+function ClassHistorySection({ memberId }: { memberId: string }) {
+  const qc = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState({ entry_date: '', title: '', note: '' })
+  const { data: history } = useQuery({
+    queryKey: ['member-history', memberId],
+    queryFn: async () => (await api.get<HistoryRow[]>(`/members/${memberId}/history`)).data,
+  })
+  const add = useMutation({
+    mutationFn: async () => api.post(`/members/${memberId}/attendance-entry`, form),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['member-history', memberId] }); setOpen(false); setForm({ entry_date: '', title: '', note: '' }) },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menambah entry'),
+  })
+  const del = useMutation({
+    mutationFn: async (entryId: string) => api.delete(`/members/${memberId}/attendance-entry/${entryId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['member-history', memberId] }),
+  })
+
+  const statusBadge = (s?: string | null) => {
+    if (s === 'attended') return <span className="text-[11px] rounded-full px-2 py-0.5 bg-copper-100 text-copper-700">Hadir</span>
+    if (s === 'no_show') return <span className="text-[11px] rounded-full px-2 py-0.5 bg-clay/10 text-clay-dark">Tidak hadir</span>
+    if (s === 'booked') return <span className="text-[11px] rounded-full px-2 py-0.5 bg-sand text-ink/50">Terlewat</span>
+    return null
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="font-display text-lg font-semibold flex items-center gap-2"><History size={18} /> Riwayat Kelas</h2>
+        <button onClick={() => setOpen(true)} className="btn-ghost !px-3 !py-1.5 text-sm border border-sand inline-flex items-center gap-1"><CalendarPlus size={15} /> Entry Manual</button>
+      </div>
+      <div className="space-y-2">
+        {(history ?? []).map((h, i) => (
+          <div key={h.id ?? `auto-${i}`} className="card flex items-center justify-between">
+            <div className="min-w-0">
+              <div className="font-semibold flex items-center gap-2 truncate">
+                {h.title}
+                {h.source === 'manual' && <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-copper-50 text-copper-600 border border-copper-100 shrink-0">Manual</span>}
+              </div>
+              <div className="text-xs text-ink/50">
+                {formatDate(h.entry_date)}{h.start_time ? ` · ${formatTime(h.start_time)}` : ''}{h.note ? ` · ${h.note}` : ''}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {statusBadge(h.status)}
+              {h.source === 'manual' && h.id && (
+                <button onClick={() => { if (confirm('Hapus entry manual ini?')) del.mutate(h.id!) }} className="text-ink/30 hover:text-clay-dark"><Trash2 size={15} /></button>
+              )}
+            </div>
+          </div>
+        ))}
+        {(history ?? []).length === 0 && <div className="text-ink/40 text-sm py-4 text-center">Belum ada riwayat kelas.</div>}
+      </div>
+
+      <Modal open={open} onClose={() => setOpen(false)} title="Entry Riwayat Manual">
+        <div className="space-y-3">
+          <p className="text-xs text-ink/50">Catatan kelas manual. <b>Tidak</b> mengubah sisa kuota member.</p>
+          <div>
+            <label className="label">Tanggal</label>
+            <input type="date" className="input" value={form.entry_date} onChange={(e) => setForm({ ...form, entry_date: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Nama kelas</label>
+            <input className="input" placeholder="mis. Reformer Flow" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Catatan (opsional)</label>
+            <input className="input" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+          </div>
+          <button onClick={() => add.mutate()} disabled={add.isPending || !form.entry_date || !form.title.trim()} className="btn-primary w-full">
+            {add.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Simpan Entry'}
+          </button>
+        </div>
+      </Modal>
+    </div>
+  )
+}

@@ -174,3 +174,21 @@ class PurchaseCreate(BaseModel):
     mark_paid: bool = True                                    # False → pembayaran pending
     purchased_at: Optional[datetime] = None                  # default: sekarang
     note: Optional[str] = None
+
+
+class MemberHistoryRow(BaseModel):
+    """Satu baris riwayat kelas member. source='auto' dari booking (hadir/tidak-hadir/lewat),
+    source='manual' dari entry admin (punya id utk dihapus)."""
+    id: Optional[uuid.UUID] = None
+    source: str                      # 'auto' | 'manual'
+    entry_date: date
+    start_time: Optional[time] = None
+    title: str
+    status: Optional[BookingStatus] = None  # utk source='auto'
+    note: Optional[str] = None
+
+
+class AttendanceEntryCreate(BaseModel):
+    entry_date: date
+    title: str = Field(min_length=1, max_length=200)
+    note: Optional[str] = None

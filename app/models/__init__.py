@@ -14,3 +14,4 @@ from app.models.booking import Booking, BookingStatus  # noqa: F401
 from app.models.finance import (  # noqa: F401
     FinancialAccount, AccountType, Expense, ExpenseCategory,
 )
+from app.models.attendance import AttendanceEntry  # noqa: F401

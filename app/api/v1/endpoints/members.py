@@ -14,8 +14,9 @@ from app.schemas.member import (
     UserCreate, UserUpdate, UserBrief, MemberDetail,
     MemberPackageResponse, PaymentResponse, PurchaseCreate, EnrollRequest, DropinTicketCreate,
     PackageUsageRow, UpgradeRequest, SessionAdjustRequest, SessionAdjustmentRow, PackageEditRequest,
-    GrantSessionsRequest, MemberBuyRequest,
+    GrantSessionsRequest, MemberBuyRequest, MemberHistoryRow, AttendanceEntryCreate,
 )
+from app.models.attendance import AttendanceEntry
 from app.models.schedule import ClassSession
 from app.models.booking import Booking, BookingStatus
 from app.schemas.auth import SetPassword
@@ -802,3 +803,86 @@ async def import_commit(
         raise HTTPException(400, str(e))
     await db.commit()
     return result
+
+
+async def _member_history(db: AsyncSession, member_id) -> list[MemberHistoryRow]:
+    """Riwayat kelas member: booking hadir/tidak-hadir/lewat (otomatis) + entry manual admin."""
+    from app.services.booking import today_local
+    rows = (
+        await db.execute(
+            select(ClassSession.session_date, ClassSession.start_time, ClassSession.title, Booking.status)
+            .join(ClassSession, Booking.session_id == ClassSession.id)
+            .where(
+                Booking.member_id == member_id,
+                Booking.status.in_([BookingStatus.BOOKED, BookingStatus.ATTENDED, BookingStatus.NO_SHOW]),
+                or_(
+                    ClassSession.session_date < today_local(),
+                    Booking.status.in_([BookingStatus.ATTENDED, BookingStatus.NO_SHOW]),
+                ),
+            )
+        )
+    ).all()
+    auto = [
+        MemberHistoryRow(source="auto", entry_date=d, start_time=t, title=ti, status=s)
+        for d, t, ti, s in rows
+    ]
+    ments = (
+        await db.execute(select(AttendanceEntry).where(AttendanceEntry.member_id == member_id))
+    ).scalars().all()
+    manual = [
+        MemberHistoryRow(id=e.id, source="manual", entry_date=e.entry_date, title=e.title, note=e.note)
+        for e in ments
+    ]
+    out = auto + manual
+    out.sort(key=lambda r: (r.entry_date, r.start_time or dtime(0, 0)), reverse=True)
+    return out
+
+
+@router.get("/{user_id}/history", response_model=list[MemberHistoryRow])
+async def member_history(user_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: User = Depends(require_staff)):
+    """Riwayat kelas yang diikuti member (staf)."""
+    return await _member_history(db, user_id)
+
+
+@router.post("/{user_id}/attendance-entry", response_model=list[MemberHistoryRow])
+async def add_attendance_entry(
+    user_id: uuid.UUID,
+    payload: AttendanceEntryCreate,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+):
+    """Tambah entry riwayat kelas MANUAL (murni catatan, TIDAK mengubah kuota)."""
+    member = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not member:
+        raise HTTPException(404, "Member tidak ditemukan")
+    e = AttendanceEntry(
+        member_id=user_id,
+        entry_date=payload.entry_date,
+        title=payload.title.strip(),
+        note=(payload.note or None),
+        created_by_id=staff.id,
+        created_by_name=staff.full_name,
+    )
+    db.add(e)
+    await db.flush()
+    return await _member_history(db, user_id)
+
+
+@router.delete("/{user_id}/attendance-entry/{entry_id}")
+async def delete_attendance_entry(
+    user_id: uuid.UUID,
+    entry_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_staff),
+):
+    """Hapus entry riwayat kelas manual (hanya entry manual; baris otomatis tak bisa dihapus di sini)."""
+    e = (
+        await db.execute(
+            select(AttendanceEntry).where(AttendanceEntry.id == entry_id, AttendanceEntry.member_id == user_id)
+        )
+    ).scalar_one_or_none()
+    if not e:
+        raise HTTPException(404, "Entry tidak ditemukan")
+    await db.delete(e)
+    await db.flush()
+    return {"ok": True}
