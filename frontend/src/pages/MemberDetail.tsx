@@ -603,6 +603,7 @@ type HistoryRow = {
 function ClassHistorySection({ memberId }: { memberId: string }) {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [showAll, setShowAll] = useState(false)
   const [form, setForm] = useState({ entry_date: '', title: '', note: '' })
   const { data: history } = useQuery({
     queryKey: ['member-history', memberId],
@@ -645,8 +646,8 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
           {manual > 0 && <div className="text-[11px] text-ink/45">{attended} dari absensi · {manual} manual</div>}
         </div>
       </div>
-      <div className="space-y-2">
-        {(history ?? []).map((h, i) => (
+      <div className={`space-y-2 ${showAll && rows.length > 6 ? 'max-h-96 overflow-y-auto pr-1' : ''}`}>
+        {(showAll ? rows : rows.slice(0, 5)).map((h, i) => (
           <div key={h.id ?? `auto-${i}`} className="card flex items-center justify-between">
             <div className="min-w-0">
               <div className="font-semibold flex items-center gap-2 truncate">
@@ -665,8 +666,13 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
             </div>
           </div>
         ))}
-        {(history ?? []).length === 0 && <div className="text-ink/40 text-sm py-4 text-center">Belum ada riwayat kelas.</div>}
+        {rows.length === 0 && <div className="text-ink/40 text-sm py-4 text-center">Belum ada riwayat kelas.</div>}
       </div>
+      {rows.length > 5 && (
+        <button onClick={() => setShowAll((v) => !v)} className="mt-2 w-full text-sm text-copper-700 hover:underline text-center py-1">
+          {showAll ? 'Sembunyikan' : `Lihat semua (${rows.length})`}
+        </button>
+      )}
 
       <Modal open={open} onClose={() => setOpen(false)} title="Entry Riwayat Manual">
         <div className="space-y-3">
