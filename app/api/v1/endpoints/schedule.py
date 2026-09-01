@@ -562,10 +562,26 @@ async def session_roster(session_id: uuid.UUID, db: AsyncSession = Depends(get_d
             .order_by(Booking.status, Booking.waitlist_position.asc().nulls_first(), Booking.booked_at)
         )
     ).all()
+    # Total sesi diikuti per member (hadir lintas-sesi + entry manual) — sama dgn di detail member
+    member_ids = list({b.member_id for b, _ in rows})
+    att, man = {}, {}
+    if member_ids:
+        att = dict((await db.execute(
+            select(Booking.member_id, func.count())
+            .where(Booking.member_id.in_(member_ids), Booking.status == BookingStatus.ATTENDED)
+            .group_by(Booking.member_id)
+        )).all())
+        from app.models.attendance import AttendanceEntry
+        man = dict((await db.execute(
+            select(AttendanceEntry.member_id, func.count())
+            .where(AttendanceEntry.member_id.in_(member_ids))
+            .group_by(AttendanceEntry.member_id)
+        )).all())
     out = []
     for b, name in rows:
         r = BookingRow.model_validate(b)
         r.member_name = name
         r.consumed = b.member_package_id is not None
+        r.total_attended = att.get(b.member_id, 0) + man.get(b.member_id, 0)
         out.append(r)
     return out

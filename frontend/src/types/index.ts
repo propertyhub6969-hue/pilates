@@ -314,6 +314,7 @@ export interface BookingRow {
   booked_at: string
   checked_in_at?: string | null
   consumed?: boolean
+  total_attended?: number
 }
 
 export interface MyBooking {

@@ -139,6 +139,7 @@ class BookingRow(BaseModel):
     booked_at: datetime
     checked_in_at: Optional[datetime] = None
     consumed: bool = False   # kuota sudah dipotong (hadir / no-show hangus)
+    total_attended: int = 0  # total sesi diikuti member (hadir + entry manual), lintas sesi
 
     class Config:
         from_attributes = True

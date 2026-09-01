@@ -409,7 +409,12 @@ function RosterModal({ qc, session, onClose }: { qc: ReturnType<typeof useQueryC
                   {r.status === 'attended' ? <CheckCircle2 size={16} /> : <UserRound size={16} />}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold truncate">{r.member_name}</div>
+                  <div className="text-sm font-semibold truncate flex items-center gap-1.5">
+                    {r.member_name}
+                    {typeof r.total_attended === 'number' && (
+                      <span className="text-[10px] font-medium rounded-full px-1.5 py-0.5 bg-copper-50 text-copper-600 border border-copper-100 shrink-0" title="Total sesi diikuti (hadir + manual)">{r.total_attended} sesi</span>
+                    )}
+                  </div>
                   <div className="text-[11px] text-ink/50">
                     {BOOKING_STATUS_LABEL[r.status]}
                     {r.status === 'waitlist' && r.waitlist_position ? ` #${r.waitlist_position}` : ''}
