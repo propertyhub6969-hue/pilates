@@ -603,7 +603,7 @@ type HistoryRow = {
 function ClassHistorySection({ memberId }: { memberId: string }) {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
-  const [showAll, setShowAll] = useState(false)
+  const [listOpen, setListOpen] = useState(false)
   const [form, setForm] = useState({ entry_date: '', title: '', note: '' })
   const { data: history } = useQuery({
     queryKey: ['member-history', memberId],
@@ -631,6 +631,26 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
   const manual = rows.filter((h) => h.source === 'manual').length
   const totalDiikuti = attended + manual
 
+  const renderRow = (h: HistoryRow, i: number) => (
+    <div key={h.id ?? `auto-${i}`} className="card flex items-center justify-between">
+      <div className="min-w-0">
+        <div className="font-semibold flex items-center gap-2 truncate">
+          {h.title}
+          {h.source === 'manual' && <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-copper-50 text-copper-600 border border-copper-100 shrink-0">Manual</span>}
+        </div>
+        <div className="text-xs text-ink/50">
+          {formatDate(h.entry_date)}{h.start_time ? ` · ${formatTime(h.start_time)}` : ''}{h.note ? ` · ${h.note}` : ''}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {statusBadge(h.status)}
+        {h.source === 'manual' && h.id && (
+          <button onClick={() => { if (confirm('Hapus entry manual ini?')) del.mutate(h.id!) }} className="text-ink/30 hover:text-clay-dark"><Trash2 size={15} /></button>
+        )}
+      </div>
+    </div>
+  )
+
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
@@ -646,33 +666,22 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
           {manual > 0 && <div className="text-[11px] text-ink/45">{attended} dari absensi · {manual} manual</div>}
         </div>
       </div>
-      <div className={`space-y-2 ${showAll && rows.length > 6 ? 'max-h-96 overflow-y-auto pr-1' : ''}`}>
-        {(showAll ? rows : rows.slice(0, 1)).map((h, i) => (
-          <div key={h.id ?? `auto-${i}`} className="card flex items-center justify-between">
-            <div className="min-w-0">
-              <div className="font-semibold flex items-center gap-2 truncate">
-                {h.title}
-                {h.source === 'manual' && <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-copper-50 text-copper-600 border border-copper-100 shrink-0">Manual</span>}
-              </div>
-              <div className="text-xs text-ink/50">
-                {formatDate(h.entry_date)}{h.start_time ? ` · ${formatTime(h.start_time)}` : ''}{h.note ? ` · ${h.note}` : ''}
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {statusBadge(h.status)}
-              {h.source === 'manual' && h.id && (
-                <button onClick={() => { if (confirm('Hapus entry manual ini?')) del.mutate(h.id!) }} className="text-ink/30 hover:text-clay-dark"><Trash2 size={15} /></button>
-              )}
-            </div>
-          </div>
-        ))}
+      <div className="space-y-2">
+        {rows.slice(0, 1).map((h, i) => renderRow(h, i))}
         {rows.length === 0 && <div className="text-ink/40 text-sm py-4 text-center">Belum ada riwayat kelas.</div>}
       </div>
       {rows.length > 1 && (
-        <button onClick={() => setShowAll((v) => !v)} className="mt-2 w-full text-sm text-copper-700 hover:underline text-center py-1">
-          {showAll ? 'Sembunyikan' : `Lihat semua (${rows.length})`}
+        <button onClick={() => setListOpen(true)} className="mt-2 w-full text-sm text-copper-700 hover:underline text-center py-1">
+          Lihat semua ({rows.length})
         </button>
       )}
+
+      {/* Modal daftar lengkap riwayat kelas (scroll di dalam modal) */}
+      <Modal open={listOpen} onClose={() => setListOpen(false)} title={`Riwayat Kelas (${rows.length})`}>
+        <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+          {rows.map((h, i) => renderRow(h, i))}
+        </div>
+      </Modal>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Entry Riwayat Manual">
         <div className="space-y-3">
