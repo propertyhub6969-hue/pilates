@@ -625,11 +625,25 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
     return null
   }
 
+  const rows = history ?? []
+  const attended = rows.filter((h) => h.status === 'attended').length
+  const manual = rows.filter((h) => h.source === 'manual').length
+  const totalDiikuti = attended + manual
+
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
         <h2 className="font-display text-lg font-semibold flex items-center gap-2"><History size={18} /> Riwayat Kelas</h2>
         <button onClick={() => setOpen(true)} className="btn-ghost !px-3 !py-1.5 text-sm border border-sand inline-flex items-center gap-1"><CalendarPlus size={15} /> Entry Manual</button>
+      </div>
+      {/* Total sesi yang sudah diikuti (hadir + entry manual) */}
+      <div className="card mb-2 flex items-center justify-between bg-copper-50/60 border-copper-100">
+        <div className="text-sm text-ink/60">Total sesi diikuti</div>
+        <div className="text-right">
+          <span className="font-display text-2xl font-semibold text-copper-700">{totalDiikuti}</span>
+          <span className="text-ink/50 text-sm"> sesi</span>
+          {manual > 0 && <div className="text-[11px] text-ink/45">{attended} dari absensi · {manual} manual</div>}
+        </div>
       </div>
       <div className="space-y-2">
         {(history ?? []).map((h, i) => (
