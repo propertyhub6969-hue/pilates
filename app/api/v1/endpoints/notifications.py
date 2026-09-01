@@ -53,16 +53,17 @@ async def list_notifications(db: AsyncSession = Depends(get_db), _: User = Depen
     # 2) Booking baru (24 jam terakhir)
     bk_rows = (
         await db.execute(
-            select(Booking, User.full_name, ClassSession.title, ClassSession.session_date)
+            select(Booking, User.full_name, ClassSession.title, ClassSession.session_date, ClassSession.start_time)
             .join(User, Booking.member_id == User.id)
             .join(ClassSession, Booking.session_id == ClassSession.id)
             .where(Booking.booked_at >= day1, Booking.status.in_([BookingStatus.BOOKED, BookingStatus.WAITLIST]))
             .order_by(Booking.booked_at.desc()).limit(12)
         )
     ).all()
-    for b, name, title, sdate in bk_rows:
+    for b, name, title, sdate, stime in bk_rows:
+        jam = stime.strftime("%H:%M") if stime else ""
         items.append(NotifItem(id=f"book-{b.id}", type="booking", title="Booking baru",
-                              subtitle=f"{name} · {title} ({sdate.day}/{sdate.month})", time=b.booked_at, link="/jadwal"))
+                              subtitle=f"{name} · {title} · {sdate.day}/{sdate.month} {jam}".rstrip(), time=b.booked_at, link="/jadwal"))
 
     # 3) Member baru (48 jam terakhir)
     mem_rows = (
