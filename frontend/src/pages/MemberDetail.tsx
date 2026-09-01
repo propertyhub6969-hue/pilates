@@ -647,7 +647,7 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
         </div>
       </div>
       <div className={`space-y-2 ${showAll && rows.length > 6 ? 'max-h-96 overflow-y-auto pr-1' : ''}`}>
-        {(showAll ? rows : rows.slice(0, 5)).map((h, i) => (
+        {(showAll ? rows : rows.slice(0, 1)).map((h, i) => (
           <div key={h.id ?? `auto-${i}`} className="card flex items-center justify-between">
             <div className="min-w-0">
               <div className="font-semibold flex items-center gap-2 truncate">
@@ -668,7 +668,7 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
         ))}
         {rows.length === 0 && <div className="text-ink/40 text-sm py-4 text-center">Belum ada riwayat kelas.</div>}
       </div>
-      {rows.length > 5 && (
+      {rows.length > 1 && (
         <button onClick={() => setShowAll((v) => !v)} className="mt-2 w-full text-sm text-copper-700 hover:underline text-center py-1">
           {showAll ? 'Sembunyikan' : `Lihat semua (${rows.length})`}
         </button>
