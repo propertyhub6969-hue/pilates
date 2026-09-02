@@ -25,6 +25,9 @@ class StudioSettings(BaseModel):
     cancellation_window_hours: Mapped[int] = mapped_column(Integer, default=12, nullable=False)
     # Berapa jam sebelum kelas mulai member masih boleh booking (0 = sampai mulai).
     booking_lead_close_hours: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Berapa MENIT sebelum kelas mulai booking ditutup. Bila >0, ini yang dipakai (lebih presisi,
+    # mis. 15 menit). Bila 0 → fallback ke booking_lead_close_hours (dikali 60).
+    booking_lead_close_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Harga sekali datang (drop-in) untuk member kategori "per datang" tanpa paket.
     drop_in_price: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)

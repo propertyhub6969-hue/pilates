@@ -14,6 +14,7 @@ class StudioSettingsResponse(BaseModel):
     waitlist_enabled: bool = True
     cancellation_window_hours: int
     booking_lead_close_hours: int
+    booking_lead_close_minutes: int = 0
     drop_in_price: float = 0
     dropin_early_bird_price: float = 0
     dropin_early_bird_hours: int = 12
@@ -46,6 +47,7 @@ class StudioSettingsUpdate(BaseModel):
     waitlist_enabled: Optional[bool] = None
     cancellation_window_hours: Optional[int] = Field(default=None, ge=0, le=168)
     booking_lead_close_hours: Optional[int] = Field(default=None, ge=0, le=168)
+    booking_lead_close_minutes: Optional[int] = Field(default=None, ge=0, le=10080)
     drop_in_price: Optional[float] = Field(default=None, ge=0)
     dropin_early_bird_price: Optional[float] = Field(default=None, ge=0)
     dropin_early_bird_hours: Optional[int] = Field(default=None, ge=0, le=168)

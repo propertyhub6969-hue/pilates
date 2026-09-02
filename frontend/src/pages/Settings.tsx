@@ -11,6 +11,7 @@ interface StudioSettings {
   phone?: string | null
   cancellation_window_hours: number
   booking_lead_close_hours: number
+  booking_lead_close_minutes: number
   drop_in_price: number
   dropin_early_bird_price: number
   dropin_early_bird_hours: number
@@ -63,7 +64,8 @@ export default function Settings() {
       name: f.name, tagline: f.tagline || null, address: f.address || null, phone: f.phone || null,
       waitlist_enabled: f.waitlist_enabled !== false,
       cancellation_window_hours: Number(f.cancellation_window_hours),
-      booking_lead_close_hours: Number(f.booking_lead_close_hours),
+      booking_lead_close_hours: Number(f.booking_lead_close_hours ?? 0),
+      booking_lead_close_minutes: Number(f.booking_lead_close_minutes ?? 0),
       drop_in_price: Number(f.drop_in_price ?? 0),
       dropin_early_bird_price: Number(f.dropin_early_bird_price ?? 0),
       dropin_early_bird_hours: Number(f.dropin_early_bird_hours ?? 12),
@@ -145,10 +147,10 @@ export default function Settings() {
                 onChange={(e) => setF({ ...f, cancellation_window_hours: Number(e.target.value) })} />
               <p className="text-[11px] text-ink/40 mt-1">Batal lebih awal dari ini → kuota kembali.</p>
             </div>
-            <div><label className="label">Tutup booking (jam sebelum mulai)</label>
-              <input className="input" type="number" min={0} value={f.booking_lead_close_hours ?? 0}
-                onChange={(e) => setF({ ...f, booking_lead_close_hours: Number(e.target.value) })} />
-              <p className="text-[11px] text-ink/40 mt-1">Member yang belum booking bisa memesan sampai sekian jam sebelum kelas mulai (0 = sampai kelas mulai).</p>
+            <div><label className="label">Tutup booking (menit sebelum mulai)</label>
+              <input className="input" type="number" min={0} value={f.booking_lead_close_minutes ?? 0}
+                onChange={(e) => setF({ ...f, booking_lead_close_minutes: Number(e.target.value), booking_lead_close_hours: 0 })} />
+              <p className="text-[11px] text-ink/40 mt-1">Member yang belum booking bisa memesan sampai sekian <b>menit</b> sebelum kelas mulai (mis. 15). 0 = sampai kelas mulai.</p>
             </div>
           </div>
           <div>
