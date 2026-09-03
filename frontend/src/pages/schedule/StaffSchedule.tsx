@@ -213,7 +213,7 @@ function SessionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
                       <tr key={s.id} onClick={() => setRosterFor(s)}
                         className={`border-b border-sand/60 hover:bg-sand/40 cursor-pointer transition ${s.status === 'cancelled' ? 'opacity-50' : ''}`}>
                         <td className="px-4 py-3 font-display font-semibold text-copper-700 whitespace-nowrap">{formatTime(s.start_time)}</td>
-                        <td className="px-4 py-3 font-semibold">{s.title}{s.category === 'private' && <span className="ml-1.5 text-[10px] rounded-full px-2 py-0.5 bg-clay/15 text-clay-dark align-middle">Private</span>}</td>
+                        <td className="px-4 py-3 font-semibold"><span className={s.category === 'private' ? 'text-clay-dark' : ''}>{s.title}</span>{s.category === 'private' && <span className="ml-1.5 text-[10px] rounded-full px-2 py-0.5 bg-clay/15 text-clay-dark align-middle">Private</span>}</td>
                         <td className="px-4 py-3 text-ink/60 hidden sm:table-cell">{s.instructor_name ?? '—'}</td>
                         <td className="px-4 py-3 text-ink/60 hidden md:table-cell">{s.room ?? '—'}</td>
                         <td className="px-4 py-3 whitespace-nowrap">

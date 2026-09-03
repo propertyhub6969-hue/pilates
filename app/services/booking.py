@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.studio import StudioSettings
-from app.models.schedule import ClassSession, ClassSessionStatus, ClassTemplate
+from app.models.schedule import ClassSession, ClassSessionStatus, ClassTemplate, SessionCategory
 from app.models.booking import Booking, BookingStatus
 from app.models.package import MemberPackage
 from app.models.user import User, MemberCategory
@@ -266,6 +266,9 @@ async def book_session(db: AsyncSession, session: ClassSession, member_id, bypas
 
     # ── Jendela waktu berjenjang (kecuali staf yang bypass) ──
     if not bypass_window:
+        # Kelas PRIVATE terkunci untuk member — hanya bisa didaftarkan admin (via roster).
+        if session.category == SessionCategory.PRIVATE:
+            raise HTTPException(403, "Kelas privat — pendaftaran hanya lewat admin studio.")
         now = now_local()
         if now >= booking_close_dt(studio, session):
             raise HTTPException(400, "Pemesanan untuk sesi ini sudah ditutup")
