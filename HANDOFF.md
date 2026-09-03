@@ -2,7 +2,7 @@
 
 Aplikasi manajemen **studio pilates "Reformer Your Body"** (Coach Ade). Single-studio, **multi-cabang**. Member booking kelas dari HP; staf kelola via back office.
 
-> Terakhir diperbarui: 16 Agustus 2026 — semua MVP + fitur lanjutan **LIVE**; data uji sudah dibersihkan untuk mulai produksi.
+> Terakhir diperbarui: **2 September 2026** — early-bird drop-in, Riwayat Kelas + Total sesi, notif admin tagihan, tutup booking 15 menit, kelas private terkunci, dll (lihat "Update 2 September 2026" di bawah). Sebelumnya: 16 Agu (MVP LIVE), 30 Agu (reschedule + waitlist off).
 
 ---
 
@@ -33,7 +33,7 @@ Aplikasi manajemen **studio pilates "Reformer Your Body"** (Coach Ade). Single-s
 │  ├─ services/         # booking, reminders, whatsapp, purchase, quota
 │  └─ api/v1/endpoints/ # auth, members, packages, payments, schedule, bookings,
 │                       #   reports, studio, branches, finance, public
-├─ alembic/versions/    # migrasi (urut sampai a6b7c8d9e0f1)
+├─ alembic/versions/    # migrasi (head terkini: c4d5e6f7a8b9 — booking_lead_close_minutes)
 ├─ frontend/src/        # pages, components, context (Auth, Branch), utils
 ├─ scripts/             # seed_admin.py, send_reminders.py, cron_reminders.sh
 ├─ deploy/              # salinan file routing Traefik
@@ -84,7 +84,7 @@ Detail lengkap keputusan di memori `reformer-jadwal-redesign-plan.md`.
 **Jendela booking berjenjang** (`services/booking.py`, dari `StudioSettings`, zona WITA; staf `bypass_window=True`):
 - Bulanan/Private: buka **H-2 20:00** (`bulanan_open_days_before`/`_time`).
 - Per-datang: buka **H-1 20:00** (`dropin_open_days_before`/`_time`), wajib punya tiket.
-- Tutup: **`mulai − booking_lead_close_hours`** (produksi = **2 jam** sebelum kelas mulai; ubah 30 Agu 2026). Bila `booking_lead_close_hours=0` → aturan lama berbasis hari (`booking_close_days_before`/`_time`, mis. akhir H-1). Lihat "Update 30 Agu 2026".
+- Tutup: **`mulai − booking_lead_close_minutes`** (produksi = **15 menit** sebelum kelas mulai; ubah 2 Sep 2026). Prioritas menit; bila 0 → `booking_lead_close_hours`×60; bila keduanya 0 → aturan lama berbasis hari (`booking_close_days_before`/`_time`, mis. akhir H-1). Lihat "Update 2 September 2026".
 - Kapasitas maks `default_capacity` (14), target min bulanan `min_bulanan` (10). Semua diatur di Pengaturan.
 - `SessionResponse` bawa `booking_state` (not_open/open/full/closed/cancelled) + `slots_remaining` + `opens_at`/`closes_at` + `can_book` + `bulanan_count` + `is_underfilled` (badge "Sepi"). FE MemberSchedule tampilkan pill status + tombol sadar-jendela.
 
@@ -253,3 +253,35 @@ Live di produksi (72.62.71.1). Commit `7bd6f68` (fitur) + `9e091b6` (pengaman).
 - **FE `MemberSchedule.tsx`**: tombol **Pindah jadwal** (aktif hanya bila `my_can_cancel` = >12 jam) buka **RescheduleModal** yang hanya menampilkan sesi `booking_state='open'` (sesi penuh tak muncul) → panggil endpoint reschedule. Tombol **Batalkan** terpisah. Dalam 12 jam → "Terkunci (<12 jam)". Reuse `my_can_cancel` untuk gerbang tombol (tak ada field schema baru).
 - **★ Waitlist DIMATIKAN** — `studio_settings.waitlist_enabled = false` (tak ada booking WAITLIST aktif saat dimatikan → nol dampak data). Kelas penuh langsung terkunci, tak ada opsi gabung daftar tunggu. Toggle tetap ada di Pengaturan Studio bila mau diaktifkan lagi.
 - **Uji**: 5 skenario reschedule (book, pindah >12j, tolak <12j, tolak sesi-sama, closed <2j) + sesi-penuh (waitlist ON & OFF) — semua LOLOS, data uji dibersihkan (marker `ZZ_TEST_*`). Cara uji: skrip async di container `docker exec -e PYTHONPATH=/app -w /app pilates_backend python3 /tmp/x.py` (import `main` dulu utk registrasi model ORM; localhost:8000 dari host kena proxy).
+
+## Update 2 September 2026 — Early-bird drop-in, Riwayat Kelas, Notif admin, Private lock, dll
+Live di produksi (72.62.71.1). Rentang kerja 30 Agu–2 Sep. Migrasi baru (urut): `f8a9b0c1d2e3` (early-bird), `a2b3c4d5e6f7` (attendance_entries), `b3c4d5e6f7a8` (account_holder), `c4d5e6f7a8b9` (booking_lead_close_minutes).
+
+### Booking window & Private
+- **★ Tutup booking berbasis MENIT** (`studio_settings.booking_lead_close_minutes`, migrasi `c4d5e6f7a8b9`): `booking_close_dt` prioritas menit (>0), fallback `booking_lead_close_hours`×60, lalu aturan hari. **Produksi = 15 menit** (member yang belum booking bisa memesan sampai 15 mnt sebelum mulai). Sebelumnya 2 jam. Pengaturan Studio: "Tutup booking (menit sebelum mulai)".
+- **★ Kelas PRIVATE terkunci utk member**: `book_session` tolak 403 bila member (non-staf) booking sesi `category=PRIVATE` (staf tetap bisa via roster/bypass). Melengkapi `list_sessions` yang sudah menyembunyikan private dari aplikasi member (kecuali tab **Jadwalku** — booking yg admin daftarkan tetap tampil). FE: judul kelas private diwarnai **clay-dark** + badge "Private" di jadwal staf **dan** Jadwalku member.
+
+### Early-bird drop-in (harga per-datang dinamis)
+- `StudioSettings.dropin_early_bird_price` + `dropin_early_bird_hours` (migrasi `f8a9b0c1d2e3`). Helper `services/booking.dropin_price_for(studio, session, now)`: bila sesi masih **> ambang jam** sebelum mulai → harga early-bird; else `drop_in_price` normal. **Produksi: normal Rp100.000, early-bird Rp90.000, ambang 12 jam.**
+- `SessionResponse.dropin_price` + `dropin_early_bird` (diisi HANYA utk viewer per-datang, sesi SCHEDULED). FE MemberSchedule: harga drop-in per sesi + badge 🐤 Early-bird + tombol **"Beli {harga}"** (kirim `session_id` → harga terkunci saat klik) + link "Punya tiket? Booking".
+- `POST /members/me/dropin-ticket` terima body opsional `{session_id}` → harga dihitung dari sesi itu; `create_dropin_ticket` dapat param `note` (sebut sesi). Tanpa session_id → harga normal. Alur tetap: beli tiket (harga terkunci) → upload bukti → verifikasi admin → baru booking (belum auto-book saat verifikasi).
+
+### Riwayat Kelas member (detail member & roster)
+- Model `AttendanceEntry` (tabel `attendance_entries`, migrasi `a2b3c4d5e6f7`): entry riwayat kelas MANUAL, **murni catatan — TIDAK mengubah kuota**.
+- `GET /members/{id}/history` (staf): gabungan booking ATTENDED/NO_SHOW/lewat (auto) + entry manual, urut tgl desc. `POST /members/{id}/attendance-entry` (tambah manual: tanggal/judul/catatan). `DELETE /members/{id}/attendance-entry/{entry_id}`.
+- FE MemberDetail: section **Riwayat Kelas** + kartu **Total sesi diikuti** (= Hadir + entry manual; no_show & "terlewat" TIDAK dihitung) + tombol **Entry Manual**. Default tampil **1 terbaru**; tombol **"Lihat semua (N)"** buka **popup modal** (list ringkas, tanggal & judul 1 baris, scroll di modal).
+- `BookingRow.total_attended` di roster absensi (`/schedule/sessions/{id}/roster`): badge **"N sesi"** per member. Absensi (attendance mutation) kini invalidasi `['member-history']` & `['member']` agar total & sisa kuota ter-refresh.
+
+### Notifikasi & Pembayaran
+- **★ Notif WA admin saat member buat tagihan self-serve** (SEBELUM/ tanpa bukti): helper `services/whatsapp.notify_admin(db, msg)` (target `admin_whatsapp` → fallback owner). Dipanggil di `buy-package`, `dropin-ticket`, `upgrade`, `enroll` (`members._notify_admin_new_bill`). ★ `admin_whatsapp` HARUS beda dari nomor gateway; produksi di-set **085124234055** (gateway 6287837763692). Notif bukti-transfer (`_notify_admin_proof`) tetap ada → bisa 2 pesan per transaksi (tagihan masuk + bukti masuk).
+- **Notif in-app "Booking baru"** kini tampilkan **jam sesi**: `{nama} · {judul} · {d/m} {HH:MM}` (dulu tanpa jam).
+- **Rekening a/n**: `FinancialAccount.account_holder` (migrasi `b3c4d5e6f7a8`) — atas nama pemilik rekening, tampil di kartu **Transfer** dashboard member (`a/n {account_holder || name}`) & `transfer-info`. Form Akun (Keuangan) ada input "Atas nama". Produksi: BCA 0512649384 a/n **Ade Ermawaty, S.Hut**.
+
+### Jadwal member
+- **Nama peserta per sesi**: `SessionResponse.participants` (nama member pengambil slot, urut booking). FE MemberSchedule tampilkan baris "Peserta: A, B, C" per kartu sesi (Semua kelas & Jadwalku).
+- **Semua paket di dashboard member**: `RenewSection` dirender utk SEMUA member (termasuk per-datang), **terbuka default**. Per-datang: judul "Ambil paket (bulanan/private)". `/members/me/package-quotes` sudah kembalikan semua paket aktif.
+
+### WhatsApp / Reminder (operasional)
+- **Reminder h2 AKTIF** (26 Agu paused → 2 Sep di-un-pause cron `*/15 * * * * cron_reminders.sh h2`). Kirim personal ~2 jam sebelum tiap sesi ke peserta BOOKED ber-nomor (idempoten `reminder_2h_sent_at`). TANPA jam senyap (kelas paling pagi 08:30 → reminder 06:30, dianggap wajar). Cron `bulanan` (broadcast H-2) juga aktif; `dropin`/`h1`/`expiry`/`expiry7` masih `#PAUSED`.
+- **Signature WA** = `STUDIO_WA_SIGNATURE` diubah jadi **"Reformer Your Body — Coach Ade"** (`.env` + default `config.py`). Dipakai semua pesan WA.
+- Gateway WA: nomor studio **6287837763692** (device login). `admin_whatsapp` 085124234055 (beda, agar notif tak jadi pesan-ke-diri-sendiri).
