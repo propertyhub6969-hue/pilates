@@ -150,7 +150,10 @@ export default function MemberSchedule() {
                         <div className="text-[11px] text-ink/40">{endTime(formatTime(s.start_time), s.duration_minutes)}</div>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold truncate">{s.title}</div>
+                        <div className="font-semibold truncate flex items-center gap-1.5">
+                          <span className={s.category === 'private' ? 'text-clay-dark' : ''}>{s.title}</span>
+                          {s.category === 'private' && <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-clay/15 text-clay-dark shrink-0">Private</span>}
+                        </div>
                         <div className="text-xs text-ink/50 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                           {s.instructor_name && <span className="inline-flex items-center gap-1"><UserRound size={12} />{s.instructor_name}</span>}
                           {s.room && <span className="inline-flex items-center gap-1"><MapPin size={12} />{s.room}</span>}
