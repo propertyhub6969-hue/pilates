@@ -108,6 +108,7 @@ export interface MemberDetail extends User {
   payments: PaymentBrief[]
   active_sessions_remaining?: number | null
   has_unlimited: boolean
+  attended_offset?: number
 }
 
 export interface PaymentRow {

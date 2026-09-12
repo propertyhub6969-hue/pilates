@@ -1,6 +1,6 @@
 import enum
 from datetime import date
-from sqlalchemy import String, Boolean, Date, Text, Enum as SAEnum
+from sqlalchemy import String, Boolean, Date, Text, Integer, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import BaseModel
 
@@ -52,6 +52,9 @@ class User(BaseModel):
     join_date: Mapped[date] = mapped_column(Date, nullable=True)
     emergency_contact: Mapped[str] = mapped_column(String(120), nullable=True)
     notes: Mapped[str] = mapped_column(Text, nullable=True)  # catatan medis/preferensi
+    # Penyesuaian "Total sesi diikuti" (mis. sesi historis sebelum pakai sistem / koreksi).
+    # Total = jumlah Hadir + entry manual + attended_offset. Diedit staf di detail member.
+    attended_offset: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Relationships — hapus member ikut menghapus paket & booking-nya (andalkan ON DELETE CASCADE di DB)
     member_packages: Mapped[list["MemberPackage"]] = relationship(

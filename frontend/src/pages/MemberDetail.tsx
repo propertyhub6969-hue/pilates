@@ -229,7 +229,7 @@ export default function MemberDetail() {
       </div>
 
       {/* Riwayat Kelas */}
-      <ClassHistorySection memberId={id} />
+      <ClassHistorySection memberId={id} offset={m.attended_offset ?? 0} />
 
       {/* Hapus member */}
       <div className="pt-2">
@@ -600,10 +600,12 @@ type HistoryRow = {
   note?: string | null
 }
 
-function ClassHistorySection({ memberId }: { memberId: string }) {
+function ClassHistorySection({ memberId, offset = 0 }: { memberId: string; offset?: number }) {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [listOpen, setListOpen] = useState(false)
+  const [offsetOpen, setOffsetOpen] = useState(false)
+  const [offsetVal, setOffsetVal] = useState('')
   const [form, setForm] = useState({ entry_date: '', title: '', note: '' })
   const { data: history } = useQuery({
     queryKey: ['member-history', memberId],
@@ -618,6 +620,11 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
     mutationFn: async (entryId: string) => api.delete(`/members/${memberId}/attendance-entry/${entryId}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['member-history', memberId] }),
   })
+  const saveOffset = useMutation({
+    mutationFn: async () => api.patch(`/members/${memberId}`, { attended_offset: Math.max(0, Number(offsetVal || 0)) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['member', memberId] }); setOffsetOpen(false) },
+    onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal menyimpan penyesuaian'),
+  })
 
   const statusBadge = (s?: string | null) => {
     if (s === 'attended') return <span className="text-[11px] rounded-full px-2 py-0.5 bg-copper-100 text-copper-700">Hadir</span>
@@ -629,7 +636,7 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
   const rows = history ?? []
   const attended = rows.filter((h) => h.status === 'attended').length
   const manual = rows.filter((h) => h.source === 'manual').length
-  const totalDiikuti = attended + manual
+  const totalDiikuti = attended + manual + (offset || 0)
 
   const renderRow = (h: HistoryRow, i: number, compact = false) => {
     if (compact) {
@@ -676,13 +683,21 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
         <h2 className="font-display text-lg font-semibold flex items-center gap-2"><History size={18} /> Riwayat Kelas</h2>
         <button onClick={() => setOpen(true)} className="btn-ghost !px-3 !py-1.5 text-sm border border-sand inline-flex items-center gap-1"><CalendarPlus size={15} /> Entry Manual</button>
       </div>
-      {/* Total sesi yang sudah diikuti (hadir + entry manual) */}
+      {/* Total sesi yang sudah diikuti (hadir + entry manual + penyesuaian) */}
       <div className="card mb-2 flex items-center justify-between bg-copper-50/60 border-copper-100">
-        <div className="text-sm text-ink/60">Total sesi diikuti</div>
+        <div>
+          <div className="text-sm text-ink/60">Total sesi diikuti</div>
+          <button onClick={() => { setOffsetVal(String(offset || 0)); setOffsetOpen(true) }}
+            className="text-[11px] text-copper-700 hover:underline inline-flex items-center gap-0.5 mt-0.5"><Pencil size={11} /> Edit penyesuaian</button>
+        </div>
         <div className="text-right">
           <span className="font-display text-2xl font-semibold text-copper-700">{totalDiikuti}</span>
           <span className="text-ink/50 text-sm"> sesi</span>
-          {manual > 0 && <div className="text-[11px] text-ink/45">{attended} dari absensi · {manual} manual</div>}
+          {(manual > 0 || (offset || 0) > 0) && (
+            <div className="text-[11px] text-ink/45">
+              {attended} absensi · {manual} manual{(offset || 0) > 0 ? ` · +${offset} penyesuaian` : ''}
+            </div>
+          )}
         </div>
       </div>
       <div className="space-y-2">
@@ -719,6 +734,20 @@ function ClassHistorySection({ memberId }: { memberId: string }) {
           </div>
           <button onClick={() => add.mutate()} disabled={add.isPending || !form.entry_date || !form.title.trim()} className="btn-primary w-full">
             {add.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Simpan Entry'}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={offsetOpen} onClose={() => setOffsetOpen(false)} title="Penyesuaian Total Sesi">
+        <div className="space-y-3">
+          <p className="text-xs text-ink/50">Angka ini <b>ditambahkan</b> ke total (mis. sesi historis sebelum pakai sistem, atau koreksi). Rumus: <b>Total = Hadir + Entry Manual + Penyesuaian</b>. Absensi baru tetap menambah otomatis.</p>
+          <div>
+            <label className="label">Penyesuaian (sesi)</label>
+            <input type="number" min={0} className="input" value={offsetVal} onChange={(e) => setOffsetVal(e.target.value)} placeholder="mis. 68" />
+          </div>
+          <div className="text-xs text-ink/50">Pratinjau total: <b className="text-copper-700">{attended + manual + Math.max(0, Number(offsetVal || 0))} sesi</b> <span className="text-ink/40">({attended} absensi · {manual} manual · +{Math.max(0, Number(offsetVal || 0))} penyesuaian)</span></div>
+          <button onClick={() => saveOffset.mutate()} disabled={saveOffset.isPending} className="btn-primary w-full">
+            {saveOffset.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Simpan Penyesuaian'}
           </button>
         </div>
       </Modal>

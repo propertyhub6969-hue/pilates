@@ -47,6 +47,7 @@ class UserUpdate(BaseModel):
     emergency_contact: Optional[str] = None
     notes: Optional[str] = None
     is_active: Optional[bool] = None
+    attended_offset: Optional[int] = Field(default=None, ge=0, le=100000)
 
 
 class UserBrief(BaseModel):
@@ -109,6 +110,7 @@ class MemberDetail(UserBrief):
     # Ringkasan kuota aktif (dijumlahkan dari paket berstatus active)
     active_sessions_remaining: Optional[int] = None
     has_unlimited: bool = False
+    attended_offset: int = 0  # penyesuaian total sesi diikuti (Opsi A)
 
     class Config:
         from_attributes = True
