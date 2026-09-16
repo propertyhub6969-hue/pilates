@@ -2,9 +2,21 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import { useBranch } from '@/context/BranchContext'
+import { useAuth } from '@/context/AuthContext'
 import type { ClassSession } from '@/types'
 import { formatTime, formatDayDate, formatRupiah } from '@/utils/format'
-import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays, Building2, Check, ArrowRight, Repeat, X, Ticket } from 'lucide-react'
+import { Clock, MapPin, UserRound, Users, Loader2, CalendarDays, Building2, Check, ArrowRight, Repeat, X, Ticket, MessageCircle } from 'lucide-react'
+
+// Bangun link wa.me konfirmasi booking ke nomor studio (teks terisi otomatis).
+function waConfirmLink(phone: string | null | undefined, memberName: string, s: ClassSession): string | null {
+  if (!phone) return null
+  let num = phone.replace(/\D/g, '')            // buang non-digit
+  if (num.startsWith('0')) num = '62' + num.slice(1)
+  else if (num.startsWith('8')) num = '62' + num
+  if (!num.startsWith('62')) return null
+  const text = `Halo Admin Reformer 🙏 Saya ${memberName} sudah booking kelas ${s.title} pada ${formatDayDate(s.session_date)} pukul ${formatTime(s.start_time)} WITA. Mohon konfirmasi & ingatkan ya. Terima kasih! 🧘`
+  return `https://wa.me/${num}?text=${encodeURIComponent(text)}`
+}
 
 function endTime(start: string, mins: number): string {
   const [h, m] = start.split(':').map(Number)
@@ -38,6 +50,14 @@ export default function MemberSchedule() {
   const [range, setRange] = useState({ from: todayISO(), to: plusDays(14) })
   const [instructorId, setInstructorId] = useState('')
   const [rescheduleFrom, setRescheduleFrom] = useState<ClassSession | null>(null)
+  const [justBooked, setJustBooked] = useState<{ title: string; link: string } | null>(null)
+  const { user } = useAuth()
+
+  // Nomor WhatsApp studio (utk tombol konfirmasi member)
+  const { data: studio } = useQuery({
+    queryKey: ['public-studio'],
+    queryFn: async () => (await api.get<{ phone?: string | null }>('/public/studio')).data,
+  })
 
   const { data: sessions, isLoading } = useQuery({
     queryKey: ['sessions', tab, activeId, range.from, range.to],
@@ -56,7 +76,13 @@ export default function MemberSchedule() {
 
   const book = useMutation({
     mutationFn: async (session_id: string) => api.post('/bookings', { session_id }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] }) },
+    onSuccess: (_d, session_id) => {
+      qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['me-detail'] })
+      // Ajakan konfirmasi via WhatsApp (member kirim duluan → jadi kontak → reminder aman)
+      const s = (sessions ?? []).find((x) => x.id === session_id)
+      const link = s ? waConfirmLink(studio?.phone, user?.full_name ?? 'Member', s) : null
+      if (s && link) setJustBooked({ title: s.title, link })
+    },
     onError: (e: any) => alert(e?.response?.data?.detail ?? 'Gagal booking'),
   })
   const cancelBooking = useMutation({
@@ -87,6 +113,23 @@ export default function MemberSchedule() {
   return (
     <div className="space-y-5">
       <h1 className="font-display text-2xl font-semibold">Jadwal Kelas</h1>
+
+      {/* Ajakan konfirmasi via WhatsApp setelah booking berhasil */}
+      {justBooked && (
+        <div className="rounded-xl2 border border-copper-200 bg-copper-50 p-4 flex items-start gap-3">
+          <span className="grid place-items-center w-9 h-9 rounded-lg bg-copper-600 text-white shrink-0"><Check size={18} /></span>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-sm">Booking berhasil — {justBooked.title}</div>
+            <p className="text-xs text-ink/55 mt-0.5">Konfirmasi ke admin via WhatsApp agar kelasmu dipastikan & kamu dapat pengingat.</p>
+            <div className="flex items-center gap-2 mt-2">
+              <a href={justBooked.link} target="_blank" rel="noopener noreferrer" onClick={() => setJustBooked(null)}
+                className="btn-primary !px-3 !py-1.5 text-sm inline-flex items-center gap-1"><MessageCircle size={15} /> Konfirmasi via WhatsApp</a>
+              <button onClick={() => setJustBooked(null)} className="text-xs text-ink/50 hover:underline">Nanti saja</button>
+            </div>
+          </div>
+          <button onClick={() => setJustBooked(null)} className="text-ink/30 hover:text-ink shrink-0"><X size={16} /></button>
+        </div>
+      )}
 
       <div className="flex gap-2">
         {(['all', 'mine'] as const).map((t) => (
@@ -198,6 +241,13 @@ export default function MemberSchedule() {
                                     className="text-[11px] text-clay-dark hover:underline">Batalkan</button>
                                 </div>
                               : <span className="text-[10px] text-ink/35 inline-flex items-center gap-0.5"><Clock size={10} /> Terkunci (&lt;12 jam)</span>}
+                            {mine === 'booked' && (() => {
+                              const wl = waConfirmLink(studio?.phone, user?.full_name ?? 'Member', s)
+                              return wl ? (
+                                <a href={wl} target="_blank" rel="noopener noreferrer"
+                                  className="text-[11px] text-green-700 hover:underline inline-flex items-center gap-0.5"><MessageCircle size={11} /> Konfirmasi via WA</a>
+                              ) : null
+                            })()}
                           </div>
                         ) : st === 'open' && s.dropin_price != null ? (
                           <div className="flex flex-col items-end gap-1">

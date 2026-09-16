@@ -2,6 +2,8 @@
   - 'h1'  : H-1, sehari sebelum (untuk semua kelas besok)      → Booking.reminder_sent_at
   - 'h2'  : ±X jam sebelum kelas mulai (default 2 jam)          → Booking.reminder_2h_sent_at
 """
+import asyncio
+import random
 from datetime import date, timedelta, datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -96,6 +98,10 @@ async def run_reminder_pass(db: AsyncSession, kind: str = "h1", force: bool = Fa
         b.id: b for b in (await db.execute(select(Branch).where(Branch.id.in_(bids)))).scalars().all()
     }
 
+    # Kirim sungguhan (bukan dry-run)? → hanya saat itu jitter diterapkan.
+    live = bool(settings.WA_ENABLED and settings.WA_GATEWAY_URL)
+    sent_any = False  # jeda hanya DI ANTARA pesan (bukan sebelum pesan pertama)
+
     for session in sessions:
         branch = branches.get(session.branch_id)
         rows = (await db.execute(
@@ -111,6 +117,14 @@ async def run_reminder_pass(db: AsyncSession, kind: str = "h1", force: bool = Fa
                 results["skipped"] += 1
                 results["detail"].append(f"{member.full_name}: tak ada nomor HP")
                 continue
+            # Jitter: jeda acak antar pesan (anti-burst). Tidak menjeda sebelum pesan pertama & saat dry-run.
+            if live and sent_any:
+                lo = settings.REMINDER_JITTER_MIN or 0
+                hi = max(lo, settings.REMINDER_JITTER_MAX or 0)
+                if hi > 0:
+                    await asyncio.sleep(random.uniform(lo, hi))
+            if live:
+                sent_any = True
             ok, info = await send_whatsapp(member.phone, compose(member.full_name, session, branch))
             if ok:
                 setattr(booking, col, datetime.now(timezone.utc))

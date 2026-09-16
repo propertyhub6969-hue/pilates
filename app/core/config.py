@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     WA_DEVICE_ID: str = "studio"           # id device gowa (multi-akun) → header X-Device-Id
     REMINDER_HOUR_LOCAL: int = 17          # jam (zona studio) daemon kirim reminder H-1
     REMINDER_HOURS_BEFORE: int = 2         # reminder kedua: X jam sebelum kelas mulai
+    # Jeda ACAK antar pesan reminder (detik) — memecah "burst" agar tak dianggap spam.
+    REMINDER_JITTER_MIN: int = 30          # jeda minimum antar pesan (detik)
+    REMINDER_JITTER_MAX: int = 60          # jeda maksimum antar pesan (detik)
     STUDIO_WA_SIGNATURE: str = "Reformer Your Body — Coach Ade"  # nama pengirim di teks pesan
 
     class Config:
