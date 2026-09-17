@@ -50,7 +50,7 @@ services:
     networks: [pilates_net, edge]
 
   whatsapp:
-    image: ghcr.io/aldinokemal/go-whatsapp-web-multidevice@sha256:cdfae0dda4f8a4b36a1a3214e5599a14c6d5b86912aff0574f230af5b5ebe213
+    image: ghcr.io/aldinokemal/go-whatsapp-web-multidevice@sha256:f18a2b5094ef52a14eb32a323fe2eed4f47235ec843afeffc21a31132ee19aba
     container_name: pilates_whatsapp
     restart: always
     command: rest
