@@ -234,9 +234,13 @@ export default function MemberSchedule() {
                               : <span className="inline-flex items-center gap-1 text-xs rounded-full px-3 py-1.5 bg-copper-100 text-copper-700 font-medium"><Check size={13} /> Terdaftar</span>}
                             {s.my_can_cancel && s.my_booking_id
                               ? <div className="flex items-center gap-2">
-                                  <button onClick={() => setRescheduleFrom(s)}
-                                    className="text-[11px] text-copper-700 hover:underline inline-flex items-center gap-0.5"><Repeat size={11} /> Pindah jadwal</button>
-                                  <span className="text-ink/20">·</span>
+                                  {user?.member_category !== 'per_datang' && (
+                                    <>
+                                      <button onClick={() => setRescheduleFrom(s)}
+                                        className="text-[11px] text-copper-700 hover:underline inline-flex items-center gap-0.5"><Repeat size={11} /> Pindah jadwal</button>
+                                      <span className="text-ink/20">·</span>
+                                    </>
+                                  )}
                                   <button onClick={() => { if (confirm('Batalkan booking sesi ini?')) cancelBooking.mutate(s.my_booking_id!) }} disabled={cancelBooking.isPending}
                                     className="text-[11px] text-clay-dark hover:underline">Batalkan</button>
                                 </div>

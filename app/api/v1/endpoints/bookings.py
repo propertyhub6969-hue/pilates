@@ -7,7 +7,7 @@ from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.deps import get_current_user, require_staff
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, MemberCategory
 from app.models.schedule import ClassSession, ClassSessionStatus
 from app.models.booking import Booking, BookingStatus
 from app.schemas.schedule import SessionResponse, MyBookingRow, BookingRow
@@ -107,6 +107,9 @@ async def reschedule_booking(
     if not user.is_staff():
         if booking.member_id != user.id:
             raise HTTPException(403, "Hanya bisa memindah booking sendiri.")
+        # Member per-datang (drop-in) TIDAK bisa pindah jadwal — tiket terkunci ke sesi yang dipilih.
+        if user.member_category == MemberCategory.PER_DATANG:
+            raise HTTPException(403, "Tiket drop-in terkunci ke sesi yang dipilih — tak bisa pindah jadwal. Hubungi admin bila perlu.")
         studio = await booking_svc.get_studio(db)
         window = (studio.cancellation_window_hours if studio else 12) or 12
         start_dt = datetime.combine(old_session.session_date, old_session.start_time, tzinfo=booking_svc.TZ)
